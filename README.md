@@ -13,11 +13,12 @@ Everything runs in the browser. Photos are never uploaded anywhere.
 
 ## Freebie photo templates
 
-`freebie-templates.html` makes the 4 × 6 in freebie sheets with the Click Lounge Studio logo. Pick the client's package and it lists the free print-outs that package includes, as one sheet per print-out. Three sheet types:
+`freebie-templates.html` makes the 4 × 6 in freebie sheets with the Click Lounge Studio logo. Pick the client's package and it lists the free print-outs that package includes, as one sheet per print-out. Four sheet types:
 
 - **Minis**: 4 photos, 2 × 2 frames, logo under each
 - **Besties**: 2 landscape photos, stacked, logo above each
 - **Solo**: 1 large portrait, logo below
+- **Strips**: 2 vertical strips of 3 photos each (6 frames), logo under each strip. Counted in strips, so "2 strips" is one sheet
 
 Packages and their print-outs come from the studio's packages page (captured 2026-10-07) and are listed at the top of the `CATEGORIES` block in the file. Counts are photos: a Minis sheet holds 4, a Besties sheet 2, a Solo sheet 1. To change a package, edit its line there.
 

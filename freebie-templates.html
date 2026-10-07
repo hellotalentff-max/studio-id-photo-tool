@@ -237,7 +237,7 @@
     <details class="ref">
       <summary>All packages and their free print-outs</summary>
       <div class="tbl-wrap"><table id="refTable"></table></div>
-      <p class="note">Counts are photos, as listed on the studio's packages page (captured 2026-10-07). A Minis sheet holds 4 photos, a Besties sheet 2 and a Solo sheet 1. Styleshots, Couple Styleshots, Pop Reveal and Radiant Mama list no print-outs. Frames, 4R/5R/8R prints and Studio Booth prints are not made here. Special layouts are not tied to a package: add them with the Special layouts buttons.</p>
+      <p class="note">Counts are as listed on the studio's packages page (captured 2026-10-07). A Minis sheet holds 4 photos, a Besties sheet 2 and a Solo sheet 1. Strips are counted in strips: one sheet holds 2 strips of 3 photos. Styleshots, Couple Styleshots, Pop Reveal and Radiant Mama list no print-outs. Frames, 4R/5R/8R prints and Studio Booth prints are not made here. Special layouts are not tied to a package: add them with the Special layouts buttons.</p>
     </details>
   </section>
 </div>
@@ -270,6 +270,17 @@
       slots: [{ x: 90, y: 66, w: 1020, h: 1536 }],
       logo: { where: 'below', gap: 18, scale: LOGO_SCALE },
       crosses: [], dashes: []
+    },
+    // Two vertical strips of three frames, logo under each strip. Frame sizes are an estimate, not measured from a sample.
+    // unit: a "strip" is 3 frames, so package counts for this sheet are in strips (2 per sheet).
+    strips: {
+      name: 'Strips', detail: '2 strips of 3 photos', radius: 0, unit: { name: 'strip', frames: 3 },
+      slots: [
+        { x: 60, y: 60, w: 480, h: 480, logo: false }, { x: 60, y: 574, w: 480, h: 480, logo: false }, { x: 60, y: 1088, w: 480, h: 480 },
+        { x: 660, y: 60, w: 480, h: 480, logo: false }, { x: 660, y: 574, w: 480, h: 480, logo: false }, { x: 660, y: 1088, w: 480, h: 480 }
+      ],
+      logo: { where: 'below', gap: 44, scale: 0.98 },
+      lines: [{ x1: 600, y1: 0, x2: 600, y2: 1800, kind: 'dot' }]
     },
 
     // Special layouts, measured from the studio's samples. A slot can override the corner radius (r), set a default
@@ -330,7 +341,7 @@
     { name: 'Family Portraits', packages: [
       { name: 'Fam Bam', prints: [['solo', 1], ['minis', 4], ['besties', 2]] },
       { name: 'Fam Story', prints: [['solo', 2], ['minis', 8], ['besties', 4]] },
-      { name: 'Fam Vibes', prints: [['minis', 4], ['besties', 2]], other: '2 strips (no template yet)' }
+      { name: 'Fam Vibes', prints: [['minis', 4], ['besties', 2], ['strips', 2]] }
     ] },
     { name: 'Graduation', packages: [
       { name: 'Cap & Gown', prints: [['minis', 4]] },
@@ -628,8 +639,9 @@
   function sheetsForPackage(p) {
     const out = [];
     p.prints.forEach(([type, count, label]) => {
-      const frames = TEMPLATES[type].slots.length, n = Math.ceil(count / frames);
-      for (let j = 0; j < n; j++) out.push(newSheet(type, j < n - 1 ? frames : count - (n - 1) * frames, label));
+      const t = TEMPLATES[type], per = t.unit ? t.slots.length / t.unit.frames : t.slots.length, mult = t.unit ? t.unit.frames : 1;
+      const n = Math.ceil(count / per);
+      for (let j = 0; j < n; j++) out.push(newSheet(type, (j < n - 1 ? per : count - (n - 1) * per) * mult, label));
     });
     return out;
   }
@@ -684,10 +696,10 @@
 
   function buildRefTable() {
     const sum = (p, type) => { const v = p.prints.filter(x => x[0] === type); return v.length ? v.map(x => x[1]).join(' + ') : ''; };
-    let h = '<thead><tr><th>Package</th><th>Solo</th><th>Besties</th><th>Minis</th><th>Not made here</th></tr></thead><tbody>';
+    let h = '<thead><tr><th>Package</th><th>Solo</th><th>Besties</th><th>Minis</th><th>Strips</th><th>Not made here</th></tr></thead><tbody>';
     CATEGORIES.forEach(c => {
-      h += `<tr class="cat"><td colspan="5">${c.name}</td></tr>`;
-      c.packages.forEach(p => { h += `<tr><td>${p.name}</td><td class="num">${sum(p, 'solo')}</td><td class="num">${sum(p, 'besties')}</td><td class="num">${sum(p, 'minis')}</td><td class="muted">${p.other || ''}</td></tr>`; });
+      h += `<tr class="cat"><td colspan="6">${c.name}</td></tr>`;
+      c.packages.forEach(p => { h += `<tr><td>${p.name}</td><td class="num">${sum(p, 'solo')}</td><td class="num">${sum(p, 'besties')}</td><td class="num">${sum(p, 'minis')}</td><td class="num">${sum(p, 'strips')}</td><td class="muted">${p.other || ''}</td></tr>`; });
     });
     $('refTable').innerHTML = h + '</tbody>';
   }
