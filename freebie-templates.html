@@ -135,6 +135,28 @@
   .status { min-height: 1.4em; font-size: 0.8rem; margin: 10px 0 0; }
   .note { font-size: 0.78rem; color: var(--muted); margin: 10px 0 0; max-width: 60ch; }
 
+  /* send-to-phone dialog */
+  dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--fg); padding: 20px; width: min(380px, calc(100% - 32px)); }
+  dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
+  dialog h2 { font-size: 1.05rem; font-weight: 600; margin: 0 0 4px; }
+  .qr { background: #fff; padding: 0; border-radius: 8px; width: 250px; max-width: 100%; aspect-ratio: 1; margin: 14px auto; display: flex; }
+  .qr svg { width: 100%; height: 100%; display: block; }
+  .qr-status { text-align: center; font-weight: 500; min-height: 1.4em; margin: 0 0 10px; }
+  .qr-status.ok { color: var(--ok); }
+  .qr-status.error { color: var(--danger); }
+  code#qrUrl { display: block; font-family: var(--font-mono); font-size: 0.72rem; word-break: break-all; color: var(--muted); user-select: all; margin-bottom: 10px; }
+
+  /* printing: only the sheets, one per 4 x 6 in page */
+  #printArea { display: none; }
+  @media print {
+    @page { size: 4in 6in; margin: 0; }
+    body { background: #fff; padding: 0; }
+    body > .app, dialog { display: none !important; }
+    #printArea { display: block; }
+    #printArea img { display: block; width: 4in; height: 6in; break-after: page; }
+    #printArea img:last-child { break-after: auto; }
+  }
+
   /* reference table */
   details.ref summary { cursor: pointer; font-weight: 500; }
   .tbl-wrap { overflow-x: auto; margin-top: 12px; }
@@ -185,6 +207,11 @@
       <div class="actions" style="margin-top:12px">
         <button class="btn primary" id="download">Download this sheet (PNG)</button>
         <button class="btn" id="downloadAll">Download all sheets</button>
+        <div class="row" style="margin:0">
+          <button class="btn" id="printSheet">Print this sheet</button>
+          <button class="btn" id="printAll">Print all sheets</button>
+        </div>
+        <button class="btn" id="sendPhone">Send to phone (QR code)</button>
         <button class="btn" id="fillAll"></button>
         <div class="row" style="margin:0">
           <button class="btn danger" id="clearSheet">Clear this sheet</button>
@@ -233,6 +260,16 @@
     </section>
   </div>
 
+  <dialog id="qrDialog" aria-labelledby="qrTitle">
+    <h2 id="qrTitle">Send to the client's phone</h2>
+    <p class="note" style="margin:0">Ask the client to scan this code with their phone camera.</p>
+    <div class="qr" id="qrBox" aria-label="QR code"></div>
+    <p class="qr-status" id="qrStatus" role="status" aria-live="polite">Preparing…</p>
+    <code id="qrUrl"></code>
+    <div class="row" style="margin:0"><button class="btn" id="qrCopy">Copy link</button><button class="btn primary" id="qrClose">Close</button></div>
+    <p class="note">The sheet goes straight from this device to their phone, so keep this window open until it says Sent. The code works once and expires after 10 minutes.</p>
+  </dialog>
+
   <section class="panel" aria-label="All packages">
     <details class="ref">
       <summary>All packages and their free print-outs</summary>
@@ -242,6 +279,10 @@
   </section>
 </div>
 
+<div id="printArea" aria-hidden="true"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js" integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" integrity="sha384-mZT2gIty7ZDdOGkxfP6joZcYdMW1Jvj9dRlfpTmaJAKKXTqzygtB22k7FLe+KZC1" crossorigin="anonymous"></script>
 <script>
 (function () {
   const SW = 1200, SH = 1800, DPI = 300, MAX_SLOTS = 7, PV = 0.5; // sheet px at 300 dpi; preview scale
@@ -557,7 +598,7 @@
       }
       $('fillAll').textContent = `Fill all ${S().used} ${S().used === 1 ? 'frame' : 'frames'} with this photo`;
     }
-    ['download', 'downloadAll', 'fillAll', 'clearSheet', 'removeSheet'].forEach(id => { $(id).disabled = !sheets.length; });
+    ['download', 'downloadAll', 'printSheet', 'printAll', 'sendPhone', 'fillAll', 'clearSheet', 'removeSheet'].forEach(id => { $(id).disabled = !sheets.length; });
     // sheet chips
     const sc = $('sheetChips'); sc.innerHTML = '';
     sheets.forEach((s, i) => {
@@ -808,9 +849,14 @@
     return [pkg ? slug(pkg.name) : 'freebie', s.label ? slug(s.label) : '', s.type, same.length > 1 ? n : ''].filter(String).join('-') + '.png';
   }
 
-  async function downloadSheet(i) {
+  function sheetCanvas(i) {
     const c = document.createElement('canvas'); c.width = SW; c.height = SH;
     drawSheet(c.getContext('2d'), sheets[i], { preview: false });
+    return c;
+  }
+
+  async function downloadSheet(i) {
+    const c = sheetCanvas(i);
     const blob = await new Promise(res => c.toBlob(res, 'image/png'));
     const url = URL.createObjectURL(await tagDpi(blob)), a = document.createElement('a');
     a.href = url; a.download = fileName(i); a.click();
@@ -836,6 +882,100 @@
     const skipped = sheets.length - todo.length;
     say(`Downloaded ${todo.length} ${todo.length === 1 ? 'sheet' : 'sheets'}.` + (skipped ? ` ${skipped} empty ${skipped === 1 ? 'sheet was' : 'sheets were'} skipped.` : '') + ' If your browser asks to allow multiple downloads, choose Allow.');
   });
+
+  /* ---------- print ---------- */
+  async function printSheets(list) {
+    if (!list.length) { say('Add photos to a sheet first.'); return; }
+    const area = $('printArea'), urls = [];
+    area.innerHTML = '';
+    say('Preparing to print…');
+    for (const i of list) {
+      const blob = await new Promise(res => sheetCanvas(i).toBlob(res, 'image/png'));
+      const img = new Image(), loaded = new Promise(res => { img.onload = res; img.onerror = res; setTimeout(res, 8000); });
+      img.src = URL.createObjectURL(blob); urls.push(img.src);
+      await loaded; area.appendChild(img);
+    }
+    window.addEventListener('afterprint', () => { urls.forEach(u => URL.revokeObjectURL(u)); area.innerHTML = ''; }, { once: true });
+    window.print();
+    say('In the print dialog, choose 4 × 6 in paper and 100% scale.');
+  }
+  $('printSheet').addEventListener('click', () => printSheets(filled(S()) ? [cur] : []));
+  $('printAll').addEventListener('click', () => printSheets(sheets.map((s, i) => i).filter(i => filled(sheets[i]))));
+
+  /* ---------- send to phone (QR) ---------- */
+  // The sheet travels straight from this device to the phone over a WebRTC data channel (PeerJS). The public PeerJS
+  // service only introduces the two devices; the file is not uploaded or stored. Each code works once.
+  const dlg = $('qrDialog');
+  let peer = null, expireTimer = null, sending = false, shareUrl = '';
+  const qrSay = (m, cls) => { const e = $('qrStatus'); e.textContent = m; e.className = 'qr-status' + (cls ? ' ' + cls : ''); };
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const randomId = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => (b % 36).toString(36)).join('');
+
+  function stopPeer() {
+    clearTimeout(expireTimer);
+    if (peer) { try { peer.destroy(); } catch (e) {} peer = null; }
+    sending = false;
+  }
+  dlg.addEventListener('close', stopPeer);
+  $('qrClose').addEventListener('click', () => dlg.close());
+  $('qrCopy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(shareUrl); qrSay('Link copied.'); }
+    catch (e) { qrSay('Could not copy. Select the link and copy it.', 'error'); }
+  });
+
+  // Tag the JPEG with 300 dpi in its JFIF header.
+  async function tagJpegDpi(blob) {
+    const b = new Uint8Array(await blob.arrayBuffer());
+    if (b[2] === 0xFF && b[3] === 0xE0 && b[6] === 0x4A && b[7] === 0x46) { b[13] = 1; b[14] = DPI >> 8; b[15] = DPI & 255; b[16] = DPI >> 8; b[17] = DPI & 255; }
+    return new Blob([b], { type: 'image/jpeg' });
+  }
+
+  async function transfer(conn, blob, name) {
+    qrSay('Phone connected. Sending…');
+    const buf = await blob.arrayBuffer(), CH = 16384, dc = conn.dataChannel;
+    conn.send(JSON.stringify({ name, size: buf.byteLength, type: blob.type }));
+    for (let off = 0; off < buf.byteLength; off += CH) {
+      while (dc.bufferedAmount > (1 << 20)) await sleep(15);
+      conn.send(buf.slice(off, off + CH));
+      qrSay(`Sending… ${Math.round(Math.min(off + CH, buf.byteLength) / buf.byteLength * 100)}%`);
+    }
+    qrSay('Sent. Waiting for the phone to confirm…');
+  }
+
+  async function sendToPhone() {
+    if (!window.Peer || !window.qrcode) { say('Sending to a phone needs an internet connection. Check this device is online and reload the page.'); return; }
+    if (!filled(S())) { say('Add at least one photo to this sheet first.'); return; }
+    const idx = cur, name = fileName(idx).replace(/\.png$/, '.jpg');
+    say('Preparing the sheet…');
+    const blob = await tagJpegDpi(await new Promise(res => sheetCanvas(idx).toBlob(res, 'image/jpeg', 0.92)));
+    say('');
+    stopPeer();
+    $('qrBox').innerHTML = ''; $('qrUrl').textContent = ''; qrSay('Preparing…');
+    dlg.showModal();
+
+    const id = 'cls-' + randomId(14), p = new Peer(id);
+    peer = p;
+    p.on('open', () => {
+      shareUrl = new URL('receive.html', location.href).href + '#' + id;
+      const qr = qrcode(0, 'M'); qr.addData(shareUrl); qr.make();
+      $('qrBox').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 24, scalable: true });
+      $('qrUrl').textContent = shareUrl;
+      qrSay('Waiting for the phone to scan…');
+      expireTimer = setTimeout(() => { qrSay('This code expired. Close this window and send again.', 'error'); stopPeer(); }, 10 * 60 * 1000);
+    });
+    p.on('connection', (conn) => {
+      if (sending) { conn.close(); return; }          // one phone per code
+      sending = true;
+      conn.on('open', () => transfer(conn, blob, name).catch(() => qrSay('Sending failed. Close this window and try again.', 'error')));
+      conn.on('data', (d) => { if (d === 'done') { qrSay('Sent ✓ The client has the sheet.', 'ok'); setTimeout(() => { if (peer === p) stopPeer(); }, 1500); } });
+    });
+    p.on('error', (e) => {
+      if (peer !== p) return;
+      qrSay(e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error' || e.type === 'socket-closed'
+        ? 'Could not reach the connection service. Check the internet connection and try again.' : 'Something went wrong. Close this window and try again.', 'error');
+    });
+  }
+  $('sendPhone').addEventListener('click', sendToPhone);
 
   /* ---------- start ---------- */
   buildAddButtons();
