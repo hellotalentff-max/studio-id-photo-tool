@@ -152,7 +152,7 @@
       <div class="eyebrow" style="margin-bottom:8px">Sheet preview</div>
       <div class="sheet-grid" id="sheetGrid"></div>
 
-      <label class="check" id="marksRow"><input type="checkbox" id="marksToggle" checked> Add cut marks in the sheet margins</label>
+      <label class="check" id="marksRow"><input type="checkbox" id="marksToggle" checked> <span id="marksLabel">Add cut marks in the sheet margins</span></label>
 
       <div class="actions">
         <button class="btn primary" id="downloadPng">Download sheet (PNG)</button>
@@ -198,7 +198,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" integrity="sha384-mZT2gIty7ZDdOGkxfP6joZcYdMW1Jvj9dRlfpTmaJAKKXTqzygtB22k7FLe+KZC1" crossorigin="anonymous"></script>
 <script>
 (function () {
-  const MM = 25.4, DPI = 300, MAX_CELLS = 8, STAGE_MAX = 340, THUMB_PER_IN = 100;
+  const MM = 25.4, DPI = 300, MAX_CELLS = 18, STAGE_MAX = 340, THUMB_PER_IN = 100;
 
   // Sizes are in inches. Photos tile edge to edge; the sheet margin is whatever is left over, split evenly.
   const LAYOUTS = {
@@ -216,8 +216,33 @@
       sheetW: 4, sheetH: 6, cellW: 2, cellH: 2, cols: 2, rows: 3,
       previewPxPerIn: 52, marks: false,
       guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
+    },
+    // Mixed sheets list their slots (inches) and fill the whole 4 x 6 in sheet. Big 2 x 2 in photos come first, then 1 x 1 in.
+    mixA: {
+      label: '2 × 2 in and 1 × 1 in mix on a 4 × 6 in sheet (4 + 8 photos)',
+      photo: '2 × 2 in and 1 × 1 in', sheet: '4 × 6 in', slug: '2x2-1x1-mix-4-8-4x6in',
+      spec: '4 × 2 × 2 in (600 × 600 px) and 8 × 1 × 1 in (300 × 300 px) on a 4 × 6 in sheet',
+      sheetW: 4, sheetH: 6, cellW: 2, cellH: 2, previewPxPerIn: 60, marks: false, cutLines: true,
+      slots: [[0, 0, 2], [2, 0, 2], [0, 2, 2], [2, 2, 2]].concat([4, 5].flatMap(y => [0, 1, 2, 3].map(x => [x, y, 1]))).map(([x, y, w]) => ({ x, y, w, h: w })),
+      guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
+    },
+    mixB: {
+      label: '2 × 2 in and 1 × 1 in mix on a 4 × 6 in sheet (2 + 16 photos)',
+      photo: '2 × 2 in and 1 × 1 in', sheet: '4 × 6 in', slug: '2x2-1x1-mix-2-16-4x6in',
+      spec: '2 × 2 × 2 in (600 × 600 px) and 16 × 1 × 1 in (300 × 300 px) on a 4 × 6 in sheet',
+      sheetW: 4, sheetH: 6, cellW: 2, cellH: 2, previewPxPerIn: 60, marks: false, cutLines: true,
+      slots: [[0, 0, 2], [2, 0, 2]].concat([2, 3, 4, 5].flatMap(y => [0, 1, 2, 3].map(x => [x, y, 1]))).map(([x, y, w]) => ({ x, y, w, h: w })),
+      guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
     }
   };
+  // Grid layouts get their slot list here, with the leftover sheet margin split evenly.
+  Object.values(LAYOUTS).forEach(l => {
+    if (l.slots) return;
+    const mx = (l.sheetW - l.cols * l.cellW) / 2, my = (l.sheetH - l.rows * l.cellH) / 2;
+    l.gridMargin = { mx, my };
+    l.slots = [];
+    for (let r = 0; r < l.rows; r++) for (let c = 0; c < l.cols; c++) l.slots.push({ x: mx + c * l.cellW, y: my + r * l.cellH, w: l.cellW, h: l.cellH });
+  });
 
   function defaultState() {
     return { scale: 1, offsetXn: 0, offsetYn: 0, rotation: 0, flip: false, brightness: 100, contrast: 100, saturation: 100, bg: '#ffffff' };
@@ -234,9 +259,7 @@
   const zoomEl = $('zoom'), rotateEl = $('rotate'), brightnessEl = $('brightness'), contrastEl = $('contrast'), saturationEl = $('saturation');
   const guideMode = $('guideMode'), marksToggle = $('marksToggle'), layoutSelect = $('layoutSelect'), statusEl = $('status');
 
-  const count = () => L.cols * L.rows;
-  const marginX = () => (L.sheetW - L.cols * L.cellW) / 2;
-  const marginY = () => (L.sheetH - L.rows * L.cellH) / 2;
+  const count = () => L.slots.length;
 
   function say(msg) { statusEl.textContent = msg; }
 
@@ -367,34 +390,36 @@
 
   function updateText() {
     const cw = Math.round(L.cellW * DPI), ch = Math.round(L.cellH * DPI), sp = sheetPixels();
-    $('spec').textContent = `${L.photo} · ${cw} × ${ch} px at ${DPI} dpi · ${count()} per ${L.sheet} sheet · file ${sp.w} × ${sp.h} px`;
+    $('spec').textContent = L.spec
+      ? `${L.spec} · file ${sp.w} × ${sp.h} px at ${DPI} dpi`
+      : `${L.photo} · ${cw} × ${ch} px at ${DPI} dpi · ${count()} per ${L.sheet} sheet · file ${sp.w} × ${sp.h} px`;
     $('fillAll').textContent = `Fill all ${count()} slots with this photo`;
     const landscape = L.sheetW > L.sheetH;
     $('printNote').textContent =
       `To print: use Print sheet, or open the downloaded PNG, and choose ${L.sheet} paper at 100% (Actual size), without "Fit to page". ` +
       `The file is tagged ${DPI} dpi, so most apps size it correctly on their own.` +
       (landscape ? ' This sheet is landscape: pick landscape in the print dialog, or let the printer rotate it onto 4 × 6 in paper.' : '');
-    $('marksRow').hidden = !L.marks;
+    $('marksRow').hidden = !(L.marks || L.cutLines);
+    $('marksLabel').textContent = L.cutLines ? 'Add thin cut lines between the photos' : 'Add cut marks in the sheet margins';
   }
 
   function buildGrid() {
     grid.innerHTML = '';
     grid.style.width = `min(100%, ${Math.round(L.sheetW * L.previewPxPerIn)}px)`;
     grid.style.aspectRatio = `${L.sheetW} / ${L.sheetH}`;
-    const mx = marginX(), my = marginY();
     for (let i = 0; i < count(); i++) {
-      const col = i % L.cols, row = Math.floor(i / L.cols);
+      const sl = L.slots[i];
       const cell = document.createElement('div');
       cell.className = 'cell';
       cell.tabIndex = 0;
       cell.setAttribute('role', 'button');
       cell.setAttribute('aria-label', 'Slot ' + (i + 1));
-      cell.style.left = ((mx + col * L.cellW) / L.sheetW * 100) + '%';
-      cell.style.top = ((my + row * L.cellH) / L.sheetH * 100) + '%';
-      cell.style.width = (L.cellW / L.sheetW * 100) + '%';
-      cell.style.height = (L.cellH / L.sheetH * 100) + '%';
+      cell.style.left = (sl.x / L.sheetW * 100) + '%';
+      cell.style.top = (sl.y / L.sheetH * 100) + '%';
+      cell.style.width = (sl.w / L.sheetW * 100) + '%';
+      cell.style.height = (sl.h / L.sheetH * 100) + '%';
       cell.innerHTML =
-        `<canvas id="cellCanvas${i}" width="${Math.round(L.cellW * THUMB_PER_IN)}" height="${Math.round(L.cellH * THUMB_PER_IN)}"></canvas>` +
+        `<canvas id="cellCanvas${i}" width="${Math.round(sl.w * THUMB_PER_IN)}" height="${Math.round(sl.h * THUMB_PER_IN)}"></canvas>` +
         `<button class="clear-btn" title="Clear slot" aria-label="Clear slot ${i + 1}">✕</button><span class="idx">${i + 1}</span>`;
       cell.addEventListener('click', (e) => { if (!e.target.closest('.clear-btn')) selectCell(i); });
       cell.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectCell(i); } });
@@ -565,20 +590,26 @@
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, sp.w, sp.h);
-    const mx = marginX(), my = marginY();
-    const edgeX = (k) => Math.round((mx + k * L.cellW) * DPI);
-    const edgeY = (k) => Math.round((my + k * L.cellH) * DPI);
     for (let i = 0; i < count(); i++) {
       const c = cells[i];
       if (!c) continue;
-      const col = i % L.cols, row = Math.floor(i / L.cols);
-      const x0 = edgeX(col), x1 = edgeX(col + 1), y0 = edgeY(row), y1 = edgeY(row + 1);
+      const sl = L.slots[i];
+      const x0 = Math.round(sl.x * DPI), x1 = Math.round((sl.x + sl.w) * DPI), y0 = Math.round(sl.y * DPI), y1 = Math.round((sl.y + sl.h) * DPI);
       const cc = document.createElement('canvas');
       cc.width = x1 - x0; cc.height = y1 - y0;
       render(cc.getContext('2d'), cc.width, cc.height, c.img, c.state);
       ctx.drawImage(cc, x0, y0);
     }
+    if (L.cutLines && marksToggle.checked) {
+      // Thin grey lines on the edge of every photo, so a sheet with no margin can be cut along them.
+      ctx.save();
+      ctx.strokeStyle = 'rgba(110, 110, 110, 0.6)'; ctx.lineWidth = 2;
+      L.slots.forEach(sl => ctx.strokeRect(Math.round(sl.x * DPI) + 1, Math.round(sl.y * DPI) + 1, Math.round(sl.w * DPI) - 2, Math.round(sl.h * DPI) - 2));
+      ctx.restore();
+    }
     if (L.marks && marksToggle.checked) {
+      const edgeX = (k) => Math.round((L.gridMargin.mx + k * L.cellW) * DPI);
+      const edgeY = (k) => Math.round((L.gridMargin.my + k * L.cellH) * DPI);
       const gap = Math.round(0.03 * DPI), len = Math.round(0.12 * DPI);
       const left = edgeX(0), right = edgeX(L.cols), top = edgeY(0), bottom = edgeY(L.rows);
       ctx.fillStyle = '#000000';
