@@ -11,6 +11,8 @@ A single-page web app for making ID photo sheets. Drag a client photo into a slo
 
 Everything runs in the browser. Photos are never uploaded anywhere.
 
+The look follows the studio website: `studio.css` holds the shared palette, fonts (Playfair Display, DM Sans, Space Mono), nav, buttons, cards and footer, and `logo.webp` is a still of the website's logo. Change them once and all three pages update.
+
 ## Freebie photo templates
 
 `freebie-templates.html` makes the 4 × 6 in freebie sheets with the Click Lounge Studio logo. Pick the client's package and it lists the free print-outs that package includes, as one sheet per print-out. Four sheet types:
