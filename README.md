@@ -6,9 +6,10 @@ A single-page web app for making ID photo sheets. Drag a client photo into a slo
 - **2 × 2 in** photos, 6 per **4 × 6 in** (4R) sheet
 - **2 × 2 in and 1 × 1 in mix** on a full **4 × 6 in** sheet: 4 big + 8 small. Thin cut lines between the photos can be switched off
 - Zoom, pan, rotate, flip, brightness, contrast, saturation and background fill
+- **Remove background** with an edge cleanup slider. The cutout then shows the chosen background fill (white, blue, red, grey or custom). It runs in the browser with a portrait-matting model (MODNet, Apache-2.0, via Transformers.js), so photos are not uploaded. The first use downloads about 26 MB from huggingface.co and jsDelivr, and the browser keeps it afterwards
 - On-screen guides (never printed): passport head-size bands for 35 × 45 mm (head 32–36 mm, crown 4–6 mm from top), or an oval and eye line
 - Optional cut marks in the sheet margins
-- Sessions can be saved to a file and loaded on another device
+- Sessions can be saved to a file and loaded on another device, including cutouts. Photos used in several slots are stored once
 
 Everything runs in the browser. Photos are never uploaded anywhere.
 

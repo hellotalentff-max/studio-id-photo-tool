@@ -129,6 +129,16 @@
         <input type="range" id="saturation" min="0" max="200" value="100">
       </div>
 
+      <div class="field" id="bgRemoveField">
+        <label><span>Background</span><span class="val" id="bgState"></span></label>
+        <button class="btn wide" id="removeBgBtn">Remove background</button>
+        <p class="note" id="bgNote" role="status" aria-live="polite" style="margin-top:0.4rem">Cuts the person out so the background fill below shows instead. Works best with one person. The first use downloads a small model (about 26 MB). Use "Fill all slots" afterwards to copy it to every slot.</p>
+      </div>
+      <div class="field" id="edgeField" hidden>
+        <label for="edge"><span>Edge cleanup</span><span class="val" id="edgeVal">20%</span></label>
+        <input type="range" id="edge" min="0" max="100" value="20">
+      </div>
+
       <div class="field">
         <label><span>Background fill</span></label>
         <div class="swatches" id="swatches">
@@ -237,7 +247,7 @@
   });
 
   function defaultState() {
-    return { scale: 1, offsetXn: 0, offsetYn: 0, rotation: 0, flip: false, brightness: 100, contrast: 100, saturation: 100, bg: '#ffffff' };
+    return { scale: 1, offsetXn: 0, offsetYn: 0, rotation: 0, flip: false, brightness: 100, contrast: 100, saturation: 100, bg: '#ffffff', removeBg: false, edge: 20 };
   }
 
   const $ = (id) => document.getElementById(id);
@@ -265,7 +275,7 @@
     if (!img) return;
 
     const rad = state.rotation * Math.PI / 180;
-    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
     const cs = Math.abs(Math.cos(rad)), sn = Math.abs(Math.sin(rad));
     // Smallest scale at which the rotated image still covers the whole frame (no empty corners), then user zoom.
     const finalScale = Math.max((w * cs + h * sn) / iw, (w * sn + h * cs) / ih) * state.scale;
@@ -287,7 +297,7 @@
     canvas.parentElement.classList.toggle('filled', !!c);
     const ctx = canvas.getContext('2d');
     if (!c) { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); return; }
-    render(ctx, canvas.width, canvas.height, c.img, c.state);
+    render(ctx, canvas.width, canvas.height, srcOf(c), c.state);
   }
 
   function drawPlaceholder() {
@@ -355,7 +365,7 @@
     const c = cells[selected];
     stageWrap.classList.toggle('empty', !c);
     if (!c) { drawPlaceholder(); drawGuides(); return; }
-    render(editCtx, stageW, stageH, c.img, c.state);
+    render(editCtx, stageW, stageH, srcOf(c), c.state);
     const s = c.state;
     zoomEl.value = Math.round(s.scale * 100);
     rotateEl.value = s.rotation;
@@ -368,6 +378,11 @@
     $('conVal').textContent = s.contrast + '%';
     $('satVal').textContent = s.saturation + '%';
     document.querySelectorAll('.swatch').forEach(el => el.classList.toggle('active', el.dataset.color === s.bg));
+    const cutOn = !!(c.cut && s.removeBg);
+    $('removeBgBtn').textContent = cutOn ? 'Show original background' : 'Remove background';
+    $('bgState').textContent = cutOn ? 'removed' : '';
+    $('edgeField').hidden = !cutOn;
+    $('edge').value = s.edge; $('edgeVal').textContent = s.edge + '%';
     drawGuides();
   }
 
@@ -376,6 +391,84 @@
     document.querySelectorAll('.cell').forEach((el, idx) => el.classList.toggle('selected', idx === i));
     renderEditor();
   }
+
+  /* ---------- remove background ---------- */
+  // A portrait-matting model (MODNet, Apache-2.0) runs in the browser through Transformers.js, so photos are not uploaded.
+  // The first use downloads the model (about 26 MB); the browser keeps it afterwards.
+  const BG_MAX = 2000;       // longest side of the working copy, in px
+  let bgModelP = null;
+  const bgSay = (m) => { $('bgNote').textContent = m; };
+
+  // The picture to draw for a slot: the cutout (edge cleaned) when it is switched on, else the original photo.
+  function srcOf(c) {
+    if (!c.cut || !c.state.removeBg) return c.img;
+    const cut = c.cut, e = c.state.edge;
+    if (cut.cache && cut.cache.edge === e) return cut.cache.canvas;
+    const cv = cut.cache ? cut.cache.canvas : document.createElement('canvas');
+    cv.width = cut.w; cv.height = cut.h;
+    const x = cv.getContext('2d', { willReadFrequently: true });
+    x.drawImage(cut.base, 0, 0);
+    const id = x.getImageData(0, 0, cut.w, cut.h), d = id.data, m = cut.mask;
+    const t = e / 100 * 0.4, lut = new Uint8ClampedArray(256);   // edge cleanup tightens the soft edge of the matte
+    for (let i = 0; i < 256; i++) lut[i] = Math.round((i / 255 - t) / (1 - t) * 255);
+    for (let i = 0; i < m.length; i++) d[i * 4 + 3] = lut[m[i]];
+    x.putImageData(id, 0, 0);
+    cut.cache = { edge: e, canvas: cv };
+    return cv;
+  }
+
+  function loadBgModel() {
+    if (!bgModelP) bgModelP = (async () => {
+      const lib = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/+esm');
+      const model = await lib.AutoModel.from_pretrained('Xenova/modnet', {
+        dtype: 'fp32',
+        progress_callback: (p) => { if (p.status === 'progress' && p.file && p.file.endsWith('.onnx')) bgSay(`Downloading the background remover… ${Math.round(p.progress)}% (first time only)`); }
+      });
+      const processor = await lib.AutoProcessor.from_pretrained('Xenova/modnet');
+      return { RawImage: lib.RawImage, model, processor };
+    })().catch((e) => { bgModelP = null; throw e; });
+    return bgModelP;
+  }
+
+  async function cutOut(img) {
+    const { RawImage, model, processor } = await loadBgModel();
+    bgSay('Removing the background…');
+    await new Promise(r => setTimeout(r, 40));      // let the message paint before the model blocks the page
+    const k = Math.min(1, BG_MAX / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
+    const base = document.createElement('canvas'); base.width = w; base.height = h;
+    base.getContext('2d').drawImage(img, 0, 0, w, h);
+    const { pixel_values } = await processor(RawImage.fromCanvas(base));
+    const { output } = await model({ input: pixel_values });
+    const mask = await RawImage.fromTensor(output[0].mul(255).to('uint8')).resize(w, h);
+    return { w, h, base, mask: Uint8Array.from(mask.data), cache: null };
+  }
+
+  $('removeBgBtn').addEventListener('click', async () => {
+    const c = cells[selected];
+    if (!c) { bgSay('Add a photo to this slot first.'); return; }
+    if (c.cut) {                                   // already cut out: switch between the cutout and the original
+      c.state.removeBg = !c.state.removeBg;
+      bgSay(c.state.removeBg ? 'Background removed. Pick a background fill below.' : 'Showing the original background.');
+      renderEditor(); renderCellThumb(selected);
+      return;
+    }
+    const btn = $('removeBgBtn');
+    btn.disabled = true;
+    bgSay('Preparing the background remover…');
+    try {
+      c.cut = await cutOut(c.img);
+      c.state.removeBg = true;
+      bgSay('Background removed. Pick a background fill below, and use Edge cleanup if the outline looks rough.');
+    } catch (err) {
+      bgSay('Could not remove the background. The first use needs an internet connection to download the model. Check this device is online and try again.');
+    }
+    btn.disabled = false;
+    const i = cells.indexOf(c);
+    if (i >= 0) renderCellThumb(i);
+    if (cells[selected] === c) renderEditor();
+  });
+  $('edge').addEventListener('input', () => withCell(s => s.edge = parseInt($('edge').value, 10)));
 
   /* ---------- layout ---------- */
   function sheetPixels() { return { w: Math.round(L.sheetW * DPI), h: Math.round(L.sheetH * DPI) }; }
@@ -550,7 +643,7 @@
   $('rotL').addEventListener('click', () => withCell(s => s.rotation = wrap180(s.rotation - 90)));
   $('rotR').addEventListener('click', () => withCell(s => s.rotation = wrap180(s.rotation + 90)));
   $('flip').addEventListener('click', () => withCell(s => s.flip = !s.flip));
-  $('resetBtn').addEventListener('click', () => withCell(s => Object.assign(s, defaultState(), { bg: s.bg })));
+  $('resetBtn').addEventListener('click', () => withCell(s => Object.assign(s, defaultState(), { bg: s.bg, removeBg: s.removeBg, edge: s.edge })));
   guideMode.addEventListener('change', drawGuides);
   $('swatches').addEventListener('click', (e) => {
     const sw = e.target.closest('.swatch');
@@ -563,7 +656,7 @@
     const src = cells[selected];
     if (!src) { say('Add a photo to the selected slot first.'); return; }
     for (let i = 0; i < count(); i++) {
-      cells[i] = { img: src.img, state: Object.assign({}, src.state) };
+      cells[i] = { img: src.img, state: Object.assign({}, src.state), cut: src.cut };
       renderCellThumb(i);
     }
     renderEditor();
@@ -589,7 +682,7 @@
       const x0 = Math.round(sl.x * DPI), x1 = Math.round((sl.x + sl.w) * DPI), y0 = Math.round(sl.y * DPI), y1 = Math.round((sl.y + sl.h) * DPI);
       const cc = document.createElement('canvas');
       cc.width = x1 - x0; cc.height = y1 - y0;
-      render(cc.getContext('2d'), cc.width, cc.height, c.img, c.state);
+      render(cc.getContext('2d'), cc.width, cc.height, srcOf(c), c.state);
       ctx.drawImage(cc, x0, y0);
     }
     if (L.cutLines && marksToggle.checked) {
@@ -772,13 +865,34 @@
   });
 
   /* ---------- session save and load ---------- */
+  // Version 3 stores each photo and each cutout mask once, even when many slots share them.
+  function maskToJson(cut) {
+    const cv = document.createElement('canvas'); cv.width = cut.w; cv.height = cut.h;
+    const x = cv.getContext('2d'), id = x.createImageData(cut.w, cut.h);
+    for (let i = 0; i < cut.mask.length; i++) { id.data[i * 4] = id.data[i * 4 + 1] = id.data[i * 4 + 2] = cut.mask[i]; id.data[i * 4 + 3] = 255; }
+    x.putImageData(id, 0, 0);
+    return { w: cut.w, h: cut.h, mask: cv.toDataURL('image/png') };
+  }
+  const loadImg = (src) => new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
+  async function cutFromJson(img, j) {
+    const m = await loadImg(j.mask);
+    if (!m || !img) return null;
+    const cv = document.createElement('canvas'); cv.width = j.w; cv.height = j.h;
+    const x = cv.getContext('2d', { willReadFrequently: true });
+    x.drawImage(m, 0, 0, j.w, j.h);
+    const d = x.getImageData(0, 0, j.w, j.h).data, mask = new Uint8Array(j.w * j.h);
+    for (let i = 0; i < mask.length; i++) mask[i] = d[i * 4];
+    const base = document.createElement('canvas'); base.width = j.w; base.height = j.h;
+    base.getContext('2d').drawImage(img, 0, 0, j.w, j.h);
+    return { w: j.w, h: j.h, base, mask, cache: null };
+  }
+
   $('saveSession').addEventListener('click', () => {
     if (!cells.some(Boolean)) { say('There is nothing to save yet. Add a photo first.'); return; }
-    const data = {
-      version: 2,
-      layout: layoutSelect.value,
-      cells: cells.map(c => c ? { src: c.img.src, state: c.state } : null)
-    };
+    const images = [], cuts = [];
+    const idx = (list, v) => { let k = list.indexOf(v); if (k < 0) { k = list.length; list.push(v); } return k; };
+    const entries = cells.map(c => c ? { img: idx(images, c.img), cut: c.cut ? idx(cuts, c.cut) : null, state: c.state } : null);
+    const data = { version: 3, layout: layoutSelect.value, images: images.map(i => i.src), cuts: cuts.map(maskToJson), cells: entries };
     const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
     saveFile(`id-photo-session-${stamp}.json`, JSON.stringify(data));
   });
@@ -791,28 +905,37 @@
     if (!file) return;
     const reader = new FileReader();
     reader.onerror = () => say('That file could not be read.');
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       let data;
       try {
         data = JSON.parse(e.target.result);
         if (!Array.isArray(data.cells)) throw new Error('bad');
       } catch (err) { say('That is not a session file saved by this tool.'); return; }
-      const loads = data.cells.slice(0, MAX_CELLS).map((entry, i) => {
-        if (!entry || !entry.src) { cells[i] = null; return Promise.resolve(); }
-        return new Promise((resolve) => {
-          const img = new Image();
-          img.onload = () => { cells[i] = { img, state: Object.assign(defaultState(), entry.state) }; resolve(); };
-          img.onerror = () => { cells[i] = null; resolve(); };
-          img.src = entry.src;
+      const n = Math.min(data.cells.length, MAX_CELLS);
+      if (data.version >= 3) {
+        const imgs = await Promise.all((data.images || []).map(loadImg));
+        const cuts = await Promise.all((data.cuts || []).map(async (j, k) => {   // a cutout belongs to the first photo that uses it
+          const user = data.cells.find(en => en && en.cut === k);
+          return user ? cutFromJson(imgs[user.img], j) : null;
+        }));
+        for (let i = 0; i < MAX_CELLS; i++) {
+          const en = i < n ? data.cells[i] : null;
+          cells[i] = en && imgs[en.img] ? { img: imgs[en.img], state: Object.assign(defaultState(), en.state), cut: en.cut != null ? cuts[en.cut] || undefined : undefined } : null;
+          if (cells[i] && !cells[i].cut) cells[i].state.removeBg = false;
+        }
+      } else {
+        const loads = data.cells.slice(0, MAX_CELLS).map((entry, i) => {
+          if (!entry || !entry.src) { cells[i] = null; return Promise.resolve(); }
+          return loadImg(entry.src).then(img => { cells[i] = img ? { img, state: Object.assign(defaultState(), entry.state) } : null; });
         });
-      });
-      Promise.all(loads).then(() => {
+        await Promise.all(loads);
         for (let i = data.cells.length; i < MAX_CELLS; i++) cells[i] = null;
-        applyLayout(LAYOUTS[data.layout] ? data.layout : 'id2x2'); // sessions from the first version had no layout and were 2 x 2 in
-        const first = cells.findIndex(Boolean);
-        selectCell(first === -1 || first >= count() ? 0 : first);
-        say('Session loaded.');
-      });
+      }
+      applyLayout(LAYOUTS[data.layout] ? data.layout : 'id2x2'); // sessions from the first version had no layout and were 2 x 2 in
+      for (let i = 0; i < count(); i++) renderCellThumb(i);
+      const first = cells.findIndex(Boolean);
+      selectCell(first === -1 || first >= count() ? 0 : first);
+      say('Session loaded.');
     };
     reader.readAsText(file);
   });
