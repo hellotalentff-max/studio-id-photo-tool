@@ -11,6 +11,16 @@ A single-page web app for making ID photo sheets. Drag a client photo into a slo
 
 Everything runs in the browser. Photos are never uploaded anywhere.
 
+## Freebie photo templates
+
+`freebie-templates.html` makes the 4 × 6 in freebie sheets with the Click Lounge Studio logo:
+
+- **Four photos**: 2 × 2 frames, logo under each
+- **Two landscape**: stacked frames, logo above each
+- **One portrait**: a single large frame, logo below
+
+Frames have rounded corners and the sheet carries the same cut marks as the studio's sheets. Photos are repositioned, zoomed and rotated inside each frame, and always fill it. The download is a 1200 × 1800 px PNG tagged 300 dpi.
+
 ## Printing
 
 Download the sheet (PNG, 300 dpi), open it, and print at 100% / Actual size on paper matching the sheet size. Turn off "Fit to page".

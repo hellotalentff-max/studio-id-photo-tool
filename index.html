@@ -71,6 +71,7 @@
     padding-inline: 16px;
   }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  a { color: var(--accent); }
 
   .app { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
 
@@ -177,7 +178,7 @@
   <header class="top">
     <div>
       <h1>ID Photo Studio</h1>
-      <p class="sub">Drop a client photo into a slot, frame it, then download a sheet that prints at true size.</p>
+      <p class="sub">Drop a client photo into a slot, frame it, then download a sheet that prints at true size. <a href="freebie-templates.html">Freebie templates →</a></p>
     </div>
     <div class="size-pick">
       <label for="layoutSelect">Photo size and sheet</label>
@@ -322,9 +323,9 @@
 
     const rad = state.rotation * Math.PI / 180;
     const iw = img.naturalWidth, ih = img.naturalHeight;
-    const rw = Math.abs(iw * Math.cos(rad)) + Math.abs(ih * Math.sin(rad));
-    const rh = Math.abs(iw * Math.sin(rad)) + Math.abs(ih * Math.cos(rad));
-    const finalScale = Math.max(w / rw, h / rh) * state.scale; // cover-fit, then user zoom
+    const cs = Math.abs(Math.cos(rad)), sn = Math.abs(Math.sin(rad));
+    // Smallest scale at which the rotated image still covers the whole frame (no empty corners), then user zoom.
+    const finalScale = Math.max((w * cs + h * sn) / iw, (w * sn + h * cs) / ih) * state.scale;
 
     ctx.save();
     ctx.filter = `brightness(${state.brightness}%) contrast(${state.contrast}%) saturate(${state.saturation}%)`;
