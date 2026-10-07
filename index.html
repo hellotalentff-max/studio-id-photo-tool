@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ID Photo Studio</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Layout: header with size picker, then two panels side by side (editor | sheet) that stack on phones. */
+  :root {
+    color-scheme: light;
+    --bg: #e8ecef;
+    --panel: #f7f9fa;
+    --fg: #13181c;
+    --muted: #58646e;
+    --line: #ccd4da;
+    --field: #ffffff;
+    --accent: #1d5bd6;
+    --accent-fg: #ffffff;
+    --danger: #c22d2d;
+    --stage-a: #d5dbe0;
+    --stage-b: #eef1f3;
+    --paper: #ffffff;
+    --paper-line: #b7bfc6;
+    --paper-idx: #8b949c;
+    --guide-head: #2f8fff;
+    --guide-eye: #ffb000;
+    --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1316;
+      --panel: #171c20;
+      --fg: #e6ebee;
+      --muted: #93a0aa;
+      --line: #2a3239;
+      --field: #0f1316;
+      --accent: #7aa5ff;
+      --accent-fg: #0a1020;
+      --danger: #ff8078;
+      --stage-a: #2b3238;
+      --stage-b: #20262b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1316;
+    --panel: #171c20;
+    --fg: #e6ebee;
+    --muted: #93a0aa;
+    --line: #2a3239;
+    --field: #0f1316;
+    --accent: #7aa5ff;
+    --accent-fg: #0a1020;
+    --danger: #ff8078;
+    --stage-a: #2b3238;
+    --stage-b: #20262b;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    line-height: 1.45;
+    padding-block: 20px 32px;
+    padding-inline: 16px;
+  }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .app { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+
+  .top { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: flex-end; justify-content: space-between; }
+  .top > * { min-width: 0; }
+  h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
+  .sub { margin: 0; color: var(--muted); max-width: 52ch; }
+  .size-pick { display: flex; flex-direction: column; gap: 4px; flex: 0 1 320px; }
+  .size-pick label, .eyebrow {
+    font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500;
+  }
+  select, .btn {
+    font: inherit; color: var(--fg); background: var(--field);
+    border: 1px solid var(--line); border-radius: 6px;
+  }
+  select { padding: 8px 10px; width: 100%; }
+
+  .spec {
+    margin: -6px 0 0; font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+
+  .workspace { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0;
+  }
+  .editor-panel { flex: 1 1 340px; max-width: 430px; }
+  .sheet-panel { flex: 1 1 340px; max-width: 470px; }
+
+  .dropzone {
+    border: 1.5px dashed var(--line); border-radius: 8px; padding: 12px; text-align: center;
+    color: var(--muted); cursor: pointer; margin-bottom: 14px; transition: border-color .15s, background .15s;
+  }
+  .dropzone:hover, .dropzone.drag-over { border-color: var(--accent); color: var(--fg); }
+  .dropzone.drag-over { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+  .stage-wrap {
+    position: relative; margin: 0 auto 14px; border-radius: 6px; overflow: hidden; cursor: grab; touch-action: none;
+    background: repeating-conic-gradient(var(--stage-a) 0% 25%, var(--stage-b) 0% 50%) 50% / 20px 20px;
+    border: 1px solid var(--line);
+  }
+  .stage-wrap.grabbing { cursor: grabbing; }
+  .stage-wrap.empty { cursor: pointer; }
+  .stage-wrap canvas, .stage-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .stage-wrap svg { pointer-events: none; }
+  .stage-wrap.empty::after {
+    content: "Pick a slot, then drop or browse a client photo";
+    position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center;
+    padding: 0 16px 14px; text-align: center; font-size: 0.8rem; color: var(--muted);
+  }
+
+  .field { margin-bottom: 10px; }
+  .field label { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.78rem; margin-bottom: 2px; }
+  .field label .val { font-family: var(--font-mono); color: var(--fg); font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+  .row { display: flex; gap: 8px; margin: 10px 0; }
+  .btn { padding: 8px 12px; font-weight: 500; cursor: pointer; }
+  .btn:hover { border-color: var(--muted); }
+  .row .btn { flex: 1; padding-inline: 4px; font-size: 0.82rem; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.danger { color: var(--danger); background: transparent; }
+  .btn.wide { width: 100%; }
+
+  .swatches { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+  .swatch {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line); cursor: pointer; padding: 0;
+  }
+  .swatch.active { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .swatch-custom { width: 28px; height: 28px; padding: 0; border: none; background: none; cursor: pointer; }
+
+  .check { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.82rem; margin: 10px 0; }
+  .check input { accent-color: var(--accent); }
+
+  .sheet-grid {
+    position: relative; margin: 0 auto 14px; background: var(--paper);
+    border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  }
+  .cell { position: absolute; border: 1px dashed var(--paper-line); cursor: pointer; background: var(--paper); }
+  .cell canvas { width: 100%; height: 100%; display: block; }
+  .cell.selected { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 1; }
+  .cell.drag-over { outline: 2px solid var(--guide-eye); outline-offset: -2px; z-index: 1; }
+  .cell .idx {
+    position: absolute; left: 4px; bottom: 2px; font-family: var(--font-mono); font-size: 10px; color: var(--paper-idx);
+    pointer-events: none;
+  }
+  .cell .clear-btn {
+    position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; padding: 0; line-height: 18px;
+    border-radius: 50%; border: none; background: rgba(0,0,0,0.62); color: #fff; font-size: 11px; cursor: pointer; display: none;
+  }
+  .cell.filled:hover .clear-btn, .cell.filled.selected .clear-btn { display: block; }
+  @media (hover: none) { .cell.filled .clear-btn { display: block; } }
+
+  .actions { display: flex; flex-direction: column; gap: 8px; }
+  .session-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .note { font-size: 0.78rem; color: var(--muted); margin: 10px 0 0; max-width: 60ch; }
+  .status { min-height: 1.4em; font-size: 0.8rem; margin: 10px 0 0; color: var(--fg); }
+  .divider { border: none; border-top: 1px solid var(--line); margin: 14px 0; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>ID Photo Studio</h1>
+      <p class="sub">Drop a client photo into a slot, frame it, then download a sheet that prints at true size.</p>
+    </div>
+    <div class="size-pick">
+      <label for="layoutSelect">Photo size and sheet</label>
+      <select id="layoutSelect"></select>
+    </div>
+  </header>
+  <p class="spec" id="spec"></p>
+
+  <div class="workspace">
+    <section class="panel editor-panel" aria-label="Photo editor">
+      <div class="dropzone" id="dropzone" tabindex="0" role="button">Drag and drop a photo here, or click to browse<input type="file" id="fileInput" accept="image/*" hidden></div>
+
+      <div class="stage-wrap empty" id="stageWrap">
+        <canvas id="editCanvas" width="340" height="340"></canvas>
+        <svg id="guideSvg" viewBox="0 0 340 340" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </div>
+
+      <div class="field">
+        <label for="zoom"><span>Zoom</span><span class="val" id="zoomVal">100%</span></label>
+        <input type="range" id="zoom" min="100" max="350" value="100">
+      </div>
+      <div class="field">
+        <label for="rotate"><span>Rotate</span><span class="val" id="rotVal">0°</span></label>
+        <input type="range" id="rotate" min="-45" max="45" value="0" step="0.5">
+      </div>
+      <div class="row">
+        <button class="btn" id="rotL">⟲ 90°</button>
+        <button class="btn" id="rotR">⟳ 90°</button>
+        <button class="btn" id="flip">⇋ Flip</button>
+      </div>
+
+      <div class="field">
+        <label for="brightness"><span>Brightness</span><span class="val" id="briVal">100%</span></label>
+        <input type="range" id="brightness" min="50" max="150" value="100">
+      </div>
+      <div class="field">
+        <label for="contrast"><span>Contrast</span><span class="val" id="conVal">100%</span></label>
+        <input type="range" id="contrast" min="50" max="150" value="100">
+      </div>
+      <div class="field">
+        <label for="saturation"><span>Saturation</span><span class="val" id="satVal">100%</span></label>
+        <input type="range" id="saturation" min="0" max="200" value="100">
+      </div>
+
+      <div class="field">
+        <label><span>Background fill</span></label>
+        <div class="swatches" id="swatches">
+          <button class="swatch active" data-color="#ffffff" style="background:#ffffff" aria-label="White"></button>
+          <button class="swatch" data-color="#4a90e2" style="background:#4a90e2" aria-label="Blue"></button>
+          <button class="swatch" data-color="#c0392b" style="background:#c0392b" aria-label="Red"></button>
+          <button class="swatch" data-color="#8e8e93" style="background:#8e8e93" aria-label="Gray"></button>
+          <input type="color" class="swatch-custom" id="customColor" value="#ffffff" aria-label="Custom background color">
+        </div>
+      </div>
+
+      <label class="check"><input type="checkbox" id="guideToggle" checked> Show head and eye-line guides (screen only, not printed)</label>
+      <button class="btn wide" id="resetBtn">Reset adjustments</button>
+    </section>
+
+    <section class="panel sheet-panel" aria-label="Print sheet">
+      <div class="eyebrow" style="margin-bottom:8px">Sheet preview</div>
+      <div class="sheet-grid" id="sheetGrid"></div>
+
+      <label class="check" id="marksRow"><input type="checkbox" id="marksToggle" checked> Add cut marks in the sheet margins</label>
+
+      <div class="actions">
+        <button class="btn primary" id="downloadPng">Download sheet (PNG)</button>
+        <button class="btn" id="fillAll"></button>
+        <button class="btn danger" id="clearAll">Clear sheet</button>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+      <p class="note" id="printNote"></p>
+
+      <hr class="divider">
+      <div class="eyebrow" style="margin-bottom:8px">Hand off to another device</div>
+      <div class="session-row">
+        <button class="btn" id="saveSession">Save session</button>
+        <button class="btn" id="loadSession">Load session</button>
+        <input type="file" id="sessionInput" accept="application/json,.json" hidden>
+      </div>
+      <p class="note">A session file holds every photo and edit on this sheet. Send it to a colleague, who loads it on their own device to keep working.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  const MM = 25.4, DPI = 300, MAX_CELLS = 8, STAGE_MAX = 340, THUMB_PER_IN = 100;
+
+  // Sizes are in inches. Photos tile edge to edge; the sheet margin is whatever is left over, split evenly.
+  const LAYOUTS = {
+    id35x45: {
+      label: '35 × 45 mm on a 6 × 4 in sheet (8 photos)',
+      photo: '35 × 45 mm', sheet: '6 × 4 in', slug: '35x45-6x4in',
+      sheetW: 6, sheetH: 4, cellW: 35 / MM, cellH: 45 / MM, cols: 4, rows: 2,
+      previewPxPerIn: 62, marks: true,
+      guide: { cy: 0.47, rx: 0.30, ry: 0.38, eye: 0.42 }
+    },
+    id2x2: {
+      label: '2 × 2 in on a 4 × 6 in sheet (6 photos)',
+      photo: '2 × 2 in', sheet: '4 × 6 in', slug: '2x2-4x6in',
+      sheetW: 4, sheetH: 6, cellW: 2, cellH: 2, cols: 2, rows: 3,
+      previewPxPerIn: 52, marks: false,
+      guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
+    }
+  };
+
+  function defaultState() {
+    return { scale: 1, offsetXn: 0, offsetYn: 0, rotation: 0, flip: false, brightness: 100, contrast: 100, saturation: 100, bg: '#ffffff' };
+  }
+
+  const $ = (id) => document.getElementById(id);
+  const cells = new Array(MAX_CELLS).fill(null); // each: { img, state }
+  let L = LAYOUTS.id35x45;
+  let selected = 0;
+  let stageW = STAGE_MAX, stageH = STAGE_MAX;
+
+  const editCanvas = $('editCanvas'), editCtx = editCanvas.getContext('2d');
+  const stageWrap = $('stageWrap'), guideSvg = $('guideSvg'), grid = $('sheetGrid');
+  const zoomEl = $('zoom'), rotateEl = $('rotate'), brightnessEl = $('brightness'), contrastEl = $('contrast'), saturationEl = $('saturation');
+  const guideToggle = $('guideToggle'), marksToggle = $('marksToggle'), layoutSelect = $('layoutSelect'), statusEl = $('status');
+
+  const count = () => L.cols * L.rows;
+  const marginX = () => (L.sheetW - L.cols * L.cellW) / 2;
+  const marginY = () => (L.sheetH - L.rows * L.cellH) / 2;
+
+  function say(msg) { statusEl.textContent = msg; }
+
+  /* ---------- rendering ---------- */
+  function render(ctx, w, h, img, state) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.save();
+    ctx.fillStyle = state.bg;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+    if (!img) return;
+
+    const rad = state.rotation * Math.PI / 180;
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const rw = Math.abs(iw * Math.cos(rad)) + Math.abs(ih * Math.sin(rad));
+    const rh = Math.abs(iw * Math.sin(rad)) + Math.abs(ih * Math.cos(rad));
+    const finalScale = Math.max(w / rw, h / rh) * state.scale; // cover-fit, then user zoom
+
+    ctx.save();
+    ctx.filter = `brightness(${state.brightness}%) contrast(${state.contrast}%) saturate(${state.saturation}%)`;
+    ctx.translate(w / 2 + state.offsetXn * w, h / 2 + state.offsetYn * h);
+    ctx.rotate(rad);
+    if (state.flip) ctx.scale(-1, 1);
+    ctx.scale(finalScale, finalScale);
+    ctx.drawImage(img, -iw / 2, -ih / 2);
+    ctx.restore();
+  }
+
+  function renderCellThumb(i) {
+    const canvas = $('cellCanvas' + i);
+    if (!canvas) return;
+    const c = cells[i];
+    canvas.parentElement.classList.toggle('filled', !!c);
+    const ctx = canvas.getContext('2d');
+    if (!c) { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); return; }
+    render(ctx, canvas.width, canvas.height, c.img, c.state);
+  }
+
+  function drawPlaceholder() {
+    const w = stageW, h = stageH, g = L.guide;
+    editCtx.clearRect(0, 0, w, h);
+    editCtx.fillStyle = 'rgba(128,138,148,0.14)';
+    editCtx.fillRect(0, 0, w, h);
+    editCtx.fillStyle = 'rgba(128,138,148,0.30)';
+    editCtx.beginPath();
+    editCtx.ellipse(w / 2, h * g.cy, w * g.rx * 0.78, h * g.ry * 0.82, 0, 0, Math.PI * 2);
+    editCtx.fill();
+    editCtx.beginPath();
+    editCtx.ellipse(w / 2, h * 1.02, w * 0.46, h * 0.26, 0, Math.PI, Math.PI * 2);
+    editCtx.fill();
+  }
+
+  function drawGuides() {
+    guideSvg.innerHTML = '';
+    if (!guideToggle.checked) return;
+    const ns = 'http://www.w3.org/2000/svg', g = L.guide;
+    const oval = document.createElementNS(ns, 'ellipse');
+    oval.setAttribute('cx', stageW / 2);
+    oval.setAttribute('cy', stageH * g.cy);
+    oval.setAttribute('rx', stageW * g.rx);
+    oval.setAttribute('ry', stageH * g.ry);
+    oval.setAttribute('fill', 'none');
+    oval.setAttribute('style', 'stroke: var(--guide-head)');
+    oval.setAttribute('stroke-width', '1.6');
+    oval.setAttribute('stroke-dasharray', '5 3');
+    guideSvg.appendChild(oval);
+    const eye = document.createElementNS(ns, 'line');
+    eye.setAttribute('x1', stageW * 0.12); eye.setAttribute('x2', stageW * 0.88);
+    eye.setAttribute('y1', stageH * g.eye); eye.setAttribute('y2', stageH * g.eye);
+    eye.setAttribute('style', 'stroke: var(--guide-eye)');
+    eye.setAttribute('stroke-width', '1.3');
+    eye.setAttribute('stroke-dasharray', '3 3');
+    guideSvg.appendChild(eye);
+  }
+
+  function renderEditor() {
+    const c = cells[selected];
+    stageWrap.classList.toggle('empty', !c);
+    if (!c) { drawPlaceholder(); drawGuides(); return; }
+    render(editCtx, stageW, stageH, c.img, c.state);
+    const s = c.state;
+    zoomEl.value = Math.round(s.scale * 100);
+    rotateEl.value = s.rotation;
+    brightnessEl.value = s.brightness;
+    contrastEl.value = s.contrast;
+    saturationEl.value = s.saturation;
+    $('zoomVal').textContent = zoomEl.value + '%';
+    $('rotVal').textContent = Math.round(s.rotation) + '°';
+    $('briVal').textContent = s.brightness + '%';
+    $('conVal').textContent = s.contrast + '%';
+    $('satVal').textContent = s.saturation + '%';
+    document.querySelectorAll('.swatch').forEach(el => el.classList.toggle('active', el.dataset.color === s.bg));
+    drawGuides();
+  }
+
+  function selectCell(i) {
+    selected = i;
+    document.querySelectorAll('.cell').forEach((el, idx) => el.classList.toggle('selected', idx === i));
+    renderEditor();
+  }
+
+  /* ---------- layout ---------- */
+  function sheetPixels() { return { w: Math.round(L.sheetW * DPI), h: Math.round(L.sheetH * DPI) }; }
+
+  function updateText() {
+    const cw = Math.round(L.cellW * DPI), ch = Math.round(L.cellH * DPI), sp = sheetPixels();
+    $('spec').textContent = `${L.photo} · ${cw} × ${ch} px at ${DPI} dpi · ${count()} per ${L.sheet} sheet · file ${sp.w} × ${sp.h} px`;
+    $('fillAll').textContent = `Fill all ${count()} slots with this photo`;
+    const landscape = L.sheetW > L.sheetH;
+    $('printNote').textContent =
+      `To print: open the downloaded PNG and choose ${L.sheet} paper at 100% (Actual size), without "Fit to page". ` +
+      `The file is tagged ${DPI} dpi, so most apps size it correctly on their own.` +
+      (landscape ? ' This sheet is landscape: pick landscape in the print dialog, or let the printer rotate it onto 4 × 6 in paper.' : '');
+    $('marksRow').hidden = !L.marks;
+  }
+
+  function buildGrid() {
+    grid.innerHTML = '';
+    grid.style.width = `min(100%, ${Math.round(L.sheetW * L.previewPxPerIn)}px)`;
+    grid.style.aspectRatio = `${L.sheetW} / ${L.sheetH}`;
+    const mx = marginX(), my = marginY();
+    for (let i = 0; i < count(); i++) {
+      const col = i % L.cols, row = Math.floor(i / L.cols);
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.tabIndex = 0;
+      cell.setAttribute('role', 'button');
+      cell.setAttribute('aria-label', 'Slot ' + (i + 1));
+      cell.style.left = ((mx + col * L.cellW) / L.sheetW * 100) + '%';
+      cell.style.top = ((my + row * L.cellH) / L.sheetH * 100) + '%';
+      cell.style.width = (L.cellW / L.sheetW * 100) + '%';
+      cell.style.height = (L.cellH / L.sheetH * 100) + '%';
+      cell.innerHTML =
+        `<canvas id="cellCanvas${i}" width="${Math.round(L.cellW * THUMB_PER_IN)}" height="${Math.round(L.cellH * THUMB_PER_IN)}"></canvas>` +
+        `<button class="clear-btn" title="Clear slot" aria-label="Clear slot ${i + 1}">✕</button><span class="idx">${i + 1}</span>`;
+      cell.addEventListener('click', (e) => { if (!e.target.closest('.clear-btn')) selectCell(i); });
+      cell.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectCell(i); } });
+      cell.querySelector('.clear-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        cells[i] = null;
+        renderCellThumb(i);
+        if (selected === i) renderEditor();
+      });
+      cell.addEventListener('dragover', (e) => { e.preventDefault(); cell.classList.add('drag-over'); });
+      cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
+      cell.addEventListener('drop', (e) => {
+        e.preventDefault();
+        cell.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) loadImageIntoCell(file, i);
+      });
+      grid.appendChild(cell);
+      renderCellThumb(i);
+    }
+  }
+
+  function applyLayout(id) {
+    L = LAYOUTS[id] || LAYOUTS.id35x45;
+    layoutSelect.value = Object.keys(LAYOUTS).find(k => LAYOUTS[k] === L);
+    const aspect = L.cellW / L.cellH;
+    stageW = Math.round(aspect >= 1 ? STAGE_MAX : STAGE_MAX * aspect);
+    stageH = Math.round(aspect >= 1 ? STAGE_MAX / aspect : STAGE_MAX);
+    editCanvas.width = stageW; editCanvas.height = stageH;
+    stageWrap.style.width = `min(100%, ${stageW}px)`;
+    stageWrap.style.aspectRatio = `${stageW} / ${stageH}`;
+    guideSvg.setAttribute('viewBox', `0 0 ${stageW} ${stageH}`);
+    selected = Math.min(selected, count() - 1);
+    updateText();
+    buildGrid();
+    selectCell(selected);
+    try { localStorage.setItem('idphoto-layout', layoutSelect.value); } catch (e) {}
+  }
+
+  Object.entries(LAYOUTS).forEach(([id, l]) => {
+    const o = document.createElement('option');
+    o.value = id; o.textContent = l.label;
+    layoutSelect.appendChild(o);
+  });
+  layoutSelect.addEventListener('change', () => applyLayout(layoutSelect.value));
+
+  /* ---------- loading photos ---------- */
+  function loadImageIntoCell(file, i) {
+    if (!file.type.startsWith('image/')) { say('That file is not an image. Use a JPG, PNG or WebP photo.'); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        cells[i] = { img, state: defaultState() };
+        selectCell(i);
+        renderCellThumb(i);
+        say('');
+      };
+      img.onerror = () => say('That photo could not be opened. Try exporting it as a JPG or PNG.');
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  const dropzone = $('dropzone'), fileInput = $('fileInput');
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) loadImageIntoCell(fileInput.files[0], selected);
+    fileInput.value = '';
+  });
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) loadImageIntoCell(file, selected);
+  });
+  stageWrap.addEventListener('dragover', (e) => e.preventDefault());
+  stageWrap.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) loadImageIntoCell(file, selected);
+  });
+  stageWrap.addEventListener('click', () => { if (!cells[selected]) fileInput.click(); });
+
+  /* ---------- pan and zoom on the stage ---------- */
+  let dragging = false, startX = 0, startY = 0, startOffX = 0, startOffY = 0;
+  stageWrap.addEventListener('pointerdown', (e) => {
+    if (!cells[selected]) return;
+    dragging = true;
+    stageWrap.classList.add('grabbing');
+    startX = e.clientX; startY = e.clientY;
+    startOffX = cells[selected].state.offsetXn;
+    startOffY = cells[selected].state.offsetYn;
+    stageWrap.setPointerCapture(e.pointerId);
+  });
+  stageWrap.addEventListener('pointermove', (e) => {
+    if (!dragging || !cells[selected]) return;
+    const r = stageWrap.getBoundingClientRect();
+    cells[selected].state.offsetXn = startOffX + (e.clientX - startX) / r.width;
+    cells[selected].state.offsetYn = startOffY + (e.clientY - startY) / r.height;
+    renderEditor();
+    renderCellThumb(selected);
+  });
+  ['pointerup', 'pointercancel'].forEach(ev =>
+    stageWrap.addEventListener(ev, () => { dragging = false; stageWrap.classList.remove('grabbing'); })
+  );
+  stageWrap.addEventListener('wheel', (e) => {
+    if (!cells[selected]) return;
+    e.preventDefault();
+    const s = cells[selected].state;
+    s.scale = Math.min(3.5, Math.max(1, s.scale - e.deltaY * 0.001));
+    renderEditor();
+    renderCellThumb(selected);
+  }, { passive: false });
+
+  /* ---------- adjustment controls ---------- */
+  function withCell(fn) {
+    if (!cells[selected]) return;
+    fn(cells[selected].state);
+    renderEditor();
+    renderCellThumb(selected);
+  }
+  const wrap180 = (d) => ((d + 180) % 360 + 360) % 360 - 180;
+  zoomEl.addEventListener('input', () => withCell(s => s.scale = zoomEl.value / 100));
+  rotateEl.addEventListener('input', () => withCell(s => s.rotation = parseFloat(rotateEl.value)));
+  brightnessEl.addEventListener('input', () => withCell(s => s.brightness = parseInt(brightnessEl.value, 10)));
+  contrastEl.addEventListener('input', () => withCell(s => s.contrast = parseInt(contrastEl.value, 10)));
+  saturationEl.addEventListener('input', () => withCell(s => s.saturation = parseInt(saturationEl.value, 10)));
+  $('rotL').addEventListener('click', () => withCell(s => s.rotation = wrap180(s.rotation - 90)));
+  $('rotR').addEventListener('click', () => withCell(s => s.rotation = wrap180(s.rotation + 90)));
+  $('flip').addEventListener('click', () => withCell(s => s.flip = !s.flip));
+  $('resetBtn').addEventListener('click', () => withCell(s => Object.assign(s, defaultState(), { bg: s.bg })));
+  guideToggle.addEventListener('change', drawGuides);
+  $('swatches').addEventListener('click', (e) => {
+    const sw = e.target.closest('.swatch');
+    if (sw) withCell(s => s.bg = sw.dataset.color);
+  });
+  $('customColor').addEventListener('input', (e) => withCell(s => s.bg = e.target.value));
+
+  /* ---------- sheet actions ---------- */
+  $('fillAll').addEventListener('click', () => {
+    const src = cells[selected];
+    if (!src) { say('Add a photo to the selected slot first.'); return; }
+    for (let i = 0; i < count(); i++) {
+      cells[i] = { img: src.img, state: Object.assign({}, src.state) };
+      renderCellThumb(i);
+    }
+    renderEditor();
+    say(`Copied this photo into all ${count()} slots.`);
+  });
+  $('clearAll').addEventListener('click', () => {
+    for (let i = 0; i < MAX_CELLS; i++) { cells[i] = null; renderCellThumb(i); }
+    renderEditor();
+    say('Sheet cleared.');
+  });
+
+  function composeSheet() {
+    const sp = sheetPixels();
+    const canvas = document.createElement('canvas');
+    canvas.width = sp.w; canvas.height = sp.h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, sp.w, sp.h);
+    const mx = marginX(), my = marginY();
+    const edgeX = (k) => Math.round((mx + k * L.cellW) * DPI);
+    const edgeY = (k) => Math.round((my + k * L.cellH) * DPI);
+    for (let i = 0; i < count(); i++) {
+      const c = cells[i];
+      if (!c) continue;
+      const col = i % L.cols, row = Math.floor(i / L.cols);
+      const x0 = edgeX(col), x1 = edgeX(col + 1), y0 = edgeY(row), y1 = edgeY(row + 1);
+      const cc = document.createElement('canvas');
+      cc.width = x1 - x0; cc.height = y1 - y0;
+      render(cc.getContext('2d'), cc.width, cc.height, c.img, c.state);
+      ctx.drawImage(cc, x0, y0);
+    }
+    if (L.marks && marksToggle.checked) {
+      const gap = Math.round(0.03 * DPI), len = Math.round(0.12 * DPI);
+      const left = edgeX(0), right = edgeX(L.cols), top = edgeY(0), bottom = edgeY(L.rows);
+      ctx.fillStyle = '#000000';
+      for (let c = 0; c <= L.cols; c++) {
+        const x = edgeX(c);
+        ctx.fillRect(x - 1, top - gap - len, 2, len);
+        ctx.fillRect(x - 1, bottom + gap, 2, len);
+      }
+      for (let r = 0; r <= L.rows; r++) {
+        const y = edgeY(r);
+        ctx.fillRect(left - gap - len, y - 1, len, 2);
+        ctx.fillRect(right + gap, y - 1, len, 2);
+      }
+    }
+    return canvas;
+  }
+
+  // Tag the PNG with its print resolution (pHYs chunk) so apps size it as 6 x 4 in rather than guessing.
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+    return t;
+  })();
+  function crc32(bytes) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  async function tagDpi(blob, dpi) {
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    for (let i = 33; i < Math.min(buf.length - 4, 200); i++) {
+      if (buf[i] === 0x70 && buf[i + 1] === 0x48 && buf[i + 2] === 0x59 && buf[i + 3] === 0x73) return blob; // already tagged
+    }
+    const ppm = Math.round(dpi / 0.0254);
+    const chunk = new Uint8Array(21);
+    const dv = new DataView(chunk.buffer);
+    dv.setUint32(0, 9);
+    chunk.set([0x70, 0x48, 0x59, 0x73], 4);
+    dv.setUint32(8, ppm); dv.setUint32(12, ppm); chunk[16] = 1;
+    dv.setUint32(17, crc32(chunk.subarray(4, 17)));
+    const out = new Uint8Array(buf.length + chunk.length);
+    out.set(buf.subarray(0, 33), 0); // PNG signature + IHDR
+    out.set(chunk, 33);
+    out.set(buf.subarray(33), 33 + chunk.length);
+    return new Blob([out], { type: 'image/png' });
+  }
+
+  /* ---------- saving files ---------- */
+  // The viewer blocks scripted downloads, so files go through the `downloads` capability when it is there.
+  const downloadsReady = (async () => {
+    try { return (await window.claude?.use?.('downloads')) || null; } catch (e) { return null; }
+  })();
+
+  async function saveFile(filename, data) {
+    const dl = await downloadsReady;
+    if (dl) {
+      try { await dl.save({ filename, data }); say(`Saved ${filename}.`); }
+      catch (err) { say(err && err.code === 'declined' ? 'Save cancelled.' : 'This view could not save the file. Open the page in a browser tab and try again.'); }
+      return;
+    }
+    const blob = data instanceof Blob ? data : new Blob([data]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    say(`Download started: ${filename}`);
+  }
+
+  $('downloadPng').addEventListener('click', () => {
+    if (!cells.slice(0, count()).some(Boolean)) { say('Add at least one photo to the sheet first.'); return; }
+    say('Preparing the sheet…');
+    composeSheet().toBlob(async (blob) => {
+      saveFile(`id-photo-sheet-${L.slug}.png`, await tagDpi(blob, DPI));
+    }, 'image/png');
+  });
+
+  /* ---------- session save and load ---------- */
+  $('saveSession').addEventListener('click', () => {
+    if (!cells.some(Boolean)) { say('There is nothing to save yet. Add a photo first.'); return; }
+    const data = {
+      version: 2,
+      layout: layoutSelect.value,
+      cells: cells.map(c => c ? { src: c.img.src, state: c.state } : null)
+    };
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    saveFile(`id-photo-session-${stamp}.json`, JSON.stringify(data));
+  });
+
+  const sessionInput = $('sessionInput');
+  $('loadSession').addEventListener('click', () => sessionInput.click());
+  sessionInput.addEventListener('change', () => {
+    const file = sessionInput.files[0];
+    sessionInput.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onerror = () => say('That file could not be read.');
+    reader.onload = (e) => {
+      let data;
+      try {
+        data = JSON.parse(e.target.result);
+        if (!Array.isArray(data.cells)) throw new Error('bad');
+      } catch (err) { say('That is not a session file saved by this tool.'); return; }
+      const loads = data.cells.slice(0, MAX_CELLS).map((entry, i) => {
+        if (!entry || !entry.src) { cells[i] = null; return Promise.resolve(); }
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => { cells[i] = { img, state: Object.assign(defaultState(), entry.state) }; resolve(); };
+          img.onerror = () => { cells[i] = null; resolve(); };
+          img.src = entry.src;
+        });
+      });
+      Promise.all(loads).then(() => {
+        for (let i = data.cells.length; i < MAX_CELLS; i++) cells[i] = null;
+        applyLayout(LAYOUTS[data.layout] ? data.layout : 'id2x2'); // sessions from the first version had no layout and were 2 x 2 in
+        const first = cells.findIndex(Boolean);
+        selectCell(first === -1 || first >= count() ? 0 : first);
+        say('Session loaded.');
+      });
+    };
+    reader.readAsText(file);
+  });
+
+  let startLayout = 'id35x45';
+  try { const saved = localStorage.getItem('idphoto-layout'); if (LAYOUTS[saved]) startLayout = saved; } catch (e) {}
+  applyLayout(startLayout);
+})();
+</script>
+
+</body>
+</html>
