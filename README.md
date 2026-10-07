@@ -34,9 +34,9 @@ Frames have rounded corners and the sheet carries the same cut marks as the stud
 
 ## Printing and sending to a phone
 
-On the freebie page, **Print this sheet** and **Print all sheets** open the browser's print dialog with one 4 × 6 in page per sheet. Choose 4 × 6 in paper and 100% scale.
+On the freebie page, **Print this sheet** and **Print all sheets** open the browser's print dialog with one 4 × 6 in page per sheet. On the ID photo page, **Print sheet** prints the sheet at its real size (6 × 4 in landscape for 35 × 45 mm, 4 × 6 in portrait for 2 × 2 in). Choose the matching paper and 100% scale.
 
-**Send to phone (QR code)** shows a QR code. The client scans it and `receive.html` opens on their phone and receives the finished sheet (a 300 dpi JPEG) straight from the staff device. The sheet is not uploaded or stored anywhere. The staff page must stay open until it says Sent, and each code works once and expires after 10 minutes. It uses PeerJS (WebRTC) from cdnjs; the free public PeerJS service only introduces the two devices, and the file travels encrypted between them (through a relay if the networks block a direct link).
+**Send to phone (QR code)**, on both pages, shows a QR code. The client scans it and `receive.html` opens on their phone and receives the finished sheet (a 300 dpi JPEG) straight from the staff device. The sheet is not uploaded or stored anywhere. The staff page must stay open until it says Sent, and each code works once and expires after 10 minutes. It uses PeerJS (WebRTC) from cdnjs; the free public PeerJS service only introduces the two devices, and the file travels encrypted between them (through a relay if the networks block a direct link).
 
 ## Printing
 
