@@ -217,21 +217,13 @@
       previewPxPerIn: 52, marks: false,
       guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
     },
-    // Mixed sheets list their slots (inches) and fill the whole 4 x 6 in sheet. Big 2 x 2 in photos come first, then 1 x 1 in.
+    // The mixed sheet lists its slots (inches) and fills the whole 4 x 6 in sheet: four 2 x 2 in photos first, then eight 1 x 1 in.
     mixA: {
       label: '2 × 2 in and 1 × 1 in mix on a 4 × 6 in sheet (4 + 8 photos)',
       photo: '2 × 2 in and 1 × 1 in', sheet: '4 × 6 in', slug: '2x2-1x1-mix-4-8-4x6in',
       spec: '4 × 2 × 2 in (600 × 600 px) and 8 × 1 × 1 in (300 × 300 px) on a 4 × 6 in sheet',
       sheetW: 4, sheetH: 6, cellW: 2, cellH: 2, previewPxPerIn: 60, marks: false, cutLines: true,
       slots: [[0, 0, 2], [2, 0, 2], [0, 2, 2], [2, 2, 2]].concat([4, 5].flatMap(y => [0, 1, 2, 3].map(x => [x, y, 1]))).map(([x, y, w]) => ({ x, y, w, h: w })),
-      guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
-    },
-    mixB: {
-      label: '2 × 2 in and 1 × 1 in mix on a 4 × 6 in sheet (2 + 16 photos)',
-      photo: '2 × 2 in and 1 × 1 in', sheet: '4 × 6 in', slug: '2x2-1x1-mix-2-16-4x6in',
-      spec: '2 × 2 × 2 in (600 × 600 px) and 16 × 1 × 1 in (300 × 300 px) on a 4 × 6 in sheet',
-      sheetW: 4, sheetH: 6, cellW: 2, cellH: 2, previewPxPerIn: 60, marks: false, cutLines: true,
-      slots: [[0, 0, 2], [2, 0, 2]].concat([2, 3, 4, 5].flatMap(y => [0, 1, 2, 3].map(x => [x, y, 1]))).map(([x, y, w]) => ({ x, y, w, h: w })),
       guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
     }
   };

@@ -4,7 +4,7 @@ A single-page web app for making ID photo sheets. Drag a client photo into a slo
 
 - **35 × 45 mm** photos, 8 per **6 × 4 in** sheet (landscape)
 - **2 × 2 in** photos, 6 per **4 × 6 in** (4R) sheet
-- **2 × 2 in and 1 × 1 in mixes** on a full **4 × 6 in** sheet: 4 big + 8 small, or 2 big + 16 small. Thin cut lines between the photos can be switched off
+- **2 × 2 in and 1 × 1 in mix** on a full **4 × 6 in** sheet: 4 big + 8 small. Thin cut lines between the photos can be switched off
 - Zoom, pan, rotate, flip, brightness, contrast, saturation and background fill
 - On-screen guides (never printed): passport head-size bands for 35 × 45 mm (head 32–36 mm, crown 4–6 mm from top), or an oval and eye line
 - Optional cut marks in the sheet margins
