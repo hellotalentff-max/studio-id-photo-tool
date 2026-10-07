@@ -59,6 +59,11 @@
   .cell.filled:hover .clear-btn, .cell.filled.selected .clear-btn { display: block; }
   @media (hover: none) { .cell.filled .clear-btn { display: block; } }
 
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem; }
+  .mini { display: block; color: var(--text-mid); font-size: 0.78rem; font-weight: 500; margin-bottom: 0.15rem; }
+  .text-row { display: flex; flex-wrap: wrap; gap: 0.2rem 1.1rem; }
+  .text-row .check { margin: 0.25rem 0; }
+  input[type='color'] { width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
   .session-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
 
   /* printing: only the sheet, on a page sized by the selected layout (see #pageStyle) */
@@ -148,6 +153,36 @@
           <button class="swatch" data-color="#8e8e93" style="background:#8e8e93" aria-label="Gray"></button>
           <input type="color" class="swatch-custom" id="customColor" value="#ffffff" aria-label="Custom background color">
         </div>
+      </div>
+
+      <div class="field" id="textBlock">
+        <label for="textValue"><span>Text on photo</span><span class="val" id="textState"></span></label>
+        <textarea id="textValue" rows="2" maxlength="90" placeholder="Name or ID number (up to 3 lines)"></textarea>
+      </div>
+      <div class="field" id="textOpts">
+        <div class="two-col">
+          <div><label class="mini" for="textFont">Font</label>
+            <select id="textFont">
+              <option>DM Sans</option><option>Playfair Display</option><option>Space Mono</option>
+              <option>Arial</option><option>Times New Roman</option><option>Courier New</option>
+            </select></div>
+          <div><label class="mini" for="textPos">Position</label>
+            <select id="textPos"><option value="bottom">Bottom</option><option value="center">Middle</option><option value="top">Top</option></select></div>
+        </div>
+        <label for="textSize" class="mini" style="display:flex;justify-content:space-between"><span>Size</span><span class="val" id="textSizeVal">8%</span></label>
+        <input type="range" id="textSize" min="3" max="22" value="8">
+        <label for="textOffset" class="mini" style="display:flex;justify-content:space-between;margin-top:0.4rem"><span>Move up or down</span><span class="val" id="textOffsetVal">0%</span></label>
+        <input type="range" id="textOffset" min="-40" max="40" value="0">
+        <div class="text-row" style="margin-top:0.4rem">
+          <label class="check"><input type="color" id="textColor" value="#111111"> Text colour</label>
+          <label class="check"><input type="checkbox" id="textBold" checked> Bold</label>
+        </div>
+        <div class="text-row">
+          <label class="check"><input type="checkbox" id="textBar" checked> Band behind text</label>
+          <label class="check"><input type="color" id="textBarColor" value="#ffffff"> Band colour</label>
+        </div>
+        <button class="btn wide" id="textAll" style="margin-top:0.4rem">Apply this text to all slots</button>
+        <p class="note" style="margin-top:0.4rem">Each slot keeps its own text, so one sheet can carry several names. Text is part of the photo and prints with it.</p>
       </div>
 
       <div class="field">
@@ -246,8 +281,11 @@
     for (let r = 0; r < l.rows; r++) for (let c = 0; c < l.cols; c++) l.slots.push({ x: mx + c * l.cellW, y: my + r * l.cellH, w: l.cellW, h: l.cellH });
   });
 
+  function defaultText() {
+    return { value: '', font: 'DM Sans', size: 8, color: '#111111', bold: true, pos: 'bottom', offset: 0, bar: true, barColor: '#ffffff' };
+  }
   function defaultState() {
-    return { scale: 1, offsetXn: 0, offsetYn: 0, rotation: 0, flip: false, brightness: 100, contrast: 100, saturation: 100, bg: '#ffffff', removeBg: false, edge: 20 };
+    return { scale: 1, offsetXn: 0, offsetYn: 0, rotation: 0, flip: false, brightness: 100, contrast: 100, saturation: 100, bg: '#ffffff', removeBg: false, edge: 25, text: defaultText() };
   }
 
   const $ = (id) => document.getElementById(id);
@@ -288,6 +326,50 @@
     ctx.scale(finalScale, finalScale);
     ctx.drawImage(img, -iw / 2, -ih / 2);
     ctx.restore();
+    if (state.text && state.text.value) drawText(ctx, w, h, state.text);
+  }
+
+  /* ---------- text on the photo ---------- */
+  const FONT_STACKS = {
+    'DM Sans': '"DM Sans", system-ui, sans-serif', 'Playfair Display': '"Playfair Display", Georgia, serif',
+    'Space Mono': '"Space Mono", ui-monospace, monospace', 'Arial': 'Arial, Helvetica, sans-serif',
+    'Times New Roman': '"Times New Roman", Times, serif', 'Courier New': '"Courier New", Courier, monospace'
+  };
+  const luminance = (hex) => { const n = parseInt(hex.slice(1), 16); return (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255; };
+
+  // The text size is a share of the photo's height, so a 1 x 1 in photo and a 2 x 2 in photo look the same.
+  function drawText(ctx, w, h, t) {
+    const lines = t.value.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 3);
+    if (!lines.length) return;
+    const stack = FONT_STACKS[t.font] || FONT_STACKS['DM Sans'], weight = t.bold ? 700 : 400;
+    let px = Math.max(6, t.size / 100 * h);
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.filter = 'none';
+    ctx.font = `${weight} ${px}px ${stack}`;
+    const widest = Math.max(...lines.map(l => ctx.measureText(l).width));
+    if (widest > w * 0.92) { px *= w * 0.92 / widest; ctx.font = `${weight} ${px}px ${stack}`; }   // shrink long text to fit
+    const lh = px * 1.2, pad = px * 0.45, bandH = lh * lines.length + pad * 2;
+    let top = t.pos === 'top' ? 0 : t.pos === 'center' ? (h - bandH) / 2 : h - bandH;
+    top = Math.min(Math.max(top + t.offset / 100 * h, 0), h - bandH);
+    if (t.bar) { ctx.fillStyle = t.barColor; ctx.fillRect(0, top, w, bandH); }
+    lines.forEach((l, i) => {
+      const y = top + pad + lh * (i + 0.5);
+      if (!t.bar) {                                   // no band: outline the text in the opposite tone so it stays readable
+        ctx.lineJoin = 'round'; ctx.lineWidth = px * 0.16;
+        ctx.strokeStyle = luminance(t.color) > 0.5 ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.85)';
+        ctx.strokeText(l, w / 2, y);
+      }
+      ctx.fillStyle = t.color;
+      ctx.fillText(l, w / 2, y);
+    });
+    ctx.restore();
+  }
+  const fontsAsked = {};
+  function ensureFont(t) {
+    const key = t.font + t.bold;
+    if (fontsAsked[key] || !document.fonts || !document.fonts.load) return;
+    fontsAsked[key] = true;                           // web fonts only load when asked, so ask once, then redraw
+    document.fonts.load(`${t.bold ? 700 : 400} 24px ${FONT_STACKS[t.font] || ''}`, 'Aa').then(() => { renderEditor(); for (let i = 0; i < count(); i++) renderCellThumb(i); });
   }
 
   function renderCellThumb(i) {
@@ -383,6 +465,14 @@
     $('bgState').textContent = cutOn ? 'removed' : '';
     $('edgeField').hidden = !cutOn;
     $('edge').value = s.edge; $('edgeVal').textContent = s.edge + '%';
+    const t = s.text;
+    if ($('textValue').value !== t.value) $('textValue').value = t.value;     // do not touch the box while someone is typing
+    $('textFont').value = t.font; $('textPos').value = t.pos;
+    $('textSize').value = t.size; $('textSizeVal').textContent = t.size + '%';
+    $('textOffset').value = t.offset; $('textOffsetVal').textContent = t.offset + '%';
+    $('textColor').value = t.color; $('textBold').checked = t.bold;
+    $('textBar').checked = t.bar; $('textBarColor').value = t.barColor;
+    $('textState').textContent = t.value.trim() ? 'added' : '';
     drawGuides();
   }
 
@@ -392,12 +482,95 @@
     renderEditor();
   }
 
+  /* ---------- text controls ---------- */
+  const withText = (fn) => withCell(s => { fn(s.text); ensureFont(s.text); });
+  $('textValue').addEventListener('input', () => withText(t => t.value = $('textValue').value));
+  $('textFont').addEventListener('change', () => withText(t => t.font = $('textFont').value));
+  $('textPos').addEventListener('change', () => withText(t => t.pos = $('textPos').value));
+  $('textSize').addEventListener('input', () => withText(t => t.size = parseInt($('textSize').value, 10)));
+  $('textOffset').addEventListener('input', () => withText(t => t.offset = parseInt($('textOffset').value, 10)));
+  $('textColor').addEventListener('input', () => withText(t => t.color = $('textColor').value));
+  $('textBold').addEventListener('change', () => withText(t => t.bold = $('textBold').checked));
+  $('textBar').addEventListener('change', () => withText(t => t.bar = $('textBar').checked));
+  $('textBarColor').addEventListener('input', () => withText(t => t.barColor = $('textBarColor').value));
+  $('textAll').addEventListener('click', () => {
+    const src = cells[selected];
+    if (!src) { say('Add a photo to the selected slot first.'); return; }
+    let n = 0;
+    for (let i = 0; i < count(); i++) { if (cells[i] && cells[i] !== src) { cells[i].state.text = Object.assign({}, src.state.text); renderCellThumb(i); n++; } }
+    say(n ? `Copied this text to ${n} other ${n === 1 ? 'slot' : 'slots'}.` : 'There are no other photos on this sheet yet.');
+  });
+
   /* ---------- remove background ---------- */
   // A portrait-matting model (MODNet, Apache-2.0) runs in the browser through Transformers.js, so photos are not uploaded.
   // The first use downloads the model (about 26 MB); the browser keeps it afterwards.
   const BG_MAX = 2000;       // longest side of the working copy, in px
   let bgModelP = null;
   const bgSay = (m) => { $('bgNote').textContent = m; };
+
+  // Sliding-window box blur of one channel (window 2r + 1, shrinking at the borders).
+  function boxBlur(src, w, h, r) {
+    const tmp = new Float32Array(src.length), out = new Float32Array(src.length);
+    for (let y = 0; y < h; y++) {
+      const o = y * w; let acc = 0, cnt = 0;
+      for (let x = 0; x <= r && x < w; x++) { acc += src[o + x]; cnt++; }
+      for (let x = 0; x < w; x++) {
+        tmp[o + x] = acc / cnt;
+        const add = x + r + 1, rem = x - r;
+        if (add < w) { acc += src[o + add]; cnt++; }
+        if (rem >= 0) { acc -= src[o + rem]; cnt--; }
+      }
+    }
+    for (let x = 0; x < w; x++) {
+      let acc = 0, cnt = 0;
+      for (let y = 0; y <= r && y < h; y++) { acc += tmp[y * w + x]; cnt++; }
+      for (let y = 0; y < h; y++) {
+        out[y * w + x] = acc / cnt;
+        const add = y + r + 1, rem = y - r;
+        if (add < h) { acc += tmp[add * w + x]; cnt++; }
+        if (rem >= 0) { acc -= tmp[rem * w + x]; cnt--; }
+      }
+    }
+    return out;
+  }
+
+  // Pixels along the outline of a cutout still carry the colour of the old backdrop, which shows as a light rim on a
+  // new colour. Estimate the colour the subject really has next to the outline (the average of the pixels just inside
+  // it) and use that for the whole outline band. Done at half size, because the estimate changes slowly.
+  function estimateForeground(base, mask, w, h) {
+    const sw = Math.ceil(w / 2), sh = Math.ceil(h / 2), n = sw * sh;
+    const small = document.createElement('canvas'); small.width = sw; small.height = sh;
+    const sx = small.getContext('2d', { willReadFrequently: true });
+    sx.drawImage(base, 0, 0, sw, sh);
+    const B = sx.getImageData(0, 0, sw, sh).data;
+    const solid = new Float32Array(n);
+    for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
+      if (mask[Math.min(h - 1, y * 2) * w + Math.min(w - 1, x * 2)] >= 235) solid[y * sw + x] = 1;
+    }
+    const inner = boxBlur(solid, sw, sh, 1);          // 1 only where the whole neighbourhood is solid: the deep interior
+    const band = new Uint8Array(n), pr = new Float32Array(n), pg = new Float32Array(n), pb = new Float32Array(n), pw = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      if (inner[i] > 0.98) { pr[i] = B[i * 4]; pg[i] = B[i * 4 + 1]; pb[i] = B[i * 4 + 2]; pw[i] = 1; } else band[i] = 1;
+    }
+    // Several search radii: an outline pixel takes the colour from the closest scale that finds any subject pixels.
+    const scales = [3, 8, 20, 48].map(R => ({ r: boxBlur(pr, sw, sh, R), g: boxBlur(pg, sw, sh, R), b: boxBlur(pb, sw, sh, R), w: boxBlur(pw, sw, sh, R) }));
+    const out = sx.createImageData(sw, sh);
+    for (let i = 0; i < n; i++) {
+      let k = -1;
+      for (let q = 0; q < scales.length; q++) if (scales[q].w[i] > 0.02) { k = q; break; }
+      const o = i * 4;
+      if (k < 0) { out.data[o] = B[o]; out.data[o + 1] = B[o + 1]; out.data[o + 2] = B[o + 2]; }
+      else { const sc = scales[k]; out.data[o] = sc.r[i] / sc.w[i]; out.data[o + 1] = sc.g[i] / sc.w[i]; out.data[o + 2] = sc.b[i] / sc.w[i]; }
+      out.data[o + 3] = 255;
+    }
+    sx.putImageData(out, 0, 0);
+    const big = document.createElement('canvas'); big.width = w; big.height = h;
+    const bx = big.getContext('2d', { willReadFrequently: true });
+    bx.imageSmoothingQuality = 'high'; bx.drawImage(small, 0, 0, w, h);
+    return { fg: bx.getImageData(0, 0, w, h).data, band, sw };
+  }
+
+  const buildCut = (base, mask, w, h) => Object.assign({ w, h, base, mask, cache: null }, estimateForeground(base, mask, w, h));
 
   // The picture to draw for a slot: the cutout (edge cleaned) when it is switched on, else the original photo.
   function srcOf(c) {
@@ -411,7 +584,15 @@
     const id = x.getImageData(0, 0, cut.w, cut.h), d = id.data, m = cut.mask;
     const t = e / 100 * 0.4, lut = new Uint8ClampedArray(256);   // edge cleanup tightens the soft edge of the matte
     for (let i = 0; i < 256; i++) lut[i] = Math.round((i / 255 - t) / (1 - t) * 255);
-    for (let i = 0; i < m.length; i++) d[i * 4 + 3] = lut[m[i]];
+    const fg = cut.fg, band = cut.band, sw = cut.sw;
+    for (let y = 0, i = 0; y < cut.h; y++) {
+      const brow = (y >> 1) * sw;
+      for (let xx = 0; xx < cut.w; xx++, i++) {
+        const a = m[i], j = i * 4;
+        if (a < 250 || band[brow + (xx >> 1)]) { d[j] = fg[j]; d[j + 1] = fg[j + 1]; d[j + 2] = fg[j + 2]; }   // outline band: the subject's own colour
+        d[j + 3] = lut[a];
+      }
+    }
     x.putImageData(id, 0, 0);
     cut.cache = { edge: e, canvas: cv };
     return cv;
@@ -441,7 +622,7 @@
     const { pixel_values } = await processor(RawImage.fromCanvas(base));
     const { output } = await model({ input: pixel_values });
     const mask = await RawImage.fromTensor(output[0].mul(255).to('uint8')).resize(w, h);
-    return { w, h, base, mask: Uint8Array.from(mask.data), cache: null };
+    return buildCut(base, Uint8Array.from(mask.data), w, h);
   }
 
   $('removeBgBtn').addEventListener('click', async () => {
@@ -643,7 +824,7 @@
   $('rotL').addEventListener('click', () => withCell(s => s.rotation = wrap180(s.rotation - 90)));
   $('rotR').addEventListener('click', () => withCell(s => s.rotation = wrap180(s.rotation + 90)));
   $('flip').addEventListener('click', () => withCell(s => s.flip = !s.flip));
-  $('resetBtn').addEventListener('click', () => withCell(s => Object.assign(s, defaultState(), { bg: s.bg, removeBg: s.removeBg, edge: s.edge })));
+  $('resetBtn').addEventListener('click', () => withCell(s => Object.assign(s, defaultState(), { bg: s.bg, removeBg: s.removeBg, edge: s.edge, text: s.text })));
   guideMode.addEventListener('change', drawGuides);
   $('swatches').addEventListener('click', (e) => {
     const sw = e.target.closest('.swatch');
@@ -656,7 +837,7 @@
     const src = cells[selected];
     if (!src) { say('Add a photo to the selected slot first.'); return; }
     for (let i = 0; i < count(); i++) {
-      cells[i] = { img: src.img, state: Object.assign({}, src.state), cut: src.cut };
+      cells[i] = { img: src.img, state: Object.assign({}, src.state, { text: Object.assign({}, src.state.text) }), cut: src.cut };
       renderCellThumb(i);
     }
     renderEditor();
@@ -884,7 +1065,7 @@
     for (let i = 0; i < mask.length; i++) mask[i] = d[i * 4];
     const base = document.createElement('canvas'); base.width = j.w; base.height = j.h;
     base.getContext('2d').drawImage(img, 0, 0, j.w, j.h);
-    return { w: j.w, h: j.h, base, mask, cache: null };
+    return buildCut(base, mask, j.w, j.h);
   }
 
   $('saveSession').addEventListener('click', () => {
