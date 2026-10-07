@@ -21,6 +21,14 @@ Everything runs in the browser. Photos are never uploaded anywhere.
 
 Packages and their print-outs come from the studio's packages page (captured 2026-10-07) and are listed at the top of the `CATEGORIES` block in the file. Counts are photos: a Minis sheet holds 4, a Besties sheet 2, a Solo sheet 1. To change a package, edit its line there.
 
+Special layouts are separate from the packages and can be added to any sheet list:
+
+- **Six frames**: 6 photos in a 2 × 3 grid, logo under the bottom row
+- **Strip + 2**: a strip of 4 photos, one portrait and one sideways photo
+- **Strip + 3**: a strip of 4 photos and three sideways photos
+
+Sideways frames start with the photo turned 90° and carry a sideways logo, as on the studio's samples.
+
 Frames have rounded corners and the sheet carries the same cut marks as the studio's sheets. Photos are repositioned, zoomed and rotated inside each frame, and always fill it. Each sheet downloads as a 1200 × 1800 px PNG tagged 300 dpi.
 
 ## Printing
