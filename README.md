@@ -5,7 +5,7 @@ A single-page web app for making ID photo sheets. Drag a client photo into a slo
 - **35 × 45 mm** photos, 8 per **6 × 4 in** sheet (landscape)
 - **2 × 2 in** photos, 6 per **4 × 6 in** (4R) sheet
 - Zoom, pan, rotate, flip, brightness, contrast, saturation and background fill
-- Head and eye-line guides on screen (not printed)
+- On-screen guides (never printed): passport head-size bands for 35 × 45 mm (head 32–36 mm, crown 4–6 mm from top), or an oval and eye line
 - Optional cut marks in the sheet margins
 - Sessions can be saved to a file and loaded on another device
 
