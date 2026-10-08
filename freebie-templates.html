@@ -132,8 +132,6 @@
       <div class="timer-bar" aria-hidden="true"><i id="timerFill"></i></div>
       <div class="timer-btns">
         <button class="btn primary" id="timerStart">Start</button>
-        <button class="btn" id="timerMinus">− 1 min</button>
-        <button class="btn" id="timerPlus">+ 1 min</button>
         <button class="btn" id="timerReset">Reset</button>
       </div>
     </div>
@@ -961,10 +959,10 @@
 
   /* ---------- client timer ---------- */
   // Time allowed for the client, by number of sheets to prepare. More sheets than the last rule use the last rule's time.
-  const TIMER_RULES = [{ upTo: 2, minutes: 5 }, { upTo: 5, minutes: 10 }];
+  const TIMER_RULES = [{ upTo: 2, minutes: 5 }, { upTo: 5, minutes: 10 }, { upTo: 10, minutes: 15 }];
   const minutesFor = (n) => (TIMER_RULES.find(r => n <= r.upTo) || TIMER_RULES[TIMER_RULES.length - 1]).minutes;
-  const TIMER_NOTE = '1–2 sheets get 5 minutes and 3–5 sheets get 10 minutes. Press Start when the client begins. Use − and + to change the time.';
-  const timer = { total: 0, left: 0, running: false, started: false, adjust: 0, endAt: 0, id: null, warned: false, count: -1 };
+  const TIMER_NOTE = '1–2 sheets get 5 minutes, 3–5 sheets get 10 minutes and 6–10 sheets get 15 minutes. Press Start when the client begins. Once started it cannot be paused.';
+  const timer = { total: 0, left: 0, running: false, started: false, endAt: 0, id: null, warned: false, count: -1 };
   let audioCtx = null;
   const fmt = (t) => String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
 
@@ -986,17 +984,17 @@
     $('timerFill').style.width = (timer.total ? timer.left / timer.total * 100 : 0) + '%';
     $('timerPanel').classList.toggle('warn', warn); $('timerPanel').classList.toggle('over', over);
     const nav = $('navTimer'); nav.hidden = !timer.started; nav.textContent = fmt(timer.left); nav.className = 'nav-timer' + (over ? ' over' : warn ? ' warn' : '');
-    $('timerStart').textContent = timer.running ? 'Pause' : over ? 'Time is up' : timer.started ? 'Resume' : 'Start';
-    $('timerStart').disabled = over;
+    $('timerStart').textContent = timer.running ? 'Running' : over ? 'Time is up' : 'Start';
+    $('timerStart').disabled = timer.running || over;
     document.title = timer.running ? `${fmt(timer.left)} · Freebie Photo Templates` : 'Freebie Photo Templates';
     const n = sheets.length;
-    $('timerSub').textContent = `${n} ${n === 1 ? 'sheet' : 'sheets'} to prepare · ${minutesFor(n)} minutes allowed` + (timer.adjust ? ` ${timer.adjust > 0 ? '+' : '−'} ${Math.abs(timer.adjust / 60)} min` : '');
+    $('timerSub').textContent = `${n} ${n === 1 ? 'sheet' : 'sheets'} to prepare · ${minutesFor(n)} minutes allowed`;
   }
 
   // Called whenever the sheet list changes. Before the timer starts, the time follows the number of sheets.
   function syncTimer() {
     const n = sheets.length;
-    if (!timer.started) { timer.total = minutesFor(n) * 60 + timer.adjust; timer.left = timer.total; $('timerNote').textContent = TIMER_NOTE; }
+    if (!timer.started) { timer.total = minutesFor(n) * 60; timer.left = timer.total; $('timerNote').textContent = TIMER_NOTE; }
     else if (n !== timer.count) $('timerNote').textContent = `The sheet count changed to ${n}, which allows ${minutesFor(n)} minutes. Press Reset to use it.`;
     timer.count = n;
     paintTimer();
@@ -1010,28 +1008,18 @@
   }
 
   $('timerStart').addEventListener('click', () => {
-    if (timer.running) { timer.running = false; clearInterval(timer.id); paintTimer(); return; }
-    if (timer.started && timer.left === 0) return;
+    if (timer.running || timer.started) return;           // it runs to zero once started
     try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}   // sound needs a click first
-    if (!timer.started) { timer.started = true; timer.warned = timer.left <= 60; }
+    timer.started = true; timer.warned = timer.left <= 60;
     timer.running = true; timer.endAt = Date.now() + timer.left * 1000;
     timer.id = setInterval(tick, 250);
     paintTimer();
   });
 
-  function addTime(sec) {
-    if (!timer.started) { timer.adjust = Math.max(60 - minutesFor(sheets.length) * 60, timer.adjust + sec); syncTimer(); return; }   // never below 1 minute
-    timer.left = Math.max(0, timer.left + sec);
-    timer.total = Math.max(timer.total + sec, timer.left, 60);
-    if (timer.left > 60) timer.warned = false;
-    if (timer.running) timer.endAt = Date.now() + timer.left * 1000;
-    paintTimer();
-  }
-  $('timerPlus').addEventListener('click', () => addTime(60));
-  $('timerMinus').addEventListener('click', () => addTime(-60));
   $('timerReset').addEventListener('click', () => {
+    if (timer.running && !confirm('Reset the timer? The client\'s time will start over.')) return;
     clearInterval(timer.id);
-    Object.assign(timer, { running: false, started: false, adjust: 0, warned: false });
+    Object.assign(timer, { running: false, started: false, warned: false });
     syncTimer();
   });
 

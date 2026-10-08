@@ -29,7 +29,7 @@ Packages and their print-outs come from the studio's packages page (captured 202
 
 **Extra sheets cost money.** Sheets that come with the package are free. A sheet added with the Add a sheet buttons costs ₱50 and a special layout costs ₱70. The page shows a reminder, a "+₱" tag on each added sheet, and a running total to collect. The prices are `PRICE_STD` and `PRICE_SPECIAL` in the file.
 
-**Client timer.** A countdown at the top of the page guides the client: 1–2 sheets get 5 minutes and 3–5 sheets get 10 minutes (more than 5 sheets also get 10). Start, pause, reset, and − / + 1 minute buttons. A pill beside the logo keeps showing the time while scrolling, it turns amber in the last minute and red at zero, and it beeps once at one minute and three times at zero. The rules are `TIMER_RULES` in the file.
+**Client timer.** A countdown at the top of the page guides the client: 1–2 sheets get 5 minutes, 3–5 sheets get 10 minutes and 6–10 sheets get 15 minutes (more than 10 also get 15). Only Start and Reset: once started it cannot be paused and the time cannot be changed, and Reset asks first while the clock is running. A pill beside the logo keeps showing the time while scrolling, it turns amber in the last minute and red at zero, and it beeps once at one minute and three times at zero. The rules are `TIMER_RULES` in the file.
 
 **Remove this sheet** sits beside the sheet list, so any sheet can be removed without scrolling to the preview.
 
