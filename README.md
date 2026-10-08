@@ -2,9 +2,9 @@
 
 A single-page web app for making ID photo sheets. Drag a client photo into a slot, crop and adjust it, then download a print-ready sheet.
 
-- **35 × 45 mm** photos, 8 per **6 × 4 in** sheet (landscape)
-- **2 × 2 in** photos, 6 per **4 × 6 in** (4R) sheet
-- **2 × 2 in and 1 × 1 in mix** on a full **4 × 6 in** sheet: 4 big + 8 small. Thin cut lines between the photos can be switched off
+- **35 × 45 mm** photos, 8 per **153 × 102 mm** sheet (landscape)
+- **2 × 2 in** photos, 6 per **102 × 153 mm** sheet
+- **2 × 2 in and 1 × 1 in mix** on a full **102 × 153 mm** sheet: 4 big + 8 small. Thin cut lines between the photos can be switched off
 - Zoom, pan, rotate, flip, brightness, contrast, saturation and background fill
 - **Text on photo**: up to 3 lines per slot (name, ID number), with font, size, position, colour and an optional band behind the text. It scales with the photo, so it looks the same on 2 × 2 in and 1 × 1 in photos, and prints with the photo. "Apply this text to all slots" copies it; each slot can still be changed
 - **Remove background** with an edge cleanup slider. The cutout then shows the chosen background fill (white, blue, red, grey or custom). The outline is recoloured from the subject's own colours, so a white or light studio backdrop does not leave a pale rim on a new colour. It runs in the browser with a portrait-matting model (MODNet, Apache-2.0, via Transformers.js), so photos are not uploaded. The first use downloads about 26 MB from huggingface.co and jsDelivr, and the browser keeps it afterwards
@@ -18,7 +18,7 @@ The look follows the studio website: `studio.css` holds the shared palette, font
 
 ## Freebie photo templates
 
-`freebie-templates.html` makes the 4 × 6 in freebie sheets with the Click Lounge Studio logo. Pick the client's package and it lists the free print-outs that package includes, as one sheet per print-out. Four sheet types:
+`freebie-templates.html` makes the 102 × 153 mm freebie sheets with the Click Lounge Studio logo. Pick the client's package and it lists the free print-outs that package includes, as one sheet per print-out. Four sheet types:
 
 - **Minis**: 4 photos, 2 × 2 frames, logo under each
 - **Besties**: 2 landscape photos, stacked, logo above each
@@ -35,11 +35,11 @@ Special layouts are separate from the packages and can be added to any sheet lis
 
 Sideways frames start with the photo turned 90° and carry a sideways logo, as on the studio's samples.
 
-Frames have rounded corners and the sheet carries the same cut marks as the studio's sheets. Photos are repositioned, zoomed and rotated inside each frame, and always fill it. Each sheet downloads as a 1200 × 1800 px PNG tagged 300 dpi.
+Frames have rounded corners and the sheet carries the same cut marks as the studio's sheets. Photos are repositioned, zoomed and rotated inside each frame, and always fill it. Each sheet downloads as a 1205 × 1807 px PNG tagged 300 dpi.
 
 ## Printing and sending to a phone
 
-On the freebie page, **Print this sheet** and **Print all sheets** open the browser's print dialog with one 4 × 6 in page per sheet. On the ID photo page, **Print sheet** prints the sheet at its real size (6 × 4 in landscape for 35 × 45 mm, 4 × 6 in portrait for 2 × 2 in). Choose the matching paper and 100% scale.
+On the freebie page, **Print this sheet** and **Print all sheets** open the browser's print dialog with one 102 × 153 mm page per sheet. On the ID photo page, **Print sheet** prints the sheet at its real size (153 × 102 mm landscape for 35 × 45 mm, 102 × 153 mm portrait for 2 × 2 in). Choose the matching paper and 100% scale.
 
 **Send to phone (QR code)**, on both pages, shows a QR code. The client scans it and `receive.html` opens on their phone and receives the finished sheet (a 300 dpi JPEG) straight from the staff device. The sheet is not uploaded or stored anywhere. The staff page must stay open until it says Sent, and each code works once and expires after 10 minutes. It uses PeerJS (WebRTC) from cdnjs; the free public PeerJS service only introduces the two devices, and the file travels encrypted between them (through a relay if the networks block a direct link).
 
@@ -50,3 +50,7 @@ Download the sheet (PNG, 300 dpi), open it, and print at 100% / Actual size on p
 ## Running it
 
 There is no build step. Open `index.html` in a browser, or serve the folder with GitHub Pages.
+
+## Paper size
+
+All sheets are made for **102 × 153 mm** photo paper (1205 × 1807 px at 300 dpi). Photo sizes stay exact: 2 × 2 in is 600 px, 35 × 45 mm is 413 × 531 px.

@@ -243,32 +243,32 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" integrity="sha384-mZT2gIty7ZDdOGkxfP6joZcYdMW1Jvj9dRlfpTmaJAKKXTqzygtB22k7FLe+KZC1" crossorigin="anonymous"></script>
 <script>
 (function () {
-  const MM = 25.4, DPI = 300, MAX_CELLS = 18, STAGE_MAX = 340, THUMB_PER_IN = 100;
+  const MM = 25.4, PAPER_W = 102 / MM, PAPER_H = 153 / MM, DPI = 300, MAX_CELLS = 18, STAGE_MAX = 340, THUMB_PER_IN = 100;
 
   // Sizes are in inches. Photos tile edge to edge; the sheet margin is whatever is left over, split evenly.
   const LAYOUTS = {
     id35x45: {
-      label: '35 × 45 mm on a 6 × 4 in sheet (8 photos)',
-      photo: '35 × 45 mm', sheet: '6 × 4 in', slug: '35x45-6x4in',
-      sheetW: 6, sheetH: 4, cellW: 35 / MM, cellH: 45 / MM, cols: 4, rows: 2,
+      label: '35 × 45 mm on a 153 × 102 mm sheet (8 photos)',
+      photo: '35 × 45 mm', sheet: '153 × 102 mm', slug: '35x45-153x102mm',
+      sheetW: PAPER_H, sheetH: PAPER_W, cellW: 35 / MM, cellH: 45 / MM, cols: 4, rows: 2,
       previewPxPerIn: 62, marks: true,
       guide: { cy: 0.47, rx: 0.30, ry: 0.38, eye: 0.42 },
       passport: { photoW: 35, photoH: 45, crownMin: 4, crownMax: 6, headMin: 32, headMax: 36 } // mm, ICAO-style
     },
     id2x2: {
-      label: '2 × 2 in on a 4 × 6 in sheet (6 photos)',
-      photo: '2 × 2 in', sheet: '4 × 6 in', slug: '2x2-4x6in',
-      sheetW: 4, sheetH: 6, cellW: 2, cellH: 2, cols: 2, rows: 3,
+      label: '2 × 2 in on a 102 × 153 mm sheet (6 photos)',
+      photo: '2 × 2 in', sheet: '102 × 153 mm', slug: '2x2-102x153mm',
+      sheetW: PAPER_W, sheetH: PAPER_H, cellW: 2, cellH: 2, cols: 2, rows: 3,
       previewPxPerIn: 52, marks: false,
       guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
     },
     // The mixed sheet lists its slots (inches) and fills the whole 4 x 6 in sheet: four 2 x 2 in photos first, then eight 1 x 1 in.
     mixA: {
-      label: '2 × 2 in and 1 × 1 in mix on a 4 × 6 in sheet (4 + 8 photos)',
-      photo: '2 × 2 in and 1 × 1 in', sheet: '4 × 6 in', slug: '2x2-1x1-mix-4-8-4x6in',
-      spec: '4 × 2 × 2 in (600 × 600 px) and 8 × 1 × 1 in (300 × 300 px) on a 4 × 6 in sheet',
-      sheetW: 4, sheetH: 6, cellW: 2, cellH: 2, previewPxPerIn: 60, marks: false, cutLines: true,
-      slots: [[0, 0, 2], [2, 0, 2], [0, 2, 2], [2, 2, 2]].concat([4, 5].flatMap(y => [0, 1, 2, 3].map(x => [x, y, 1]))).map(([x, y, w]) => ({ x, y, w, h: w })),
+      label: '2 × 2 in and 1 × 1 in mix on a 102 × 153 mm sheet (4 + 8 photos)',
+      photo: '2 × 2 in and 1 × 1 in', sheet: '102 × 153 mm', slug: '2x2-1x1-mix-4-8-102x153mm',
+      spec: '4 × 2 × 2 in (600 × 600 px) and 8 × 1 × 1 in (300 × 300 px) on a 102 × 153 mm sheet',
+      sheetW: PAPER_W, sheetH: PAPER_H, cellW: 2, cellH: 2, previewPxPerIn: 60, marks: false, cutLines: true,
+      slots: [[0, 0, 2], [2, 0, 2], [0, 2, 2], [2, 2, 2]].concat([4, 5].flatMap(y => [0, 1, 2, 3].map(x => [x, y, 1]))).map(([x, y, w]) => ({ x: x + (PAPER_W - 4) / 2, y: y + (PAPER_H - 6) / 2, w, h: w })),   // centred on the paper
       guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
     }
   };
@@ -664,7 +664,7 @@
     $('printNote').textContent =
       `To print: use Print sheet, or open the downloaded PNG, and choose ${L.sheet} paper at 100% (Actual size), without "Fit to page". ` +
       `The file is tagged ${DPI} dpi, so most apps size it correctly on their own.` +
-      (landscape ? ' This sheet is landscape: pick landscape in the print dialog, or let the printer rotate it onto 4 × 6 in paper.' : '');
+      (landscape ? ' This sheet is landscape: pick landscape in the print dialog, or let the printer rotate it onto 102 × 153 mm paper.' : '');
     $('marksRow').hidden = !(L.marks || L.cutLines);
     $('marksLabel').textContent = L.cutLines ? 'Add thin cut lines between the photos' : 'Add cut marks in the sheet margins';
   }
@@ -960,11 +960,11 @@
     const area = $('printArea');
     area.innerHTML = '';
     // The page is the sheet's real size, so a 6 x 4 in layout prints landscape and a 4 x 6 in layout portrait.
-    $('pageStyle').textContent = `@page { size: ${L.sheetW}in ${L.sheetH}in; margin: 0; }`;
+    $('pageStyle').textContent = `@page { size: ${Math.round(L.sheetW * MM)}mm ${Math.round(L.sheetH * MM)}mm; margin: 0; }`;
     const blob = await new Promise(res => composeSheet().toBlob(res, 'image/png'));
     const img = new Image(), loaded = new Promise(res => { img.onload = res; img.onerror = res; setTimeout(res, 8000); });
     img.src = URL.createObjectURL(blob);
-    img.style.width = L.sheetW + 'in'; img.style.height = L.sheetH + 'in';
+    img.style.width = Math.round(L.sheetW * MM) + 'mm'; img.style.height = Math.round(L.sheetH * MM) + 'mm';
     await loaded; area.appendChild(img);
     window.addEventListener('afterprint', () => { URL.revokeObjectURL(img.src); area.innerHTML = ''; }, { once: true });
     window.print();
