@@ -67,11 +67,6 @@
     font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
     color: #85650b; background: rgba(196, 154, 26, 0.16); border-radius: 100px; padding: 0.2rem 0.65rem; margin-right: 0.4rem; white-space: nowrap;
   }
-  .charge {
-    margin: 0 0 0.9rem; padding: 0.55rem 0.9rem; border-radius: 12px; font-size: 0.86rem; font-weight: 600;
-    color: #6f5209; background: rgba(196, 154, 26, 0.14); border: 1px solid rgba(196, 154, 26, 0.35);
-  }
-
   /* client timer */
   .timer { display: flex; flex-direction: column; gap: 0.6rem; }
   .timer-main { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem 1.6rem; }
@@ -95,6 +90,16 @@
   }
   .nav-timer.warn { background: var(--amber); }
   .nav-timer.over { background: var(--rust); }
+
+  /* PIN and add-sheet dialogs */
+  .pin-fields { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.9rem 0 0.3rem; }
+  .pin-fields input {
+    width: 100%; padding: 0.7rem; text-align: center; font-family: var(--font-mono); font-size: 1.6rem; letter-spacing: 0.5em;
+    border: 2px solid rgba(45, 110, 95, 0.2); border-radius: 12px; background: #fff; color: var(--text-dark);
+  }
+  .pin-fields input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(45, 110, 95, 0.12); }
+  .pin-error { min-height: 1.3em; margin: 0 0 0.6rem; color: var(--rust); font-weight: 600; font-size: 0.85rem; text-align: center; }
+  .linkbtn { background: none; border: none; padding: 0; font: inherit; font-size: 0.8rem; color: var(--green); text-decoration: underline; cursor: pointer; }
 
   /* printing: only the sheets, one per 102 x 153 mm page */
   #printArea { display: none; }
@@ -136,6 +141,7 @@
       </div>
     </div>
     <p class="note" id="timerNote" style="margin:0"></p>
+    <p class="note" style="margin:0"><button class="linkbtn" id="pinChange">Change PIN</button></p>
   </section>
 
   <section class="panel" aria-label="Package">
@@ -157,10 +163,9 @@
       </div>
     </div>
     <div class="sheet-chips" id="sheetChips"></div>
-    <p class="charge" id="chargeLine" hidden></p>
     <div class="add-row"><span class="eyebrow">Add a sheet</span><span class="price-tag">₱50 each</span><span id="addRow" style="display:contents"></span></div>
     <div class="add-row" style="margin-top:10px"><span class="eyebrow">Special layouts</span><span class="price-tag">₱70 each</span><span id="addRowSpecial" style="display:contents"></span></div>
-    <p class="note" id="priceNote">Reminder: every sheet added here is charged <b>₱50</b>, and every special layout <b>₱70</b>. Sheets that come with the package are free.</p>
+    <p class="note" id="priceNote">Reminder for clients: every sheet added here is charged <b>₱50</b>, and every special layout <b>₱70</b>. Sheets that come with the package are free.</p>
   </section>
 
   <div class="workspace">
@@ -222,6 +227,23 @@
       <p class="note">Drag a photo inside its frame to reposition it. The mouse wheel zooms. Photos always fill the frame.</p>
     </section>
   </div>
+
+  <dialog id="addDialog" aria-labelledby="addTitle">
+    <h2 id="addTitle">Extra sheet</h2>
+    <p id="addText" style="margin:0.4rem 0 1rem"></p>
+    <div class="row" style="margin:0"><button class="btn" id="addNo">Cancel</button><button class="btn primary" id="addYes">Add sheet</button></div>
+  </dialog>
+
+  <dialog id="pinDialog" aria-labelledby="pinTitle">
+    <h2 id="pinTitle">Enter PIN</h2>
+    <p class="note" id="pinHint" style="margin:0"></p>
+    <div class="pin-fields">
+      <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="••••" aria-label="4-digit PIN">
+      <input id="pinInput2" type="password" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="••••" aria-label="Repeat the PIN" hidden>
+    </div>
+    <p class="pin-error" id="pinError" role="alert"></p>
+    <div class="row" style="margin:0"><button class="btn" id="pinCancel">Cancel</button><button class="btn primary" id="pinOk">OK</button></div>
+  </dialog>
 
   <dialog id="qrDialog" aria-labelledby="qrTitle">
     <h2 id="qrTitle">Send to the client's phone</h2>
@@ -383,9 +405,9 @@
   const T = () => TEMPLATES[S().type];
   const say = (m) => { statusEl.textContent = m; };
   const defaultState = (slot) => ({ scale: 1, ox: 0, oy: 0, rotation: (slot && slot.rot) || 0, flip: false, brightness: 100, contrast: 100, saturation: 100 });
-  const PRICE_STD = 50, PRICE_SPECIAL = 70;      // pesos charged for each sheet added on top of a package
-  const priceOf = (s) => (TEMPLATES[s.type].group === 'special' ? PRICE_SPECIAL : PRICE_STD);
-  const newSheet = (type, used, label) => ({ type, used: used || TEMPLATES[type].slots.length, label: label || '', photos: new Array(MAX_SLOTS).fill(null), done: false, extra: false });
+  const PRICE_STD = 50, PRICE_SPECIAL = 70;      // pesos charged for each sheet added on top of a package (shown to the client, not totalled)
+  const priceOf = (type) => (TEMPLATES[type].group === 'special' ? PRICE_SPECIAL : PRICE_STD);
+  const newSheet = (type, used, label) => ({ type, used: used || TEMPLATES[type].slots.length, label: label || '', photos: new Array(MAX_SLOTS).fill(null), done: false });
   const filled = (s) => s.photos.slice(0, s.used).filter(Boolean).length;
   const anyPhotos = () => sheets.some(s => filled(s) > 0);
 
@@ -576,17 +598,12 @@
     sheets.forEach((s, i) => {
       const b = document.createElement('button');
       b.className = 'schip'; b.setAttribute('aria-pressed', i === cur);
-      b.innerHTML = `${sheetName(i)}<span class="st${s.done ? ' done' : ''}">${filled(s)}/${s.used} ${s.used === 1 ? 'photo' : 'photos'}${s.done ? ' · downloaded ✓' : ''}${s.extra ? ' · +₱' + priceOf(s) : ''}</span>`;
+      b.innerHTML = `${sheetName(i)}<span class="st${s.done ? ' done' : ''}">${filled(s)}/${s.used} ${s.used === 1 ? 'photo' : 'photos'}${s.done ? ' · downloaded ✓' : ''}</span>`;
       b.addEventListener('click', () => { cur = i; selected = Math.min(selected, S().used - 1); syncControls(); redraw(); });
       sc.appendChild(b);
     });
     const done = sheets.filter(s => s.done).length;
     $('sheetSummary').textContent = sheets.length ? `${sheets.length} ${sheets.length === 1 ? 'sheet' : 'sheets'} · 102 × 153 mm each · ${done} downloaded` : 'No sheets yet. Pick a package or add a sheet.';
-    // what to collect for sheets added on top of the package
-    const std = sheets.filter(s => s.extra && priceOf(s) === PRICE_STD).length, spec = sheets.filter(s => s.extra && priceOf(s) === PRICE_SPECIAL).length;
-    const charge = $('chargeLine');
-    charge.hidden = !(std || spec);
-    if (std || spec) charge.textContent = 'Added sheets to charge: ' + [std && `${std} × ₱${PRICE_STD}`, spec && `${spec} × ₱${PRICE_SPECIAL}`].filter(Boolean).join(' + ') + ` = ₱${std * PRICE_STD + spec * PRICE_SPECIAL}`;
     syncTimer();
   }
 
@@ -644,13 +661,28 @@
   });
 
   /* ---------- packages and sheets ---------- */
+  // Shows the client the charge at the moment they ask for another sheet.
+  function askAdd(type) {
+    const price = priceOf(type), special = TEMPLATES[type].group === 'special';
+    $('addText').innerHTML = special ? `Adding the special layout <b>${TEMPLATES[type].name}</b> costs <b>₱${price}</b>. Add it?` : `Adding a <b>${TEMPLATES[type].name}</b> sheet costs <b>₱${price}</b>. Add it?`;
+    const dlg = $('addDialog');
+    return new Promise((resolve) => {
+      const done = (v) => { dlg.close(); resolve(v); };
+      $('addYes').onclick = () => done(true);
+      $('addNo').onclick = () => done(false);
+      dlg.oncancel = () => resolve(false);
+      dlg.showModal();
+      $('addYes').focus();
+    });
+  }
+
   function buildAddButtons() {
     Object.entries(TEMPLATES).forEach(([id, t]) => {
       const box = $(t.group === 'special' ? 'addRowSpecial' : 'addRow');
       const b = document.createElement('button');
       b.className = 'tpl'; b.dataset.id = id;
       b.innerHTML = `<canvas width="52" height="78" data-id="${id}"></canvas><div><b>+ ${t.name}</b><span>${t.detail}</span></div>`;
-      b.addEventListener('click', () => { const ns = newSheet(id); ns.extra = true; sheets.push(ns); cur = sheets.length - 1; selected = 0; syncControls(); redraw(); say(''); });
+      b.addEventListener('click', async () => { if (!(await askAdd(id))) return; sheets.push(newSheet(id)); cur = sheets.length - 1; selected = 0; syncControls(); redraw(); say(''); });
       box.appendChild(b);
     });
   }
@@ -961,10 +993,19 @@
   // Time allowed for the client, by number of sheets to prepare. More sheets than the last rule use the last rule's time.
   const TIMER_RULES = [{ upTo: 2, minutes: 5 }, { upTo: 5, minutes: 10 }, { upTo: 10, minutes: 15 }];
   const minutesFor = (n) => (TIMER_RULES.find(r => n <= r.upTo) || TIMER_RULES[TIMER_RULES.length - 1]).minutes;
-  const TIMER_NOTE = '1–2 sheets get 5 minutes, 3–5 sheets get 10 minutes and 6–10 sheets get 15 minutes. Press Start when the client begins. Once started it cannot be paused.';
+  const TIMER_NOTE = '1–2 sheets get 5 minutes, 3–5 sheets get 10 minutes and 6–10 sheets get 15 minutes. Press Start when the client begins. Once started it cannot be paused, and only staff can reset it with the PIN.';
+  const STARTED_NOTE = 'The timer is running. Only staff can reset it, with the PIN.';
   const timer = { total: 0, left: 0, running: false, started: false, endAt: 0, id: null, warned: false, count: -1 };
   let audioCtx = null;
   const fmt = (t) => String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
+
+  // Browser storage keeps a started timer through a page reload, so refreshing the page cannot restart the clock.
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+    del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+  };
+  const TIMER_KEY = 'freebie-timer', PIN_KEY = 'freebie-pin', LOCK_KEY = 'freebie-pin-lock';
 
   function beep(times) {
     try {
@@ -995,7 +1036,7 @@
   function syncTimer() {
     const n = sheets.length;
     if (!timer.started) { timer.total = minutesFor(n) * 60; timer.left = timer.total; $('timerNote').textContent = TIMER_NOTE; }
-    else if (n !== timer.count) $('timerNote').textContent = `The sheet count changed to ${n}, which allows ${minutesFor(n)} minutes. Press Reset to use it.`;
+    else $('timerNote').textContent = timer.count >= 0 && n !== timer.count ? `The sheet count changed to ${n}, which allows ${minutesFor(n)} minutes. Staff can reset the timer with the PIN to use it.` : STARTED_NOTE;
     timer.count = n;
     paintTimer();
   }
@@ -1007,21 +1048,103 @@
     paintTimer();
   }
 
-  $('timerStart').addEventListener('click', () => {
-    if (timer.running || timer.started) return;           // it runs to zero once started
-    try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}   // sound needs a click first
-    timer.started = true; timer.warned = timer.left <= 60;
-    timer.running = true; timer.endAt = Date.now() + timer.left * 1000;
-    timer.id = setInterval(tick, 250);
+  function runTimer() {
+    timer.started = true; timer.warned = timer.left <= 60; timer.running = timer.left > 0;
+    if (timer.running) timer.id = setInterval(tick, 250);
     paintTimer();
+  }
+
+  /* ----- the staff PIN: 4 digits, kept on this device as a salted hash (never in the page code) ----- */
+  let memPin = null;                                     // used only if the browser will not store anything
+  const readPin = () => { try { return JSON.parse(store.get(PIN_KEY)) || memPin; } catch (e) { return memPin; } };
+  async function hashPin(pin, salt) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + ':' + pin));
+    return Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('');
+  }
+  async function savePin(pin) {
+    const salt = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
+    const rec = { salt, hash: await hashPin(pin, salt) };
+    memPin = rec; store.set(PIN_KEY, JSON.stringify(rec));
+  }
+
+  // One dialog for creating and checking the PIN. validate(pin) returns an error message, or '' to accept it.
+  function openPin({ title, hint, repeat, validate }) {
+    const dlg = $('pinDialog'), a = $('pinInput'), b = $('pinInput2'), err = $('pinError');
+    $('pinTitle').textContent = title; $('pinHint').textContent = hint;
+    b.hidden = !repeat; a.value = b.value = ''; err.textContent = '';
+    return new Promise((resolve) => {
+      let closed = false;
+      const finish = (v) => { if (closed) return; closed = true; dlg.close(); resolve(v); };
+      const digits = (el) => { el.value = el.value.replace(/\D/g, '').slice(0, 4); };
+      a.oninput = () => digits(a); b.oninput = () => digits(b);
+      const submit = async () => {
+        if (!/^\d{4}$/.test(a.value)) { err.textContent = 'Enter 4 digits.'; return; }
+        if (repeat && a.value !== b.value) { err.textContent = 'The two PINs do not match.'; return; }
+        const problem = validate ? await validate(a.value) : '';
+        if (problem) { err.textContent = problem; a.value = b.value = ''; a.focus(); return; }
+        finish(a.value);
+      };
+      $('pinOk').onclick = submit;
+      $('pinCancel').onclick = () => finish(null);
+      dlg.oncancel = () => { closed = true; resolve(null); };
+      [a, b].forEach(el => { el.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }; });
+      dlg.showModal(); a.focus();
+    });
+  }
+
+  async function createPin() {
+    const pin = await openPin({ title: 'Create a PIN', hint: 'Choose a 4-digit PIN. It is needed to reset the timer, so the client cannot restart it. Keep it to staff.', repeat: true });
+    if (pin === null) return false;
+    await savePin(pin);
+    return true;
+  }
+
+  // True when the right PIN was entered. Three wrong tries lock it for one minute.
+  async function checkPin(title, hint) {
+    const rec = readPin();
+    if (!rec) return createPin();
+    let fails = 0;
+    const pin = await openPin({
+      title, hint,
+      validate: async (p) => {
+        const until = parseInt(store.get(LOCK_KEY) || '0', 10);
+        if (Date.now() < until) return `Too many tries. Wait ${Math.ceil((until - Date.now()) / 1000)} seconds.`;
+        if (await hashPin(p, rec.salt) === rec.hash) { store.del(LOCK_KEY); return ''; }
+        if (++fails >= 3) { store.set(LOCK_KEY, String(Date.now() + 60000)); fails = 0; return 'Too many tries. Wait 1 minute.'; }
+        return 'Wrong PIN.';
+      }
+    });
+    return pin !== null;
+  }
+
+  $('timerStart').addEventListener('click', async () => {
+    if (timer.running || timer.started) return;           // it runs to zero once started
+    if (!readPin() && !(await createPin())) return;      // staff set the PIN first, before handing the device to the client
+    try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}   // sound needs a click first
+    timer.endAt = Date.now() + timer.left * 1000;
+    store.set(TIMER_KEY, JSON.stringify({ endAt: timer.endAt, total: timer.total }));
+    runTimer();
   });
 
-  $('timerReset').addEventListener('click', () => {
-    if (timer.running && !confirm('Reset the timer? The client\'s time will start over.')) return;
-    clearInterval(timer.id);
+  $('timerReset').addEventListener('click', async () => {
+    if (timer.started && !(await checkPin('Enter PIN', 'Enter the 4-digit staff PIN to reset the timer.'))) return;
+    clearInterval(timer.id); store.del(TIMER_KEY);
     Object.assign(timer, { running: false, started: false, warned: false });
     syncTimer();
   });
+
+  $('pinChange').addEventListener('click', async () => {
+    if (readPin() && !(await checkPin('Enter current PIN', 'Enter the current PIN to change it.'))) return;
+    if (await createPin()) $('timerNote').textContent = 'The PIN was changed.';
+  });
+
+  // Pick up a timer that was already started before this page was loaded.
+  (() => {
+    try {
+      const d = JSON.parse(store.get(TIMER_KEY));
+      if (d && d.endAt) { timer.total = d.total; timer.endAt = d.endAt; timer.left = Math.max(0, Math.ceil((d.endAt - Date.now()) / 1000)); runTimer(); }
+    } catch (e) {}
+  })();
 
   /* ---------- start ---------- */
   buildAddButtons();
