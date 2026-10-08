@@ -84,12 +84,26 @@
   .timer.over .timer-bar i { background: var(--rust); }
   @media (prefers-reduced-motion: no-preference) { .timer.over .timer-time { animation: timerBlink 1s steps(2, start) infinite; } }
   @keyframes timerBlink { 50% { opacity: 0.35; } }
-  .nav-timer {
-    flex: none; margin: 0 0.5rem; padding: 0.25rem 0.75rem; border-radius: 100px; background: var(--green); color: #fff;
-    font-family: var(--font-mono); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.04em; font-variant-numeric: tabular-nums;
+  /* floating timer: stays on screen while the page is scrolled, shown once the timer panel itself is out of view */
+  .timer-float {
+    position: fixed; z-index: 150; right: max(1rem, env(safe-area-inset-right)); bottom: max(1rem, env(safe-area-inset-bottom));
+    width: min(230px, calc(100% - 2rem)); padding: 0.75rem 1rem 0.85rem; pointer-events: none;
+    background: #fff; border: 1px solid var(--line-soft); border-radius: 18px; box-shadow: 0 10px 30px rgba(45, 110, 95, 0.25);
   }
-  .nav-timer.warn { background: var(--amber); }
-  .nav-timer.over { background: var(--rust); }
+  .tf-label { font-family: var(--font-mono); font-size: 0.64rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--rust); }
+  .tf-time {
+    font-family: var(--font-mono); font-weight: 700; font-size: 2.3rem; line-height: 1.15; letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums; color: var(--green-dark);
+  }
+  .tf-bar { height: 8px; border-radius: 999px; background: var(--cream-dark); overflow: hidden; margin-top: 0.4rem; }
+  .tf-bar i { display: block; height: 100%; width: 100%; background: var(--green); transition: width 0.25s linear, background 0.3s; }
+  .timer-float.idle .tf-time { color: var(--text-light); }
+  .timer-float.warn .tf-time { color: var(--amber); }
+  .timer-float.warn .tf-bar i { background: var(--amber); }
+  .timer-float.over { border-color: var(--rust); }
+  .timer-float.over .tf-time { color: var(--rust); }
+  .timer-float.over .tf-bar i { background: var(--rust); }
+  @media (prefers-reduced-motion: no-preference) { .timer-float.over .tf-time { animation: timerBlink 1s steps(2, start) infinite; } }
 
   /* PIN and add-sheet dialogs */
   .pin-fields { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.9rem 0 0.3rem; }
@@ -114,7 +128,6 @@
 <body>
 <nav class="site-nav" aria-label="Studio tools">
   <a class="brand" href="https://hellotalentff-max.github.io/clicklounge/" aria-label="ClickLounge Studio website"><img src="logo.webp" alt="ClickLounge Studio"></a>
-  <span class="nav-timer" id="navTimer" hidden aria-hidden="true"></span>
   <span class="sep"></span>
   <a href="index.html">ID Photos</a>
   <a href="freebie-templates.html" class="active">Freebie Templates</a>
@@ -269,6 +282,12 @@
   <div class="footer-contact">U302 Decoro Bldg. Circumferential Rd. San Roque, Antipolo City<br>+63976 022 1462 &nbsp;|&nbsp; +632 7005 7497 &nbsp;|&nbsp; clickloungestudio@gmail.com</div>
   <div class="footer-bottom">© 2025 ClickLounge Studio. All rights reserved.</div>
 </footer>
+
+<div class="timer-float idle" id="timerFloat" hidden aria-hidden="true">
+  <div class="tf-label" id="tfLabel">Not started</div>
+  <div class="tf-time" id="tfTime">05:00</div>
+  <div class="tf-bar"><i id="tfFill"></i></div>
+</div>
 
 <div id="printArea" aria-hidden="true"></div>
 
@@ -1024,7 +1043,10 @@
     $('timerTime').textContent = fmt(timer.left);
     $('timerFill').style.width = (timer.total ? timer.left / timer.total * 100 : 0) + '%';
     $('timerPanel').classList.toggle('warn', warn); $('timerPanel').classList.toggle('over', over);
-    const nav = $('navTimer'); nav.hidden = !timer.started; nav.textContent = fmt(timer.left); nav.className = 'nav-timer' + (over ? ' over' : warn ? ' warn' : '');
+    const fl = $('timerFloat');
+    fl.className = 'timer-float' + (!timer.started ? ' idle' : over ? ' over' : warn ? ' warn' : '');
+    $('tfTime').textContent = fmt(timer.left); $('tfFill').style.width = (timer.total ? timer.left / timer.total * 100 : 0) + '%';
+    $('tfLabel').textContent = !timer.started ? 'Not started' : over ? 'Time is up' : 'Time left';
     $('timerStart').textContent = timer.running ? 'Running' : over ? 'Time is up' : 'Start';
     $('timerStart').disabled = timer.running || over;
     document.title = timer.running ? `${fmt(timer.left)} · Freebie Photo Templates` : 'Freebie Photo Templates';
@@ -1137,6 +1159,10 @@
     if (readPin() && !(await checkPin('Enter current PIN', 'Enter the current PIN to change it.'))) return;
     if (await createPin()) $('timerNote').textContent = 'The PIN was changed.';
   });
+
+  // The floating card appears when the timer panel scrolls out of view, so the client can always see the time.
+  if ('IntersectionObserver' in window) new IntersectionObserver((entries) => { $('timerFloat').hidden = entries[0].isIntersecting; }).observe($('timerPanel'));
+  else $('timerFloat').hidden = false;
 
   // Pick up a timer that was already started before this page was loaded.
   (() => {
