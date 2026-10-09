@@ -27,7 +27,7 @@ The look follows the studio website: `studio.css` holds the shared palette, font
 
 Packages and their print-outs come from the studio's packages page (captured 2026-10-07) and are listed at the top of the `CATEGORIES` block in the file. Counts are photos: a Minis sheet holds 4, a Besties sheet 2, a Solo sheet 1. To change a package, edit its line there.
 
-**Extra sheets cost money.** Sheets that come with the package are free. A sheet added with the Add a sheet buttons costs ₱50 and a special layout costs ₱70. The page shows a reminder next to the buttons, and each time someone adds a sheet a box shows the price and asks "Add it?" first. Nothing is totalled. The prices are `PRICE_STD` and `PRICE_SPECIAL` in the file.
+**Extra sheets cost money.** Sheets that come with the package are free. A sheet added with the Add a sheet buttons costs ₱50, a special layout ₱70 and a large 8 × 24 in sheet ₱450. The page shows a reminder next to the buttons, and each time someone adds a sheet a box shows the price and asks "Add it?" first. Nothing is totalled. The prices are `PRICE_STD` and `PRICE_SPECIAL` in the file, and a template can set its own `price` (the large sheets).
 
 **Client timer.** A countdown at the top of the page guides the client: 1–2 sheets get 5 minutes, 3–5 sheets get 10 minutes and 6–10 sheets get 15 minutes (more than 10 also get 15). Only Start and Reset: once started it cannot be paused and the time cannot be changed. **Resetting needs a 4-digit staff PIN.** The first time Start is pressed on a device, staff are asked to create the PIN (before handing the device to the client). The PIN is kept on that device only, as a salted hash, never in the page code. Three wrong tries lock the PIN for one minute, and "Change PIN" under the timer changes it. A started timer survives a page reload, so refreshing the page does not restart the clock. If browser data is cleared the PIN and timer are lost, and a new PIN is created at the next Start. When the timer panel scrolls out of view, a floating card at the bottom right keeps showing the time, so the client can always see it. It turns amber in the last minute and red at zero, and the timer beeps once at one minute and three times at zero. The rules are `TIMER_RULES` in the file.
 
@@ -38,6 +38,13 @@ Special layouts are separate from the packages and can be added to any sheet lis
 - **Six frames**: 6 photos in a 2 × 3 grid, logo under the bottom row
 - **Strip + 2**: a strip of 4 photos, one portrait and one sideways photo
 - **Strip + 3**: a strip of 4 photos and three sideways photos
+
+**Large 8 × 24 in sheets** have their own row and cost ₱450 each:
+
+- **8 × 24 · 3 frames**: three equal rounded frames stacked down the sheet, with the studio's stacked logo at the bottom
+- **8 × 24 · full sheet**: one photo over the whole sheet, no logo
+
+They are built from the studio's description (no sample), so the frame sizes are an estimate. They export at 250 dpi (2000 × 6000 px, because phones cannot make canvases much bigger) as a JPG tagged 250 dpi, which keeps the file small. Printing uses an 8 × 24 in page, and a single print job holds one paper size: "Print all sheets" prints the sheets that share the first sheet's size and says how many were left out.
 
 Sideways frames start with the photo turned 90° and carry a sideways logo, as on the studio's samples.
 
