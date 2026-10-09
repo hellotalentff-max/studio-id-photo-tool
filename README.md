@@ -3,10 +3,9 @@
 A single-page web app for making ID photo sheets. Drag a client photo into a slot, crop and adjust it, then download a print-ready sheet.
 
 - **35 × 45 mm** photos, 8 per **153 × 102 mm** sheet (landscape)
-- **2 × 2 in** photos, 6 per **102 × 153 mm** sheet, edge to edge with no margin (each photo is 51 × 51 mm, about 0.2 mm over 2 in, so the paper is filled)
-- **2 × 2 in and 1 × 1 in mix** on a full **102 × 153 mm** sheet: 4 big + 8 small. Thin cut lines between the photos can be switched off
+- **2 × 2 in** photos, 6 per **4 × 6 in** (101.6 × 152.4 mm) sheet: exactly 2.000 in (600 px) each, edge to edge with no margin
+- **2 × 2 in and 1 × 1 in mix** on a full **4 × 6 in** sheet: 4 big (2.000 in) + 8 small (1.000 in), no margin. Thin cut lines between the photos can be switched off
 - Zoom, pan, rotate, flip, brightness, contrast, saturation and background fill
-- **Exact 2 in versions on 4 × 6 in paper (101.6 × 152.4 mm)**: the same 6-photo 2 × 2 in sheet and the 4 + 8 mixed sheet, with photos of exactly 2.000 in (600 px) and 1.000 in (300 px) and no margin, as a 1200 × 1800 px file. Use these when the paper really is 4 × 6 in; on 102 × 153 mm paper use the layouts above
 - **Text on photo**: up to 3 lines per slot (name, ID number), with font, size, position, colour and an optional band behind the text. It scales with the photo, so it looks the same on 2 × 2 in and 1 × 1 in photos, and prints with the photo. "Apply this text to all slots" copies it; each slot can still be changed
 - **Remove background** with an edge cleanup slider. The cutout then shows the chosen background fill (white, blue, red, grey or custom). The outline is recoloured from the subject's own colours, so a white or light studio backdrop does not leave a pale rim on a new colour. It runs in the browser with a portrait-matting model (MODNet, Apache-2.0, via Transformers.js), so photos are not uploaded. The first use downloads about 26 MB from huggingface.co and jsDelivr, and the browser keeps it afterwards
 - On-screen guides (never printed): passport head-size bands for 35 × 45 mm (head 32–36 mm, crown 4–6 mm from top), or an oval and eye line
@@ -53,7 +52,7 @@ Frames have rounded corners and the sheet carries the same cut marks as the stud
 
 ## Printing and sending to a phone
 
-On the freebie page, **Print this sheet** and **Print all sheets** open the browser's print dialog with one 102 × 153 mm page per sheet. On the ID photo page, **Print sheet** prints the sheet at its real size (153 × 102 mm landscape for 35 × 45 mm, 102 × 153 mm portrait for 2 × 2 in). Choose the matching paper and 100% scale.
+On the freebie page, **Print this sheet** and **Print all sheets** open the browser's print dialog with one 102 × 153 mm page per sheet. On the ID photo page, **Print sheet** prints the sheet at its real size (153 × 102 mm landscape for 35 × 45 mm, 101.6 × 152.4 mm (4 × 6 in) portrait for 2 × 2 in). Choose the matching paper and 100% scale.
 
 **Send to phone (QR code)**, on both pages, shows a QR code. The client scans it and `receive.html` opens on their phone and receives the finished sheet (a 300 dpi JPEG) straight from the staff device. The sheet is not uploaded or stored anywhere. The staff page must stay open until it says Sent, and each code works once and expires after 10 minutes. It uses PeerJS (WebRTC) from cdnjs; the free public PeerJS service only introduces the two devices, and the file travels encrypted between them (through a relay if the networks block a direct link).
 
@@ -67,4 +66,4 @@ There is no build step. Open `index.html` in a browser, or serve the folder with
 
 ## Paper size
 
-All sheets are made for **102 × 153 mm** photo paper (1205 × 1807 px at 300 dpi). 35 × 45 mm photos are 413 × 531 px. The 2 × 2 in and mixed sheets have no margin: they split the paper evenly, so the big photos are 51 × 51 mm (602 px), about 0.2 mm over 2 in. Exactly 2.000 in with no margin would need 4 × 6 in (101.6 × 152.4 mm) paper.
+The freebie sheets and the 35 × 45 mm sheet are made for **102 × 153 mm** photo paper (1205 × 1807 px at 300 dpi). 35 × 45 mm photos are 413 × 531 px. The 2 × 2 in and mixed ID sheets are made for 4 × 6 in paper (1200 × 1800 px at 300 dpi) so the photos are exactly 2 in and 1 in.

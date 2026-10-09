@@ -262,31 +262,15 @@
       passport: { photoW: 35, photoH: 45, crownMin: 4, crownMax: 6, headMin: 32, headMax: 36 } // mm, ICAO-style
     },
     id2x2: {
-      label: '2 × 2 in on a 102 × 153 mm sheet (6 photos)',
-      photo: '2 × 2 in (51 × 51 mm)', sheet: '102 × 153 mm', slug: '2x2-102x153mm',
-      sheetW: PAPER_W, sheetH: PAPER_H, cellW: PAPER_W / 2, cellH: PAPER_H / 3, cols: 2, rows: 3,   // fills the paper edge to edge
+      label: '2 × 2 in on a 4 × 6 in sheet (6 photos)',
+      photo: '2 × 2 in (50.8 × 50.8 mm)', sheet: '4 × 6 in (101.6 × 152.4 mm)', slug: '2x2-4x6in',
+      sheetW: 4, sheetH: 6, cellW: 2, cellH: 2, cols: 2, rows: 3,   // 2 x 3 photos fill the paper edge to edge, exactly 2.000 in each
       previewPxPerIn: 52, marks: false, edgeMarks: true,
       guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
     },
-    // The mixed sheet lists its slots (inches) and fills the whole sheet: four 2 x 2 in photos first, then eight 1 x 1 in.
+    // The mixed sheet lists its slots (inches) and fills the whole 4 x 6 in sheet: four 2 x 2 in photos first, then eight 1 x 1 in.
     mixA: {
-      label: '2 × 2 in and 1 × 1 in mix on a 102 × 153 mm sheet (4 + 8 photos)',
-      photo: '2 × 2 in and 1 × 1 in', sheet: '102 × 153 mm', slug: '2x2-1x1-mix-4-8-102x153mm',
-      spec: '4 × 2 × 2 in (51 × 51 mm, 602 px) and 8 × 1 × 1 in (25.5 × 25.5 mm, 301 px) on a 102 × 153 mm sheet',
-      sheetW: PAPER_W, sheetH: PAPER_H, cellW: PAPER_W / 2, cellH: PAPER_H / 3, previewPxPerIn: 60, marks: false, cutLines: true,
-      slots: mixSlots(PAPER_W, PAPER_H),   // the 4 x 6 unit grid fills the paper edge to edge
-      guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
-    },
-    // The same two sheets on true 4 x 6 in paper (101.6 x 152.4 mm), where the photos are exactly 2.000 in and 1.000 in with no margin.
-    id2x2_46: {
-      label: '2 × 2 in on a 4 × 6 in sheet, exact size (6 photos)',
-      photo: '2 × 2 in (50.8 × 50.8 mm), exact', sheet: '4 × 6 in (101.6 × 152.4 mm)', slug: '2x2-4x6in',
-      sheetW: 4, sheetH: 6, cellW: 2, cellH: 2, cols: 2, rows: 3,
-      previewPxPerIn: 52, marks: false, edgeMarks: true,
-      guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
-    },
-    mixA_46: {
-      label: '2 × 2 in and 1 × 1 in mix on a 4 × 6 in sheet, exact size (4 + 8 photos)',
+      label: '2 × 2 in and 1 × 1 in mix on a 4 × 6 in sheet (4 + 8 photos)',
       photo: '2 × 2 in and 1 × 1 in', sheet: '4 × 6 in (101.6 × 152.4 mm)', slug: '2x2-1x1-mix-4-8-4x6in',
       spec: '4 × 2 × 2 in (600 px) and 8 × 1 × 1 in (300 px), exact sizes, on a 4 × 6 in (101.6 × 152.4 mm) sheet',
       sheetW: 4, sheetH: 6, cellW: 2, cellH: 2, previewPxPerIn: 60, marks: false, cutLines: true,
