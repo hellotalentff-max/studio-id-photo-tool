@@ -3,7 +3,7 @@
 A single-page web app for making ID photo sheets. Drag a client photo into a slot, crop and adjust it, then download a print-ready sheet.
 
 - **35 × 45 mm** photos, 8 per **153 × 102 mm** sheet (landscape)
-- **2 × 2 in** photos, 6 per **4 × 6 in** (101.6 × 152.4 mm) sheet: exactly 2.000 in (600 px) each, edge to edge with no margin
+- **2 × 2 in** photos, 4 per **4 × 6 in** (101.6 × 152.4 mm) sheet: exactly 2.000 in (600 px) each, edge to edge at the top of the sheet; the bottom 2 in is left blank
 - **2 × 2 in and 1 × 1 in mix** on a full **4 × 6 in** sheet: 4 big (2.000 in) + 4 small (1.000 in), no margin; the bottom inch of the sheet is left blank. Thin cut lines between the photos can be switched off
 - Zoom, pan, rotate, flip, brightness, contrast, saturation and background fill
 - **Text on photo**: up to 3 lines per slot (name, ID number), with font, size, position, colour and an optional band behind the text. It scales with the photo, so it looks the same on 2 × 2 in and 1 × 1 in photos, and prints with the photo. "Apply this text to all slots" copies it; each slot can still be changed

@@ -262,9 +262,9 @@
       passport: { photoW: 35, photoH: 45, crownMin: 4, crownMax: 6, headMin: 32, headMax: 36 } // mm, ICAO-style
     },
     id2x2: {
-      label: '2 × 2 in on a 4 × 6 in sheet (6 photos)',
+      label: '2 × 2 in on a 4 × 6 in sheet (4 photos)',
       photo: '2 × 2 in (50.8 × 50.8 mm)', sheet: '4 × 6 in (101.6 × 152.4 mm)', slug: '2x2-4x6in',
-      sheetW: 4, sheetH: 6, cellW: 2, cellH: 2, cols: 2, rows: 3,   // 2 x 3 photos fill the paper edge to edge, exactly 2.000 in each
+      sheetW: 4, sheetH: 6, cellW: 2, cellH: 2, cols: 2, rows: 2, top: true,   // 2 x 2 photos fill the top of the paper edge to edge, exactly 2.000 in each; the bottom 2 in is left blank
       previewPxPerIn: 52, marks: false, edgeMarks: true,
       guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
     },
@@ -281,7 +281,7 @@
   // Grid layouts get their slot list here, with the leftover sheet margin split evenly.
   Object.values(LAYOUTS).forEach(l => {
     if (l.slots) return;
-    const mx = (l.sheetW - l.cols * l.cellW) / 2, my = (l.sheetH - l.rows * l.cellH) / 2;
+    const mx = (l.sheetW - l.cols * l.cellW) / 2, my = l.top ? 0 : (l.sheetH - l.rows * l.cellH) / 2;
     l.gridMargin = { mx, my };
     l.slots = [];
     for (let r = 0; r < l.rows; r++) for (let c = 0; c < l.cols; c++) l.slots.push({ x: mx + c * l.cellW, y: my + r * l.cellH, w: l.cellW, h: l.cellH });
@@ -897,8 +897,9 @@
         ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();   // white outline: visible on dark backdrops too
         ctx.strokeStyle = '#000000'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
       };
-      for (let c = 1; c < L.cols; c++) { const x = Math.round((gx + c * L.cellW) * DPI); tick(x, 0, x, len); tick(x, sp.h - len, x, sp.h); }
-      for (let r = 1; r < L.rows; r++) { const y = Math.round((gy + r * L.cellH) * DPI); tick(0, y, len, y); tick(sp.w - len, y, sp.w, y); }
+      const right = Math.round((gx + L.cols * L.cellW) * DPI), bottom = Math.round((gy + L.rows * L.cellH) * DPI);   // the photo area can be shorter than the sheet
+      for (let c = 1; c < L.cols; c++) { const x = Math.round((gx + c * L.cellW) * DPI); tick(x, 0, x, len); tick(x, bottom - len, x, bottom); }
+      for (let r = 1; r < L.rows; r++) { const y = Math.round((gy + r * L.cellH) * DPI); tick(0, y, len, y); tick(right - len, y, right, y); }
     }
     if (L.marks && marksToggle.checked) {
       const edgeX = (k) => Math.round((L.gridMargin.mx + k * L.cellW) * DPI);
