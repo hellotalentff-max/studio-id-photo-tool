@@ -4,7 +4,7 @@ A single-page web app for making ID photo sheets. Drag a client photo into a slo
 
 - **35 × 45 mm** photos, 8 per **153 × 102 mm** sheet (landscape)
 - **2 × 2 in** photos, 6 per **4 × 6 in** (101.6 × 152.4 mm) sheet: exactly 2.000 in (600 px) each, edge to edge with no margin
-- **2 × 2 in and 1 × 1 in mix** on a full **4 × 6 in** sheet: 4 big (2.000 in) + 8 small (1.000 in), no margin. Thin cut lines between the photos can be switched off
+- **2 × 2 in and 1 × 1 in mix** on a full **4 × 6 in** sheet: 4 big (2.000 in) + 4 small (1.000 in), no margin; the bottom inch of the sheet is left blank. Thin cut lines between the photos can be switched off
 - Zoom, pan, rotate, flip, brightness, contrast, saturation and background fill
 - **Text on photo**: up to 3 lines per slot (name, ID number), with font, size, position, colour and an optional band behind the text. It scales with the photo, so it looks the same on 2 × 2 in and 1 × 1 in photos, and prints with the photo. "Apply this text to all slots" copies it; each slot can still be changed
 - **Remove background** with an edge cleanup slider. The cutout then shows the chosen background fill (white, blue, red, grey or custom). The outline is recoloured from the subject's own colours, so a white or light studio backdrop does not leave a pale rim on a new colour. It runs in the browser with a portrait-matting model (MODNet, Apache-2.0, via Transformers.js), so photos are not uploaded. The first use downloads about 26 MB from huggingface.co and jsDelivr, and the browser keeps it afterwards

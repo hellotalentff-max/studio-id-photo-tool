@@ -245,9 +245,9 @@
 (function () {
   const MM = 25.4, PAPER_W = 102 / MM, PAPER_H = 153 / MM, DPI = 300, MAX_CELLS = 18, STAGE_MAX = 340, THUMB_PER_IN = 100;
 
-  // Slots of the 4 + 8 mixed sheet on a w x h inch sheet: a 4 x 6 grid of units, four 2 x 2 photos on top, then two rows of four 1 x 1.
+  // Slots of the 4 + 4 mixed sheet on a w x h inch sheet: a 4 x 6 grid of units, four 2 x 2 photos on top, then one row of four 1 x 1. The bottom row is left blank.
   function mixSlots(w, h) {
-    return [[0, 0, 2], [2, 0, 2], [0, 2, 2], [2, 2, 2]].concat([4, 5].flatMap(y => [0, 1, 2, 3].map(x => [x, y, 1])))
+    return [[0, 0, 2], [2, 0, 2], [0, 2, 2], [2, 2, 2]].concat([4].flatMap(y => [0, 1, 2, 3].map(x => [x, y, 1])))
       .map(([x, y, n]) => ({ x: x * w / 4, y: y * h / 6, w: n * w / 4, h: n * h / 6 }));
   }
 
@@ -268,11 +268,11 @@
       previewPxPerIn: 52, marks: false, edgeMarks: true,
       guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
     },
-    // The mixed sheet lists its slots (inches) and fills the whole 4 x 6 in sheet: four 2 x 2 in photos first, then eight 1 x 1 in.
+    // The mixed sheet lists its slots (inches) and fills the whole 4 x 6 in sheet: four 2 x 2 in photos first, then four 1 x 1 in (the bottom inch is left blank).
     mixA: {
-      label: '2 × 2 in and 1 × 1 in mix on a 4 × 6 in sheet (4 + 8 photos)',
-      photo: '2 × 2 in and 1 × 1 in', sheet: '4 × 6 in (101.6 × 152.4 mm)', slug: '2x2-1x1-mix-4-8-4x6in',
-      spec: '4 × 2 × 2 in (600 px) and 8 × 1 × 1 in (300 px), exact sizes, on a 4 × 6 in (101.6 × 152.4 mm) sheet',
+      label: '2 × 2 in and 1 × 1 in mix on a 4 × 6 in sheet (4 + 4 photos)',
+      photo: '2 × 2 in and 1 × 1 in', sheet: '4 × 6 in (101.6 × 152.4 mm)', slug: '2x2-1x1-mix-4-4-4x6in',
+      spec: '4 × 2 × 2 in (600 px) and 4 × 1 × 1 in (300 px), exact sizes, on a 4 × 6 in (101.6 × 152.4 mm) sheet, with the bottom inch left blank',
       sheetW: 4, sheetH: 6, cellW: 2, cellH: 2, previewPxPerIn: 60, marks: false, cutLines: true,
       slots: mixSlots(4, 6),
       guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
