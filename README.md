@@ -9,7 +9,7 @@ A single-page web app for making ID photo sheets. Drag a client photo into a slo
 - **Text on photo**: up to 3 lines per slot (name, ID number), with font, size, position, colour and an optional band behind the text. It scales with the photo, so it looks the same on 2 × 2 in and 1 × 1 in photos, and prints with the photo. "Apply this text to all slots" copies it; each slot can still be changed
 - **Remove background** with an edge cleanup slider. The cutout then shows the chosen background fill (white, blue, red, grey or custom). The outline is recoloured from the subject's own colours, so a white or light studio backdrop does not leave a pale rim on a new colour. It runs in the browser with a portrait-matting model (MODNet, Apache-2.0, via Transformers.js), so photos are not uploaded. The first use downloads about 26 MB from huggingface.co and jsDelivr, and the browser keeps it afterwards
 - On-screen guides (never printed): passport head-size bands for 35 × 45 mm (head 32–36 mm, crown 4–6 mm from top), or an oval and eye line
-- Optional cut marks in the sheet margins
+- Optional cut marks: in the sheet margins for 35 × 45 mm, and for the 2 × 2 in sheet small ticks on the edges (top and bottom for the vertical cut, sides for the horizontal cuts), because that sheet has no margin and the white backgrounds hide where one photo ends
 - Sessions can be saved to a file and loaded on another device, including cutouts. Photos used in several slots are stored once
 
 Everything runs in the browser. Photos are never uploaded anywhere.

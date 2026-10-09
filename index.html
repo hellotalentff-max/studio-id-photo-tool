@@ -259,7 +259,7 @@
       label: '2 × 2 in on a 102 × 153 mm sheet (6 photos)',
       photo: '2 × 2 in', sheet: '102 × 153 mm', slug: '2x2-102x153mm',
       sheetW: PAPER_W, sheetH: PAPER_H, cellW: 2, cellH: 2, cols: 2, rows: 3,
-      previewPxPerIn: 52, marks: false,
+      previewPxPerIn: 52, marks: false, edgeMarks: true,
       guide: { cy: 0.46, rx: 0.26, ry: 0.34, eye: 0.42 }
     },
     // The mixed sheet lists its slots (inches) and fills the whole 4 x 6 in sheet: four 2 x 2 in photos first, then eight 1 x 1 in.
@@ -665,8 +665,8 @@
       `To print: use Print sheet, or open the downloaded PNG, and choose ${L.sheet} paper at 100% (Actual size), without "Fit to page". ` +
       `The file is tagged ${DPI} dpi, so most apps size it correctly on their own.` +
       (landscape ? ' This sheet is landscape: pick landscape in the print dialog, or let the printer rotate it onto 102 × 153 mm paper.' : '');
-    $('marksRow').hidden = !(L.marks || L.cutLines);
-    $('marksLabel').textContent = L.cutLines ? 'Add thin cut lines between the photos' : 'Add cut marks in the sheet margins';
+    $('marksRow').hidden = !(L.marks || L.cutLines || L.edgeMarks);
+    $('marksLabel').textContent = L.cutLines ? 'Add thin cut lines between the photos' : L.edgeMarks ? 'Add cut marks at the top, bottom and sides of the sheet' : 'Add cut marks in the sheet margins';
   }
 
   function buildGrid() {
@@ -872,6 +872,18 @@
       ctx.strokeStyle = 'rgba(110, 110, 110, 0.6)'; ctx.lineWidth = 2;
       L.slots.forEach(sl => ctx.strokeRect(Math.round(sl.x * DPI) + 1, Math.round(sl.y * DPI) + 1, Math.round(sl.w * DPI) - 2, Math.round(sl.h * DPI) - 2));
       ctx.restore();
+    }
+    if (L.edgeMarks && marksToggle.checked) {
+      // The photos fill the sheet and their white backgrounds hide where one ends, so small ticks on the sheet edge
+      // line up with every cut: the vertical cuts at the top and bottom, the horizontal cuts at the sides.
+      const len = Math.round(0.16 * DPI), gx = L.gridMargin.mx, gy = L.gridMargin.my;
+      const tick = (x0, y0, x1, y1) => {
+        ctx.lineCap = 'butt';
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();   // white outline: visible on dark backdrops too
+        ctx.strokeStyle = '#000000'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      };
+      for (let c = 1; c < L.cols; c++) { const x = Math.round((gx + c * L.cellW) * DPI); tick(x, 0, x, len); tick(x, sp.h - len, x, sp.h); }
+      for (let r = 1; r < L.rows; r++) { const y = Math.round((gy + r * L.cellH) * DPI); tick(0, y, len, y); tick(sp.w - len, y, sp.w, y); }
     }
     if (L.marks && marksToggle.checked) {
       const edgeX = (k) => Math.round((L.gridMargin.mx + k * L.cellW) * DPI);
