@@ -42,7 +42,7 @@ Special layouts are separate from the packages and can be added to any sheet lis
 **Large 8 × 24 in sheets** have their own row and cost ₱450 each:
 
 - **8 × 24 · 3 frames**: three equal rounded frames stacked down the sheet, with the studio's stacked logo at the bottom
-- **8 × 24 · full sheet**: one photo over the whole sheet, no logo
+- **8 × 24 · full sheet**: one photo over the sheet, edge to edge, with the same bottom space as the 3-frame sheet for the studio's stacked logo
 
 They are built from the studio's description (no sample), so the frame sizes are an estimate. They export at 250 dpi (2000 × 6000 px, because phones cannot make canvases much bigger) as a JPG tagged 250 dpi, which keeps the file small. Printing uses an 8 × 24 in page, and a single print job holds one paper size: "Print all sheets" prints the sheets that share the first sheet's size and says how many were left out.
 
