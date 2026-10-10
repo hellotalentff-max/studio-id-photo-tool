@@ -137,7 +137,7 @@
 <header class="page-header">
   <span class="eyebrow">Photo tools</span>
   <h1 class="page-title">Freebie Photo Templates</h1>
-  <p class="page-desc">Choose the client's package to get the free print-outs it includes, drop photos into each sheet, then download, print or send sheets (102 × 153 mm, or 8 × 24 in for the large ones) with the Click Lounge Studio logo.</p>
+  <p class="page-desc">Choose the client's package to get the free print-outs it includes, drop photos into each sheet, then download, print or send sheets (102 × 153 mm; the 8 × 10 in special layout and the 8 × 24 in sheets are bigger) with the Click Lounge Studio logo.</p>
 </header>
 
 <main class="wrap">
@@ -300,9 +300,11 @@
   const SW = 1200, SH = 1800, DPI = 300, MAX_SLOTS = 7, PV = 0.5; // layout design space (px); preview scale
   // Paper sizes. Layouts are drawn in a design space (W x H) and scaled to the output size.
   //  std:  102 x 153 mm = 1205 x 1807 px at 300 dpi.
+  //  p8x10: 8 x 10 in at 300 dpi = 2400 x 3000 px (7 MP), saved as JPEG to keep the file small.
   //  tall: 8 x 24 in at 250 dpi = 2000 x 6000 px (12 MP; phones refuse canvases much over 16 MP, so not 300 dpi), saved as JPEG to keep the file small.
   const PAPERS = {
     std:  { W: 1200, H: 1800, outW: 1205, outH: 1807, dpi: 300, label: '102 × 153 mm', page: '102mm 153mm', mm: [102, 153], previewPx: 400, format: 'png' },
+    p8x10: { W: 1200, H: 1500, outW: 2400, outH: 3000, dpi: 300, label: '8 × 10 in', page: '8in 10in', mm: [203.2, 254], previewPx: 320, format: 'jpeg' },
     tall: { W: 1200, H: 3600, outW: 2000, outH: 6000, dpi: 250, label: '8 × 24 in', page: '8in 24in', mm: [203.2, 609.6], previewPx: 200, format: 'jpeg' }
   };
   const paperOf = (t) => PAPERS[t.paper || 'std'];
@@ -388,6 +390,14 @@
         { x: 600, y: 1257, w: 557, h: 487, rot: 90, logo: { where: 'left', gap: 17, scale: 0.72 } }
       ],
       lines: [{ x1: 474, y1: 0, x2: 474, y2: 1800, kind: 'dot' }, { x1: 474, y1: 600, x2: 1200, y2: 600, kind: 'dot' }, { x1: 474, y1: 1200, x2: 1200, y2: 1200, kind: 'dot' }]
+    },
+
+    // 8 x 10 in special layout: one photo with an even border, and the stacked logo bottom right on a 60 px (0.4 in) margin.
+    // Built from the studio's description, not from a sample, so the sizes are an estimate.
+    photo8x10: {
+      group: 'special', paper: 'p8x10', name: '8 × 10 in', detail: 'One photo, logo bottom right', radius: 40,
+      slots: [{ x: 60, y: 60, w: 1080, h: 1155 }],
+      logo: { where: 'bottomRight', img: 'stacked', width: 320, right: 60, bottom: 60 }
     }
   };
 
@@ -492,12 +502,17 @@
   }
 
   // The logo spec is the slot's own (or false for none), else the template's.
-  // where: 'below' | 'above' | 'left' (turned 90° clockwise, for sideways frames). scale 1 = the logo's native size.
+  // where: 'below' | 'above' | 'bottomRight' (stacked logo only) | 'left' (turned 90° clockwise, for sideways frames). scale 1 = the logo's native size.
   function drawLogo(ctx, slot, t) {
     const spec = slot.logo !== undefined ? slot.logo : t.logo;
     if (spec && spec.img === 'stacked') {
       if (!logoStacked.complete || !logoStacked.naturalWidth) return;
       const w = spec.width, h = w * logoStacked.naturalHeight / logoStacked.naturalWidth;
+      if (spec.where === 'bottomRight') {      // in the sheet's bottom right corner, set in from the right and bottom edges
+        const P = paperOf(t);
+        ctx.drawImage(logoStacked, P.W - spec.right - w, P.H - spec.bottom - h, w, h);
+        return;
+      }
       ctx.drawImage(logoStacked, slot.x + slot.w / 2 - w / 2, slot.y + slot.h + spec.gap, w, h);
       return;
     }
