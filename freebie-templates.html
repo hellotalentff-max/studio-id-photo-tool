@@ -392,12 +392,12 @@
       lines: [{ x1: 474, y1: 0, x2: 474, y2: 1800, kind: 'dot' }, { x1: 474, y1: 600, x2: 1200, y2: 600, kind: 'dot' }, { x1: 474, y1: 1200, x2: 1200, y2: 1200, kind: 'dot' }]
     },
 
-    // 8 x 10 in special layout: one photo over the whole sheet, edge to edge, and the stacked logo bottom right on a soft white plate
-    // so it stays readable over any photo. Built from the studio's description, not from a sample, so the sizes are an estimate.
+    // 8 x 10 in special layout: one photo over the whole sheet, edge to edge, and a small light logo (logo-white.png, transparent background, at most 5 mm tall)
+    // bottom right, with no plate behind it. Built from the studio's description, not from a sample, so the sizes are an estimate.
     photo8x10: {
       group: 'special', paper: 'p8x10', name: '8 × 10 in', detail: 'Full-sheet photo, logo bottom right', radius: 0,
       slots: [{ x: 0, y: 0, w: 1200, h: 1500 }],
-      logo: { where: 'bottomRight', img: 'stacked', width: 300, right: 88, bottom: 88, plate: 28 }
+      logo: { where: 'bottomRight', img: 'white', height: 29, right: 50, bottom: 50 }   // 29 px of 1200 across 8 in = 4.9 mm tall, under the 5 mm limit
     }
   };
 
@@ -449,6 +449,9 @@
   const logoStacked = new Image();                 // the website's stacked logo: sharp enough to print large on the 8 x 24 in sheets
   logoStacked.onload = () => { redraw(); drawThumbs(); };
   logoStacked.src = 'logo.webp';
+  const logoWhite = new Image();                   // small light logo on a transparent background (logo-white.png), for over a photo
+  logoWhite.onload = () => { redraw(); drawThumbs(); };
+  logoWhite.src = 'logo-white.png';
 
   const canvas = $('sheet'), pctx = canvas.getContext('2d'), wrap = $('sheetWrap'), statusEl = $('status');
   const zoomEl = $('zoom'), rotateEl = $('rotate'), briEl = $('brightness'), conEl = $('contrast'), satEl = $('saturation');
@@ -505,22 +508,24 @@
   // where: 'below' | 'above' | 'bottomRight' (stacked logo only) | 'left' (turned 90° clockwise, for sideways frames). scale 1 = the logo's native size.
   function drawLogo(ctx, slot, t) {
     const spec = slot.logo !== undefined ? slot.logo : t.logo;
-    if (spec && spec.img === 'stacked') {
-      if (!logoStacked.complete || !logoStacked.naturalWidth) return;
-      const w = spec.width, h = w * logoStacked.naturalHeight / logoStacked.naturalWidth;
+    if (spec && (spec.img === 'stacked' || spec.img === 'white')) {
+      const im = spec.img === 'white' ? logoWhite : logoStacked;
+      if (!im.complete || !im.naturalWidth) return;
+      const ratio = im.naturalHeight / im.naturalWidth, w = spec.height ? spec.height / ratio : spec.width, h = w * ratio;   // size by width or by height
       if (spec.where === 'bottomRight') {      // in the sheet's bottom right corner, set in from the right and bottom edges
         const P = paperOf(t);
         const lx = P.W - spec.right - w, ly = P.H - spec.bottom - h;
-        if (spec.plate) {                  // a soft white plate behind the logo keeps it readable on dark or busy photos
+        if (spec.plate) {                  // an optional soft white plate behind the logo keeps it readable on dark or busy photos
           ctx.save();
           roundRectPath(ctx, lx - spec.plate, ly - spec.plate, w + 2 * spec.plate, h + 2 * spec.plate, 30);
           ctx.fillStyle = 'rgba(255, 255, 255, 0.94)'; ctx.fill();
           ctx.restore();
         }
-        ctx.drawImage(logoStacked, lx, ly, w, h);
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(im, lx, ly, w, h);
         return;
       }
-      ctx.drawImage(logoStacked, slot.x + slot.w / 2 - w / 2, slot.y + slot.h + spec.gap, w, h);
+      ctx.drawImage(im, slot.x + slot.w / 2 - w / 2, slot.y + slot.h + spec.gap, w, h);
       return;
     }
     if (!spec || !logoImg.complete || !logoImg.naturalWidth) return;

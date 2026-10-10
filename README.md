@@ -38,7 +38,7 @@ Special layouts are separate from the packages and can be added to any sheet lis
 - **Six frames**: 6 photos in a 2 × 3 grid, logo under the bottom row
 - **Strip + 2**: a strip of 4 photos, one portrait and one sideways photo
 - **Strip + 3**: a strip of 4 photos and three sideways photos
-- **8 × 10 in**: one photo over the whole 8 × 10 in sheet, edge to edge, with the studio's stacked logo in the bottom right corner (about 0.6 in from the right and bottom edges) on a soft white plate so it stays readable over any photo. Built from a description, not a sample, so the sizes are an estimate. It exports at 300 dpi (2400 × 3000 px) as a JPG tagged 300 dpi and prints on an 8 × 10 in page. Charged as a special layout (₱70); change `price` on `photo8x10` in the file if 8 × 10 in should cost more
+- **8 × 10 in**: one photo over the whole 8 × 10 in sheet, edge to edge, with a small light logo (`logo-white.png`, transparent background) in the bottom right corner, at most 5 mm tall (4.9 mm) and 8.5 mm from the right and bottom edges. The logo is near-white, so it reads best on mid to dark photos. Built from a description, not a sample, so the sizes are an estimate. It exports at 300 dpi (2400 × 3000 px) as a JPG tagged 300 dpi and prints on an 8 × 10 in page. Charged as a special layout (₱70); change `price` on `photo8x10` in the file if 8 × 10 in should cost more
 
 **Large 8 × 24 in sheets** have their own row and cost ₱450 each:
 
