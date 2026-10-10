@@ -189,6 +189,7 @@
       <div class="sheet-wrap" id="sheetWrap"><canvas id="sheet" width="600" height="900" aria-label="Sheet preview. Click a frame to select it, or drop a photo on it."></canvas></div>
       <div class="chips" id="chips"></div>
       <label class="check"><input type="checkbox" id="logoToggle" checked> Show the Click Lounge Studio logo</label>
+      <label class="check" id="darkLogoRow" hidden><input type="checkbox" id="darkLogoToggle"> Dark logo (for light photos)</label>
       <label class="check"><input type="checkbox" id="marksToggle" checked> Show cut marks</label>
       <div class="actions" style="margin-top:12px">
         <button class="btn primary" id="download">Download this sheet (PNG)</button>
@@ -452,6 +453,9 @@
   const logoWhite = new Image();                   // small light logo on a transparent background (logo-white.png), for over a photo
   logoWhite.onload = () => { redraw(); drawThumbs(); };
   logoWhite.src = 'logo-white.png';
+  const logoDark = new Image();                    // the same logo in the studio's dark green-black, for light photos
+  logoDark.onload = () => { redraw(); drawThumbs(); };
+  logoDark.src = 'logo-dark.png';
 
   const canvas = $('sheet'), pctx = canvas.getContext('2d'), wrap = $('sheetWrap'), statusEl = $('status');
   const zoomEl = $('zoom'), rotateEl = $('rotate'), briEl = $('brightness'), conEl = $('contrast'), satEl = $('saturation');
@@ -463,7 +467,7 @@
   const defaultState = (slot) => ({ scale: 1, ox: 0, oy: 0, rotation: (slot && slot.rot) || 0, flip: false, brightness: 100, contrast: 100, saturation: 100 });
   const PRICE_STD = 50, PRICE_SPECIAL = 70;      // pesos charged for each sheet added on top of a package (shown to the client, not totalled)
   const priceOf = (type) => TEMPLATES[type].price || (TEMPLATES[type].group === 'special' ? PRICE_SPECIAL : PRICE_STD);   // a template can set its own price (the large sheets: 450)
-  const newSheet = (type, used, label) => ({ type, used: used || TEMPLATES[type].slots.length, label: label || '', photos: new Array(MAX_SLOTS).fill(null), done: false });
+  const newSheet = (type, used, label) => ({ type, used: used || TEMPLATES[type].slots.length, label: label || '', photos: new Array(MAX_SLOTS).fill(null), done: false, darkLogo: false });
   const filled = (s) => s.photos.slice(0, s.used).filter(Boolean).length;
   const anyPhotos = () => sheets.some(s => filled(s) > 0);
 
@@ -506,10 +510,10 @@
 
   // The logo spec is the slot's own (or false for none), else the template's.
   // where: 'below' | 'above' | 'bottomRight' (stacked logo only) | 'left' (turned 90° clockwise, for sideways frames). scale 1 = the logo's native size.
-  function drawLogo(ctx, slot, t) {
+  function drawLogo(ctx, slot, t, sheet) {
     const spec = slot.logo !== undefined ? slot.logo : t.logo;
     if (spec && (spec.img === 'stacked' || spec.img === 'white')) {
-      const im = spec.img === 'white' ? logoWhite : logoStacked;
+      const im = spec.img === 'white' ? (sheet && sheet.darkLogo ? logoDark : logoWhite) : logoStacked;
       if (!im.complete || !im.naturalWidth) return;
       const ratio = im.naturalHeight / im.naturalWidth, w = spec.height ? spec.height / ratio : spec.width, h = w * ratio;   // size by width or by height
       if (spec.where === 'bottomRight') {      // in the sheet's bottom right corner, set in from the right and bottom edges
@@ -585,7 +589,7 @@
       const ph = sheet.photos[i];
       if (ph) drawPhoto(ctx, slot, t.radius, ph);
       else if (opts.preview) drawPlaceholder(ctx, slot, t.radius, i);
-      if ((ph || opts.preview) && logoToggle.checked) drawLogo(ctx, slot, t);
+      if ((ph || opts.preview) && logoToggle.checked) drawLogo(ctx, slot, t, sheet);
     });
     if (marksToggle.checked) drawMarks(ctx, t);
     if (opts.preview) {
@@ -662,6 +666,9 @@
   }
 
   function updateUI() {
+    const dl = sheets.length && T().logo && T().logo.img === 'white';       // the light/dark logo choice only applies to sheets with the light logo
+    $('darkLogoRow').hidden = !dl;
+    if (dl) $('darkLogoToggle').checked = !!S().darkLogo;
     // frame chips for the current sheet
     const box = $('chips'); box.innerHTML = '';
     if (sheets.length) {
@@ -724,6 +731,7 @@
   $('removeBtn').addEventListener('click', () => { P()[selected] = null; S().done = false; syncControls(); redraw(); say(''); });
   logoToggle.addEventListener('change', redraw);
   marksToggle.addEventListener('change', redraw);
+  $('darkLogoToggle').addEventListener('change', () => { if (sheets.length) { S().darkLogo = $('darkLogoToggle').checked; redraw(); } });
 
   $('fillAll').addEventListener('click', () => {
     const src = P()[selected];
