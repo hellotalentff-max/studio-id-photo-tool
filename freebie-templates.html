@@ -50,6 +50,22 @@
   .sheet-wrap.grabbing canvas { cursor: grabbing; }
   .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; margin-bottom: 0.8rem; }
 
+  /* client's photo tray */
+  .tray { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 0.55rem; margin-top: 0.8rem; }
+  .tray:empty { display: none; }
+  .tthumb { position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; border: 1.5px solid rgba(45, 110, 95, 0.2); background: var(--cream); padding: 0; cursor: grab; }
+  .tthumb:hover { border-color: var(--green); }
+  .tthumb img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+  .tthumb .tuse {
+    position: absolute; left: 4px; bottom: 4px; font-family: var(--font-mono); font-size: 0.64rem; font-weight: 700; color: #fff;
+    background: var(--green); border-radius: 100px; padding: 0.05rem 0.5rem;
+  }
+  .tthumb.fresh .tuse { background: var(--amber); }
+  .tx {
+    position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 50%; border: none; cursor: pointer; padding: 0;
+    background: rgba(26, 46, 40, 0.7); color: #fff; font-size: 0.8rem; line-height: 22px;
+  }
+
   /* reference table */
   details.ref summary { cursor: pointer; font-weight: 600; color: var(--green-dark); }
   .tbl-wrap { overflow-x: auto; margin-top: 0.8rem; }
@@ -181,6 +197,20 @@
     <div class="add-row" style="margin-top:10px"><span class="eyebrow">Special layouts</span><span class="price-tag">₱70 each · 8 × 10 in ₱200</span><span id="addRowSpecial" style="display:contents"></span></div>
     <div class="add-row" style="margin-top:10px"><span class="eyebrow">Large sheets · 8 × 24 in</span><span class="price-tag">₱450 each</span><span id="addRowLarge" style="display:contents"></span></div>
     <p class="note" id="priceNote">Reminder for clients: every sheet added here is charged <b>₱50</b>, every special layout <b>₱70</b> (the 8 × 10 in layout <b>₱200</b>) and every large 8 × 24 in sheet <b>₱450</b>. Sheets that come with the package are free.</p>
+  </section>
+
+  <section class="panel" aria-label="Client photos">
+    <div class="sheets-head">
+      <div class="eyebrow">Client's photos</div>
+      <div class="sheets-tools">
+        <span class="note" style="margin:0" id="trayCount"></span>
+        <button class="btn sm" id="trayAuto">Fill empty frames</button>
+        <button class="btn danger sm" id="trayClear">Clear photos</button>
+      </div>
+    </div>
+    <div class="dropzone" id="trayDrop" tabindex="0" role="button" style="margin:0.6rem 0 0">Choose all the client's photos here (several at once), or drop them<input type="file" id="trayInput" accept="image/*" multiple hidden></div>
+    <div class="tray" id="tray"></div>
+    <p class="note">The photos wait here until the client places them. Tap a photo to put it in the selected frame (the next empty frame is selected after that), or drag it onto a frame on the sheet. "Fill empty frames" places the photos not used yet, in order. The photos stay in this page only: reloading it clears them.</p>
   </section>
 
   <div class="workspace">
@@ -666,6 +696,7 @@
   }
 
   function updateUI() {
+    trayBadges();
     const dl = sheets.length && T().logo && T().logo.img === 'white';       // the light/dark logo choice only applies to sheets with the light logo
     $('darkLogoRow').hidden = !dl;
     if (dl) $('darkLogoToggle').checked = !!S().darkLogo;
@@ -852,23 +883,112 @@
   }
 
   /* ---------- loading photos ---------- */
+  // Puts an image into frame i of a sheet with a fresh crop.
+  function putPhoto(target, i, img) {
+    target.photos[i] = { img, state: defaultState(TEMPLATES[target.type].slots[i]) };
+    target.done = false;
+    if (target === S()) selected = i;
+  }
   function loadImage(file, i) {
     if (!sheets.length) { say('Add a sheet first.'); return; }
     if (!file || !file.type.startsWith('image/')) { say('That file is not an image. Use a JPG, PNG or WebP photo.'); return; }
     const reader = new FileReader(), target = S();
     reader.onload = (e) => {
       const img = new Image();
-      img.onload = () => {
-        target.photos[i] = { img, state: defaultState(TEMPLATES[target.type].slots[i]) };
-        target.done = false;
-        if (target === S()) selected = i;
-        syncControls(); redraw(); say('');
-      };
+      img.onload = () => { putPhoto(target, i, img); syncControls(); redraw(); say(''); };
       img.onerror = () => say('That photo could not be opened. Try exporting it as a JPG or PNG.');
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   }
+
+  /* ---------- the client's photo tray ---------- */
+  // Photos chosen up front wait here (in memory only) until they are placed in a frame, by tap or by drag.
+  const tray = [];                                   // { id, img, thumb (data URL), name }
+  let trayId = 0;
+  const trayEl = $('tray');
+  const usesOf = (item) => sheets.reduce((n, sh) => n + sh.photos.slice(0, sh.used).filter(p => p && p.img === item.img).length, 0);
+
+  function addToTray(files) {
+    const list = [...files].filter(f => f.type.startsWith('image/'));
+    const skipped = files.length - list.length;
+    if (!list.length) { say('Those files are not images. Use JPG, PNG or WebP photos.'); return; }
+    let left = list.length, failed = skipped;
+    const done = () => { if (--left === 0) { renderTray(); say(`Added ${list.length - (failed - skipped)} ${list.length - (failed - skipped) === 1 ? 'photo' : 'photos'} to the client's photos.` + (failed ? ` ${failed} could not be used.` : '')); } };
+    list.forEach(file => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas'), k = Math.min(1, 200 / Math.min(img.naturalWidth, img.naturalHeight));   // small square-ish thumbnail, so the full photo is not shown at 84 px
+        c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        tray.push({ id: ++trayId, img, thumb: c.toDataURL('image/jpeg', 0.8), name: file.name });
+        done();
+      };
+      img.onerror = () => { failed++; URL.revokeObjectURL(url); done(); };
+      img.src = url;
+    });
+  }
+
+  function renderTray() {
+    trayEl.innerHTML = '';
+    tray.forEach(item => {
+      const b = document.createElement('button');
+      b.className = 'tthumb'; b.draggable = true; b.dataset.id = item.id; b.title = item.name;
+      b.setAttribute('aria-label', `Place ${item.name} in the selected frame`);
+      b.innerHTML = `<img alt="" src="${item.thumb}"><span class="tuse"></span><span class="tx" role="button" aria-label="Remove ${item.name} from the list" title="Remove from the list">✕</span>`;
+      b.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tx')) { tray.splice(tray.indexOf(item), 1); renderTray(); return; }
+        placeFromTray(item);
+      });
+      b.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-tray', String(item.id)); e.dataTransfer.effectAllowed = 'copy'; });
+      trayEl.appendChild(b);
+    });
+    trayBadges();
+  }
+  // Shows how many frames use each photo ("new" until it is placed) and the totals.
+  function trayBadges() {
+    let fresh = 0;
+    [...trayEl.children].forEach((b, i) => {
+      const n = usesOf(tray[i]);
+      b.querySelector('.tuse').textContent = n ? (n === 1 ? 'placed' : `placed ×${n}`) : 'new';
+      b.classList.toggle('fresh', !n);
+      if (!n) fresh++;
+    });
+    $('trayCount').textContent = tray.length ? `${tray.length} ${tray.length === 1 ? 'photo' : 'photos'} · ${fresh} not placed yet` : '';
+    $('trayAuto').disabled = !tray.length || !sheets.length;
+    $('trayClear').disabled = !tray.length;
+  }
+  const nextEmpty = (sh, from) => {
+    for (let k = 1; k <= sh.used; k++) { const j = (from + k) % sh.used; if (!sh.photos[j]) return j; }
+    return -1;
+  };
+  // Places a tray photo in frame i of the current sheet (default: the selected frame), then selects the next empty frame.
+  function placeFromTray(item, i = selected) {
+    if (!sheets.length) { say('Add a sheet first, then place the photo.'); return; }
+    if (i >= S().used) i = 0;
+    putPhoto(S(), i, item.img);
+    const nxt = nextEmpty(S(), i);
+    if (nxt !== -1) selected = nxt;
+    syncControls(); redraw();
+    say(`Placed in frame ${i + 1}.` + (nxt === -1 ? ' All frames on this sheet have a photo.' : ''));
+  }
+  $('trayAuto').addEventListener('click', () => {
+    const sh = S(), fresh = tray.filter(t => !usesOf(t));
+    let n = 0;
+    for (let i = 0; i < sh.used && n < fresh.length; i++) if (!sh.photos[i]) { putPhoto(sh, i, fresh[n++].img); }
+    selected = Math.max(0, sh.photos.slice(0, sh.used).findIndex(p => !p));
+    syncControls(); redraw();
+    const empty = sh.photos.slice(0, sh.used).filter(p => !p).length;
+    say(n ? `Placed ${n} ${n === 1 ? 'photo' : 'photos'}.` + (empty ? ` ${empty} ${empty === 1 ? 'frame is' : 'frames are'} still empty: add more photos.` : '') : (empty ? 'There are no unplaced photos left. Choose more photos first.' : 'Every frame on this sheet already has a photo.'));
+  });
+  $('trayClear').addEventListener('click', () => { tray.length = 0; renderTray(); say('Cleared the client\'s photos. Photos already placed on sheets stay.'); });
+  const trayDrop = $('trayDrop'), trayInput = $('trayInput');
+  trayDrop.addEventListener('click', () => trayInput.click());
+  trayDrop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); trayInput.click(); } });
+  trayInput.addEventListener('change', () => { addToTray(trayInput.files); trayInput.value = ''; });
+  trayDrop.addEventListener('dragover', (e) => { e.preventDefault(); trayDrop.classList.add('drag-over'); });
+  trayDrop.addEventListener('dragleave', () => trayDrop.classList.remove('drag-over'));
+  trayDrop.addEventListener('drop', (e) => { e.preventDefault(); trayDrop.classList.remove('drag-over'); addToTray(e.dataTransfer.files); });
 
   const dropzone = $('dropzone'), fileInput = $('fileInput');
   dropzone.addEventListener('click', () => fileInput.click());
@@ -897,6 +1017,8 @@
     const i = slotAt(toSheet(e));
     hover = -1;
     if (i === -1) { redraw(); say('Drop the photo onto one of the frames.'); return; }
+    const tid = e.dataTransfer.getData('text/x-tray'), item = tid && tray.find(t => t.id === Number(tid));
+    if (item) { placeFromTray(item, i); return; }
     loadImage(e.dataTransfer.files[0], i);
   });
 
