@@ -392,12 +392,12 @@
       lines: [{ x1: 474, y1: 0, x2: 474, y2: 1800, kind: 'dot' }, { x1: 474, y1: 600, x2: 1200, y2: 600, kind: 'dot' }, { x1: 474, y1: 1200, x2: 1200, y2: 1200, kind: 'dot' }]
     },
 
-    // 8 x 10 in special layout: one photo with an even border, and the stacked logo bottom right on a 60 px (0.4 in) margin.
-    // Built from the studio's description, not from a sample, so the sizes are an estimate.
+    // 8 x 10 in special layout: one photo over the whole sheet, edge to edge, and the stacked logo bottom right on a soft white plate
+    // so it stays readable over any photo. Built from the studio's description, not from a sample, so the sizes are an estimate.
     photo8x10: {
-      group: 'special', paper: 'p8x10', name: '8 × 10 in', detail: 'One photo, logo bottom right', radius: 40,
-      slots: [{ x: 60, y: 60, w: 1080, h: 1155 }],
-      logo: { where: 'bottomRight', img: 'stacked', width: 320, right: 60, bottom: 60 }
+      group: 'special', paper: 'p8x10', name: '8 × 10 in', detail: 'Full-sheet photo, logo bottom right', radius: 0,
+      slots: [{ x: 0, y: 0, w: 1200, h: 1500 }],
+      logo: { where: 'bottomRight', img: 'stacked', width: 300, right: 88, bottom: 88, plate: 28 }
     }
   };
 
@@ -510,7 +510,14 @@
       const w = spec.width, h = w * logoStacked.naturalHeight / logoStacked.naturalWidth;
       if (spec.where === 'bottomRight') {      // in the sheet's bottom right corner, set in from the right and bottom edges
         const P = paperOf(t);
-        ctx.drawImage(logoStacked, P.W - spec.right - w, P.H - spec.bottom - h, w, h);
+        const lx = P.W - spec.right - w, ly = P.H - spec.bottom - h;
+        if (spec.plate) {                  // a soft white plate behind the logo keeps it readable on dark or busy photos
+          ctx.save();
+          roundRectPath(ctx, lx - spec.plate, ly - spec.plate, w + 2 * spec.plate, h + 2 * spec.plate, 30);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.94)'; ctx.fill();
+          ctx.restore();
+        }
+        ctx.drawImage(logoStacked, lx, ly, w, h);
         return;
       }
       ctx.drawImage(logoStacked, slot.x + slot.w / 2 - w / 2, slot.y + slot.h + spec.gap, w, h);
