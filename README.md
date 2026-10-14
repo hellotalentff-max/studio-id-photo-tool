@@ -84,6 +84,18 @@ Notes:
 - GIFs are made in the browser with gifenc (MIT) from jsDelivr, loaded once when a GIF layout is switched on, so the booth needs internet the first time.
 - Nothing is uploaded. Send to my phone goes straight from the booth to the guest's phone over WebRTC.
 
+## Video editor
+
+`video-editor.html` (ClickCut) is a CapCut-style video editor that runs in the browser. Import videos, photos and music, arrange them on a timeline (a magnetic main track plus overlay, text and audio layers), then trim, split, reorder and export.
+
+- Canvas sizes 9:16 (TikTok/Reels), 16:9, 1:1, 4:5 and 3:4; black, white or blurred background
+- Per clip: volume (up to 200%), speed (0.25x to 4x), fade in/out, scale, position, rotation, opacity, 12 filters and brightness/contrast/saturation
+- Text styles and emoji stickers with fade, pop, slide and typewriter animations; drag and resize them in the preview
+- Undo/redo and keyboard shortcuts (listed in the right panel when nothing is selected)
+- Export at 720p or 1080p with sound: MP4 in Chrome, WebM where MP4 recording is not available. Export plays the video once in real time, so keep the tab open and in front
+
+Use Chrome or Edge (Safari does not apply the filters and may not export). Projects are not saved, and media never leaves the device.
+
 ## Printing and sending to a phone
 
 On the freebie page, **Print this sheet** and **Print all sheets** open the browser's print dialog with one 102 × 153 mm page per sheet. On the ID photo page, **Print sheet** prints the sheet at its real size (153 × 102 mm landscape for 35 × 45 mm, 101.6 × 152.4 mm (4 × 6 in) portrait for 2 × 2 in). Choose the matching paper and 100% scale.
