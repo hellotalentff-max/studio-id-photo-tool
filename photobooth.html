@@ -295,16 +295,31 @@
   </div>
 
   <div class="set-group">
-    <h3>Green screen</h3>
-    <label class="check"><input type="checkbox" id="setGs"> Replace a green backdrop with a background</label>
+    <h3>Background replacement</h3>
+    <label class="check"><input type="checkbox" id="setGs"> <span>Replace the background behind guests</span></label>
     <div id="gsBox">
+      <div class="field"><label for="setGsMode">How</label>
+        <select id="setGsMode"><option value="ai">AI: finds the people, no green screen needed</option><option value="chroma">Green screen: removes a green backdrop</option></select></div>
       <div class="key-preview" id="keyPreview"><p id="keyPreviewMsg">Camera preview</p></div>
-      <div class="field"><label>Backdrop colour</label>
-        <div class="key-row"><input type="color" id="setGsKey" aria-label="Backdrop colour"><button class="btn sm" id="gsSample">Read it from the camera</button><span class="note" style="margin:0">Step out of the picture first.</span></div></div>
+      <div id="gsChroma">
+        <div class="field"><label>Backdrop colour</label>
+          <div class="key-row"><input type="color" id="setGsKey" aria-label="Backdrop colour"><button class="btn sm" id="gsSample">Read it from the camera</button><span class="note" style="margin:0">Step out of the picture first.</span></div></div>
+        <div class="grid2">
+          <div class="field"><label for="setGsSim">How much green to remove <span class="val" id="gsSimVal"></span></label><input type="range" id="setGsSim" min="0.05" max="0.7" step="0.01"></div>
+          <div class="field"><label for="setGsSmooth">Edge softness <span class="val" id="gsSmoothVal"></span></label><input type="range" id="setGsSmooth" min="0.01" max="0.3" step="0.01"></div>
+          <div class="field"><label for="setGsSpill">Green glow cleanup <span class="val" id="gsSpillVal"></span></label><input type="range" id="setGsSpill" min="0.01" max="0.5" step="0.01"></div>
+        </div>
+        <p class="note">Tips: light the backdrop evenly with no shadows or wrinkles, keep guests about 1 m in front of it, and ask them not to wear green. If edges look green, raise "How much green to remove" a little; if parts of people vanish, lower it.</p>
+      </div>
+      <div id="gsAi">
+        <div class="grid2">
+          <div class="field"><label for="setAiCut">Cut closer to people <span class="val" id="aiCutVal"></span></label><input type="range" id="setAiCut" min="0.2" max="0.85" step="0.01"></div>
+          <div class="field"><label for="setAiSoft">Edge softness <span class="val" id="aiSoftVal"></span></label><input type="range" id="setAiSoft" min="0.02" max="0.5" step="0.01"></div>
+        </div>
+        <p class="note" id="aiStatus"></p>
+        <p class="note">The AI runs on this device; nothing is uploaded. It downloads about 10 MB the first time, then the browser keeps it. It works best with 1 to 4 people, from the waist up, within about 2 m of the camera, with good light. Hair edges and things people hold (props, flowers) can be cut off or look soft; a green screen gives cleaner edges when you have one.</p>
+      </div>
       <div class="grid2">
-        <div class="field"><label for="setGsSim">How much green to remove <span class="val" id="gsSimVal"></span></label><input type="range" id="setGsSim" min="0.05" max="0.7" step="0.01"></div>
-        <div class="field"><label for="setGsSmooth">Edge softness <span class="val" id="gsSmoothVal"></span></label><input type="range" id="setGsSmooth" min="0.01" max="0.3" step="0.01"></div>
-        <div class="field"><label for="setGsSpill">Green glow cleanup <span class="val" id="gsSpillVal"></span></label><input type="range" id="setGsSpill" min="0.01" max="0.5" step="0.01"></div>
         <label class="check"><input type="checkbox" id="setGsPick"> Guests can pick the background</label>
         <label class="check"><input type="checkbox" id="setGsBuiltin"> Include the built-in backgrounds</label>
       </div>
@@ -312,7 +327,6 @@
       <div class="bg-list" id="bgList"></div>
       <button class="btn sm" id="bgAdd">Add backgrounds</button>
       <input type="file" id="bgFile" accept="image/jpeg,image/png,image/webp" multiple hidden>
-      <p class="note">Tips: light the backdrop evenly with no shadows or wrinkles, keep guests about 1 m in front of it, and ask them not to wear green. If edges look green, raise "How much green to remove" a little; if parts of people vanish, lower it.</p>
     </div>
   </div>
 
@@ -463,10 +477,14 @@
     event: '', showDate: true, theme: 'cream', layouts: { strip: true, grid: true, single: true, gif: true, boomerang: true },
     countdown: 5, between: 3, mirror: true, mirrorPhoto: true, filters: true, retake: true,
     print: true, autoPrint: false, phone: true, save: true, idle: 60, cameraId: '',
-    gs: false, gsKey: '#00b140', gsSim: 0.4, gsSmooth: 0.08, gsSpill: 0.1, gsPick: true, gsBuiltin: true, gsBg: 'b:green'
+    gs: false, gsKey: '#00b140', gsSim: 0.4, gsSmooth: 0.08, gsSpill: 0.1, gsPick: true, gsBuiltin: true, gsBg: 'b:green',
+    gsMode: 'ai', aiCut: 0.5, aiSoft: 0.2
   };
   let settings = (() => {
-    try { const s = JSON.parse(store.get(SET_KEY)) || {}; return { ...DEFAULTS, ...s, layouts: { ...DEFAULTS.layouts, ...(s.layouts || {}) } }; }
+    try {
+      const s = JSON.parse(store.get(SET_KEY)) || {};
+      if (s.gs && !s.gsMode) s.gsMode = 'chroma';           // set up before the AI option existed
+      return { ...DEFAULTS, ...s, layouts: { ...DEFAULTS.layouts, ...(s.layouts || {}) } }; }
     catch (e) { return { ...DEFAULTS }; }
   })();
   const saveSettings = () => store.set(SET_KEY, JSON.stringify(settings));
@@ -576,7 +594,7 @@
     const ctx = c.getContext('2d', { willReadFrequently: true });
     // With the green screen on, the source is the keyed picture at full camera size. Its background is drawn
     // pre-flipped when the photo is mirrored, so text on a background still reads the right way round.
-    const src = gsActive() ? keyer.render(settings.mirrorPhoto) : video;
+    const src = gsActive() ? keyer.render(settings.mirrorPhoto, true) : video;
     if (settings.mirrorPhoto) { ctx.translate(c.width, 0); ctx.scale(-1, 1); }
     ctx.drawImage(src, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, c.width, c.height);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -595,13 +613,19 @@
     const VS = 'attribute vec2 p; varying vec2 uv; void main() { uv = vec2((p.x + 1.0) * 0.5, (1.0 - p.y) * 0.5); gl_Position = vec4(p, 0.0, 1.0); }';
     const FS = `precision mediump float;
       varying vec2 uv;
-      uniform sampler2D cam, bg;
+      uniform sampler2D cam, bg, seg;
       uniform vec2 keyUV, px, bgScale, bgOff;
-      uniform float sim, smoothness, spill, flip;
+      uniform float sim, smoothness, spill, flip, mode, segLo, segHi;
       vec2 toUV(vec3 c) { return vec2(c.r * -0.100644 + c.g * -0.338572 + c.b * 0.439216 + 0.501961, c.r * 0.439216 + c.g * -0.398942 + c.b * -0.040274 + 0.501961); }
       float dist(vec2 at) { return distance(keyUV, toUV(texture2D(cam, at).rgb)); }
       void main() {
         vec3 rgb = texture2D(cam, uv).rgb;
+        vec2 b = vec2(flip > 0.5 ? 1.0 - uv.x : uv.x, uv.y) * bgScale + bgOff;
+        if (mode > 0.5) {                               // AI: the person mask from the segmentation model
+          float m = smoothstep(segLo, segHi, texture2D(seg, uv).r);
+          gl_FragColor = vec4(mix(texture2D(bg, b).rgb, rgb, m), 1.0);
+          return;
+        }
         float d = 0.0;
         for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) d += dist(uv + vec2(float(x), float(y)) * px);
         float base = d / 9.0 - sim;
@@ -609,7 +633,6 @@
         float spillVal = pow(clamp(base / spill, 0.0, 1.0), 1.5);
         float grey = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
         rgb = mix(vec3(grey), rgb, spillVal);
-        vec2 b = vec2(flip > 0.5 ? 1.0 - uv.x : uv.x, uv.y) * bgScale + bgOff;
         gl_FragColor = vec4(mix(texture2D(bg, b).rgb, rgb, mask), 1.0);
       }`;
     const sh = (type, src) => { const o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
@@ -620,14 +643,15 @@
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-    const U = {}; for (const n of ['cam', 'bg', 'keyUV', 'px', 'bgScale', 'bgOff', 'sim', 'smoothness', 'spill', 'flip']) U[n] = gl.getUniformLocation(prog, n);
+    const U = {}; for (const n of ['cam', 'bg', 'seg', 'keyUV', 'px', 'bgScale', 'bgOff', 'sim', 'smoothness', 'spill', 'flip', 'mode', 'segLo', 'segHi']) U[n] = gl.getUniformLocation(prog, n);
     const tex = (unit) => {
       const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
       for (const [k, v] of [[gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE], [gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
       return t;
     };
-    const camTex = tex(0), bgTex = tex(1);
-    gl.uniform1i(U.cam, 0); gl.uniform1i(U.bg, 1);
+    const camTex = tex(0), bgTex = tex(1), segTex = tex(2);
+    gl.uniform1i(U.cam, 0); gl.uniform1i(U.bg, 1); gl.uniform1i(U.seg, 2);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     let bgSize = null;
     return {
       canvas,
@@ -638,9 +662,17 @@
         bgSize = { w: img.naturalWidth || img.width, h: img.naturalHeight || img.height };
       },
       // Draw one frame at the camera's size. flip: draw the background mirrored (it gets mirrored back later).
-      render(flip) {
+      // still: a photo is being taken, so the AI mask is made from this exact frame with no smoothing over time.
+      render(flip, still) {
         const w = video.videoWidth, h = video.videoHeight;
         if (!w || !bgSize) return canvas;
+        const ai = settings.gsMode === 'ai';
+        if (ai) {
+          const m = segmenter.run(still);
+          if (m) { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, segTex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, m.w, m.h, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, m.data); }
+        }
+        gl.uniform1f(U.mode, ai ? 1 : 0);
+        gl.uniform1f(U.segLo, Math.max(0, settings.aiCut - settings.aiSoft / 2)); gl.uniform1f(U.segHi, Math.min(1, settings.aiCut + settings.aiSoft / 2) + 0.001);
         if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
         gl.viewport(0, 0, w, h);
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, camTex);
@@ -662,7 +694,53 @@
       }
     };
   })();
-  const gsActive = () => !!(settings.gs && keyer && keyer.hasBg() && camReady());
+  // AI background removal: MediaPipe's selfie segmenter (Apache-2.0) finds the people in each frame, in the browser.
+  // It runs on a small copy of the frame (fast); the mask is scaled up smoothly on the GPU.
+  const MP_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+  const SEG_MODEL = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite';
+  const segmenter = (() => {
+    let seg = null, loading = null, failed = false, lastTs = 0, prev = null;
+    const small = document.createElement('canvas'), sctx = small.getContext('2d', { willReadFrequently: true });
+    const say = (m) => { const e = $('aiStatus'); if (e) e.textContent = m; };
+    function load() {
+      if (seg || loading) return loading;
+      failed = false; say('Loading the AI…');
+      loading = (async () => {
+        const { FilesetResolver, ImageSegmenter } = await import(MP_URL + '/vision_bundle.mjs');
+        const files = await FilesetResolver.forVisionTasks(MP_URL + '/wasm');
+        const make = (delegate) => ImageSegmenter.createFromOptions(files, { baseOptions: { modelAssetPath: SEG_MODEL, delegate }, runningMode: 'VIDEO', outputConfidenceMasks: true, outputCategoryMask: false });
+        try { seg = await make('GPU'); } catch (e) { seg = await make('CPU'); }
+        say('AI ready.');
+        startKeyLoop();
+      })().catch(e => { console.error(e); failed = true; loading = null; say('Could not load the AI. It needs an internet connection the first time.'); });
+      return loading;
+    }
+    return {
+      load,
+      ready: () => !!seg,
+      failed: () => failed,
+      // Returns the person mask { w, h, data: Uint8Array } for the current video frame.
+      run(still) {
+        if (!seg || !video.videoWidth) return null;
+        const w = 256, h = Math.round(256 * video.videoHeight / video.videoWidth);
+        if (small.width !== w || small.height !== h) { small.width = w; small.height = h; prev = null; }
+        sctx.drawImage(video, 0, 0, w, h);
+        lastTs = Math.max(performance.now(), lastTs + 1);
+        let out = null;
+        seg.segmentForVideo(small, lastTs, (res) => {
+          const masks = res.confidenceMasks;
+          if (!masks || !masks.length) return;
+          const f = masks[masks.length - 1].getAsFloat32Array(), data = new Uint8Array(f.length);
+          // In the live preview, blend with the last mask so the edge does not flicker.
+          const blend = !still && prev && prev.length === f.length;
+          for (let i = 0; i < f.length; i++) { const v = f[i] * 255; data[i] = blend ? (v + prev[i]) / 2 : v; }
+          prev = data; out = { w, h, data };
+        });
+        return out;
+      }
+    };
+  })();
+  const gsActive = () => !!(settings.gs && keyer && keyer.hasBg() && camReady() && (settings.gsMode !== 'ai' || segmenter.ready()));
 
   // Built-in backgrounds are painted here, so they need no files. Uploaded ones are kept in IndexedDB.
   function paintBuiltin(draw) { const c = document.createElement('canvas'); c.width = 1600; c.height = 1200; draw(c.getContext('2d'), 1600, 1200); return c; }
@@ -716,7 +794,8 @@
   let keyLoop = 0;
   function startKeyLoop() {
     cancelAnimationFrame(keyLoop);
-    const on = settings.gs && keyer && keyer.hasBg();
+    if (settings.gs && settings.gsMode === 'ai' && !segmenter.ready()) segmenter.load();
+    const on = settings.gs && keyer && keyer.hasBg() && (settings.gsMode !== 'ai' || segmenter.ready());
     viewport.classList.toggle('keyed', !!(on && screen === 'shoot'));
     document.body.classList.toggle('gs', !!on);
     if (!on) return;
@@ -1148,7 +1227,8 @@
     ['setFilters', 'filters', 'checked'], ['setRetake', 'retake', 'checked'], ['setPrint', 'print', 'checked'], ['setAutoPrint', 'autoPrint', 'checked'],
     ['setPhone', 'phone', 'checked'], ['setSave', 'save', 'checked'], ['setIdle', 'idle', 'num'],
     ['setGs', 'gs', 'checked'], ['setGsKey', 'gsKey', 'value'], ['setGsSim', 'gsSim', 'num'], ['setGsSmooth', 'gsSmooth', 'num'],
-    ['setGsSpill', 'gsSpill', 'num'], ['setGsPick', 'gsPick', 'checked'], ['setGsBuiltin', 'gsBuiltin', 'checked']
+    ['setGsSpill', 'gsSpill', 'num'], ['setGsPick', 'gsPick', 'checked'], ['setGsBuiltin', 'gsBuiltin', 'checked'],
+    ['setGsMode', 'gsMode', 'value'], ['setAiCut', 'aiCut', 'num'], ['setAiSoft', 'aiSoft', 'num']
   ];
   $('setLayouts').innerHTML = ORDER.map(k => `<label class="check"><input type="checkbox" data-layout="${k}"><span>${LAYOUTS[k].name} <span style="opacity:.7">· ${LAYOUTS[k].desc}</span></span></label>`).join('');
 
@@ -1174,18 +1254,22 @@
     if (camChanged) { settings.cameraId = $('setCamera').value; saveSettings(); startCamera(); }
     applySettings();
     if (e.target.id === 'setGsBuiltin') loadBackgrounds().then(paintGs);
-    else if (['setGs', 'setMirror'].includes(e.target.id)) paintGs();
+    else if (['setGs', 'setMirror', 'setGsMode'].includes(e.target.id)) paintGs();
   });
   $('setEvent').addEventListener('input', () => { readSettings(); applySettings(); });
-  for (const id of ['setGsSim', 'setGsSmooth', 'setGsSpill', 'setGsKey']) $(id).addEventListener('input', () => { readSettings(); paintGsValues(); });
+  for (const id of ['setGsSim', 'setGsSmooth', 'setGsSpill', 'setGsKey', 'setAiCut', 'setAiSoft']) $(id).addEventListener('input', () => { readSettings(); paintGsValues(); });
 
   /* green screen settings: live preview inside the dialog, backdrop colour, backgrounds */
-  function paintGsValues() { $('gsSimVal').textContent = settings.gsSim.toFixed(2); $('gsSmoothVal').textContent = settings.gsSmooth.toFixed(2); $('gsSpillVal').textContent = settings.gsSpill.toFixed(2); }
+  function paintGsValues() {
+    for (const [id, k] of [['gsSimVal', 'gsSim'], ['gsSmoothVal', 'gsSmooth'], ['gsSpillVal', 'gsSpill'], ['aiCutVal', 'aiCut'], ['aiSoftVal', 'aiSoft']]) $(id).textContent = settings[k].toFixed(2);
+  }
   function paintGs() {
     $('setGs').disabled = !keyer;
     $('gsBox').hidden = !settings.gs || !keyer;
-    if (!keyer) { $('setGs').closest('label').lastChild.textContent = ' Green screen needs WebGL, which this browser does not have'; return; }
+    if (!keyer) { $('setGs').closest('label').lastChild.textContent = 'Background replacement needs WebGL, which this browser does not have'; return; }
     paintGsValues(); paintBgList();
+    $('gsChroma').hidden = settings.gsMode !== 'chroma'; $('gsAi').hidden = settings.gsMode !== 'ai';
+    if (settings.gsMode === 'ai' && settings.gs && segmenter.ready()) $('aiStatus').textContent = 'AI ready.';
     const box = $('keyPreview');
     box.classList.toggle('mirror', settings.mirror);
     if (settings.gs) {
@@ -1332,6 +1416,7 @@
   applySettings();
   loadOverlays();
   loadBackgrounds();
+  if (settings.gs && settings.gsMode === 'ai') segmenter.load();
   updateCount();
   goAttract();
   startCamera();
