@@ -65,6 +65,12 @@ Frames have rounded corners and the sheet carries the same cut marks as the stud
 
 Every print shows the studio logo, plus the event name and date if set, in one of four sheet colours (cream, white, studio green, black). For event artwork, staff can upload a **custom overlay** per print layout: a 1200 × 1800 px PNG drawn on top of the sheet, with see-through holes where the photos go.
 
+**Green screen.** Switch on "Replace a green backdrop with a background" in the settings, and the green behind guests is swapped for a background live on screen, so guests see the result before the countdown. It works on prints, GIFs and boomerangs. Guests pick the background on the get-ready screen (or staff fix one). Four backgrounds are built in (Studio green, Cream studio, Golden hour, Party lights), and staff can add their own JPG or PNG pictures (landscape 4 : 3, at least 1600 × 1200 px fits best); they are kept on the booth device. The settings show a live preview with:
+- **Backdrop colour**, with "Read it from the camera" (step out of the picture first; it reads the top corners)
+- **How much green to remove**, **Edge softness** and **Green glow cleanup** (removes green light reflected on hair and edges)
+
+The keying runs on the device's graphics chip (WebGL), after the method of OBS Studio's chroma key filter, so it stays smooth on an iPad. The backdrop colour is matched by hue, so a real, slightly dull green behaves like pure green. Background pictures are never shown mirrored, so text on them reads correctly on screen and on the print. For a clean result, light the backdrop evenly with no shadows or wrinkles, keep guests about 1 m in front of it, and ask them not to wear green.
+
 **Staff settings** open from the small gear on the start screen and need a 4-digit staff PIN (created the first time, kept on the device as a salted hash, 3 wrong tries lock it for a minute; the same scheme as the freebie timer, but its own PIN). Settings: event name and date, sheet colour, which layouts guests can pick, overlays, camera, countdown lengths, mirroring, filters, retake, Print and Send to phone buttons, print automatically, and the return-to-start time. Settings stay on that device.
 
 **Photos taken on this device**: every result is kept in the browser's storage (IndexedDB) on the booth device, so staff can save, print, re-send or delete them, or Download all after the event. They stay until deleted or the browser data is cleared.

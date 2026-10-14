@@ -25,12 +25,17 @@
   }
   #viewport video { width: 100%; height: 100%; object-fit: cover; display: block; }
   #viewport.mirror video { transform: scaleX(-1); }
+  /* green screen: the keyed picture (WebGL) sits over the video while it is on */
+  #keyCanvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  #viewport.mirror #keyCanvas, .key-preview.mirror #keyCanvas { transform: scaleX(-1); }
+  #viewport.keyed video { opacity: 0; }
   #viewport::after { content: ''; position: absolute; inset: 0; background: rgba(16, 32, 27, 0.62); transition: background 0.35s; pointer-events: none; }
   body[data-screen='shoot'] #viewport {
     --vh: calc(100dvh - 270px);                            /* room for the title above and the buttons below */
     width: min(94vw, calc(var(--vh) * var(--aspect, 1))); height: auto; aspect-ratio: var(--aspect, 1);
     top: calc(80px + var(--vh) / 2); border-radius: 20px; box-shadow: 0 0 0 4px rgba(245, 237, 224, 0.9), 0 20px 60px rgba(0, 0, 0, 0.5);
   }
+  body.gs[data-screen='shoot'] #viewport { --vh: calc(100dvh - 350px); }   /* extra room for the background picker */
   body[data-screen='shoot'] #viewport::after { background: transparent; }
   body[data-screen='review'] #viewport { opacity: 0; }
 
@@ -104,6 +109,10 @@
   .filters { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
   .filters .chip { font-size: 0.9rem; padding: 0.5rem 1.1rem; background: rgba(16, 32, 27, 0.75); color: var(--cream); border-color: rgba(245, 237, 224, 0.3); }
   .filters .chip[aria-pressed='true'] { background: var(--cream); color: var(--green-dark); border-color: var(--cream); }
+  .bgs { display: flex; gap: 8px; flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding: 4px; scrollbar-width: none; }
+  .bgs button { flex: none; width: 78px; height: 58px; padding: 0; border-radius: 10px; overflow: hidden; cursor: pointer; border: 3px solid rgba(245, 237, 224, 0.25); background: #000; }
+  .bgs button img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .bgs button[aria-pressed='true'] { border-color: var(--amber-light); box-shadow: 0 0 0 2px var(--amber-light); }
   .dots { display: flex; gap: 10px; }
   .dots i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--cream); }
   .dots i.done { background: var(--amber-light); border-color: var(--amber-light); }
@@ -158,6 +167,17 @@
   .gal .acts .btn { padding: 0.25rem 0.6rem; font-size: 0.72rem; flex: 1; }
   .empty { color: var(--text-mid); text-align: center; padding: 2rem 0; grid-column: 1 / -1; }
 
+  .key-preview { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; background: #000; margin: 0.4rem 0 0.7rem; }
+  .key-preview p { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; color: #fff; font-size: 0.85rem; text-align: center; padding: 1rem; }
+  .bg-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0.4rem 0 0.6rem; }
+  .bg-list figure { margin: 0; width: 96px; display: flex; flex-direction: column; gap: 3px; }
+  .bg-list button.pick { padding: 0; border-radius: 8px; overflow: hidden; border: 2px solid var(--line); cursor: pointer; aspect-ratio: 4 / 3; background: #000; }
+  .bg-list button.pick[aria-pressed='true'] { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber); }
+  .bg-list img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .bg-list figcaption { font-size: 0.7rem; color: var(--text-mid); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bg-list .linkdel { background: none; border: none; padding: 0; font: inherit; font-size: 0.7rem; color: var(--rust); text-decoration: underline; cursor: pointer; text-align: left; }
+  .key-row { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+  .key-row input[type='color'] { width: 52px; height: 38px; border: 2px solid rgba(45, 110, 95, 0.2); border-radius: 10px; padding: 2px; background: #fff; }
   #printArea { display: none; }
   @media print {
     @page { size: 4in 6in; margin: 0; }
@@ -203,6 +223,7 @@
     <div class="shoot-top"><h2 class="title" id="shootTitle">Get ready</h2></div>
     <div class="shoot-bottom">
       <div id="readyBox" class="bar-row" style="flex-direction:column;align-items:center">
+        <div class="bgs" id="bgChips" aria-label="Background" hidden></div>
         <div class="filters" id="filterChips"></div>
         <button class="bbtn go huge" id="startBtn">Start</button>
       </div>
@@ -271,6 +292,28 @@
     <p class="note">Custom overlay: a PNG the size of the sheet (1200 × 1800 px for the 4 × 6 in sheets) drawn on top of the photos, with see-through holes where the photos go. Use it for event artwork. The studio logo and name are drawn underneath, so leave them out or cover them on purpose.</p>
     <div id="setOverlays"></div>
     <input type="file" id="overlayFile" accept="image/png" hidden>
+  </div>
+
+  <div class="set-group">
+    <h3>Green screen</h3>
+    <label class="check"><input type="checkbox" id="setGs"> Replace a green backdrop with a background</label>
+    <div id="gsBox">
+      <div class="key-preview" id="keyPreview"><p id="keyPreviewMsg">Camera preview</p></div>
+      <div class="field"><label>Backdrop colour</label>
+        <div class="key-row"><input type="color" id="setGsKey" aria-label="Backdrop colour"><button class="btn sm" id="gsSample">Read it from the camera</button><span class="note" style="margin:0">Step out of the picture first.</span></div></div>
+      <div class="grid2">
+        <div class="field"><label for="setGsSim">How much green to remove <span class="val" id="gsSimVal"></span></label><input type="range" id="setGsSim" min="0.05" max="0.7" step="0.01"></div>
+        <div class="field"><label for="setGsSmooth">Edge softness <span class="val" id="gsSmoothVal"></span></label><input type="range" id="setGsSmooth" min="0.01" max="0.3" step="0.01"></div>
+        <div class="field"><label for="setGsSpill">Green glow cleanup <span class="val" id="gsSpillVal"></span></label><input type="range" id="setGsSpill" min="0.01" max="0.5" step="0.01"></div>
+        <label class="check"><input type="checkbox" id="setGsPick"> Guests can pick the background</label>
+        <label class="check"><input type="checkbox" id="setGsBuiltin"> Include the built-in backgrounds</label>
+      </div>
+      <p class="note">Tap a background to make it the one that is picked first. Add your own as JPG or PNG; landscape 4 : 3 pictures of at least 1600 × 1200 px fit best.</p>
+      <div class="bg-list" id="bgList"></div>
+      <button class="btn sm" id="bgAdd">Add backgrounds</button>
+      <input type="file" id="bgFile" accept="image/jpeg,image/png,image/webp" multiple hidden>
+      <p class="note">Tips: light the backdrop evenly with no shadows or wrinkles, keep guests about 1 m in front of it, and ask them not to wear green. If edges look green, raise "How much green to remove" a little; if parts of people vanish, lower it.</p>
+    </div>
   </div>
 
   <div class="set-group">
@@ -419,7 +462,8 @@
   const DEFAULTS = {
     event: '', showDate: true, theme: 'cream', layouts: { strip: true, grid: true, single: true, gif: true, boomerang: true },
     countdown: 5, between: 3, mirror: true, mirrorPhoto: true, filters: true, retake: true,
-    print: true, autoPrint: false, phone: true, save: true, idle: 60, cameraId: ''
+    print: true, autoPrint: false, phone: true, save: true, idle: 60, cameraId: '',
+    gs: false, gsKey: '#00b140', gsSim: 0.4, gsSmooth: 0.08, gsSpill: 0.1, gsPick: true, gsBuiltin: true, gsBg: 'b:green'
   };
   let settings = (() => {
     try { const s = JSON.parse(store.get(SET_KEY)) || {}; return { ...DEFAULTS, ...s, layouts: { ...DEFAULTS.layouts, ...(s.layouts || {}) } }; }
@@ -431,8 +475,13 @@
   const idb = (() => {
     let p = null;
     const open = () => p || (p = new Promise((res, rej) => {
-      const r = indexedDB.open('clicklounge-booth', 1);
-      r.onupgradeneeded = () => { r.result.createObjectStore('captures', { keyPath: 'id', autoIncrement: true }); r.result.createObjectStore('overlays'); };
+      const r = indexedDB.open('clicklounge-booth', 2);
+      r.onupgradeneeded = () => {
+        const db = r.result, has = (n) => db.objectStoreNames.contains(n);
+        if (!has('captures')) db.createObjectStore('captures', { keyPath: 'id', autoIncrement: true });
+        if (!has('overlays')) db.createObjectStore('overlays');
+        if (!has('backgrounds')) db.createObjectStore('backgrounds', { keyPath: 'id', autoIncrement: true });
+      };
       r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
     }));
     const run = async (name, mode, fn) => {
@@ -525,11 +574,159 @@
     const k = Math.min(1, maxLong / Math.max(sw, sh)), c = document.createElement('canvas');
     c.width = Math.round(sw * k); c.height = Math.round(sh * k);
     const ctx = c.getContext('2d', { willReadFrequently: true });
+    // With the green screen on, the source is the keyed picture at full camera size. Its background is drawn
+    // pre-flipped when the photo is mirrored, so text on a background still reads the right way round.
+    const src = gsActive() ? keyer.render(settings.mirrorPhoto) : video;
     if (settings.mirrorPhoto) { ctx.translate(c.width, 0); ctx.scale(-1, 1); }
-    ctx.drawImage(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, c.width, c.height);
+    ctx.drawImage(src, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, c.width, c.height);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     applyFilter(ctx, c.width, c.height, ops);
     return c;
+  }
+
+  /* ---------- green screen ---------- */
+  // Chroma key on the GPU (WebGL), after OBS's chroma key filter: distance from the backdrop colour in the CbCr plane,
+  // averaged over a 3 × 3 box so the edge is steadier, then a soft mask and green spill removal.
+  const keyer = (() => {
+    const canvas = document.createElement('canvas');
+    canvas.id = 'keyCanvas';
+    const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true, alpha: false, antialias: false });
+    if (!gl) return null;
+    const VS = 'attribute vec2 p; varying vec2 uv; void main() { uv = vec2((p.x + 1.0) * 0.5, (1.0 - p.y) * 0.5); gl_Position = vec4(p, 0.0, 1.0); }';
+    const FS = `precision mediump float;
+      varying vec2 uv;
+      uniform sampler2D cam, bg;
+      uniform vec2 keyUV, px, bgScale, bgOff;
+      uniform float sim, smoothness, spill, flip;
+      vec2 toUV(vec3 c) { return vec2(c.r * -0.100644 + c.g * -0.338572 + c.b * 0.439216 + 0.501961, c.r * 0.439216 + c.g * -0.398942 + c.b * -0.040274 + 0.501961); }
+      float dist(vec2 at) { return distance(keyUV, toUV(texture2D(cam, at).rgb)); }
+      void main() {
+        vec3 rgb = texture2D(cam, uv).rgb;
+        float d = 0.0;
+        for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) d += dist(uv + vec2(float(x), float(y)) * px);
+        float base = d / 9.0 - sim;
+        float mask = pow(clamp(base / smoothness, 0.0, 1.0), 1.5);
+        float spillVal = pow(clamp(base / spill, 0.0, 1.0), 1.5);
+        float grey = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+        rgb = mix(vec3(grey), rgb, spillVal);
+        vec2 b = vec2(flip > 0.5 ? 1.0 - uv.x : uv.x, uv.y) * bgScale + bgOff;
+        gl_FragColor = vec4(mix(texture2D(bg, b).rgb, rgb, mask), 1.0);
+      }`;
+    const sh = (type, src) => { const o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+    const prog = gl.createProgram();
+    try { gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog); } catch (e) { console.error(e); return null; }
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
+    gl.useProgram(prog);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    const U = {}; for (const n of ['cam', 'bg', 'keyUV', 'px', 'bgScale', 'bgOff', 'sim', 'smoothness', 'spill', 'flip']) U[n] = gl.getUniformLocation(prog, n);
+    const tex = (unit) => {
+      const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
+      for (const [k, v] of [[gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE], [gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+      return t;
+    };
+    const camTex = tex(0), bgTex = tex(1);
+    gl.uniform1i(U.cam, 0); gl.uniform1i(U.bg, 1);
+    let bgSize = null;
+    return {
+      canvas,
+      hasBg: () => !!bgSize,
+      setBg(img) {
+        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, bgTex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
+        bgSize = { w: img.naturalWidth || img.width, h: img.naturalHeight || img.height };
+      },
+      // Draw one frame at the camera's size. flip: draw the background mirrored (it gets mirrored back later).
+      render(flip) {
+        const w = video.videoWidth, h = video.videoHeight;
+        if (!w || !bgSize) return canvas;
+        if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+        gl.viewport(0, 0, w, h);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, camTex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, video);
+        // Keep the backdrop's hue but push it out to full strength (as far from grey as pure green is), so a real,
+        // duller backdrop and the sliders behave like OBS's pure-green key and skin, white and dark clothes stay.
+        const hex = settings.gsKey, rgb = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+        const ku = rgb[0] * -0.100644 + rgb[1] * -0.338572 + rgb[2] * 0.439216, kv = rgb[0] * 0.439216 + rgb[1] * -0.398942 + rgb[2] * -0.040274;
+        const len = Math.hypot(ku, kv) || 1, FULL = Math.hypot(0.338572, 0.398942);
+        gl.uniform2f(U.keyUV, 0.501961 + ku / len * FULL, 0.501961 + kv / len * FULL);
+        gl.uniform2f(U.px, 1 / w, 1 / h);
+        const fa = w / h, ba = bgSize.w / bgSize.h;                   // cover: crop the background to the frame's shape
+        if (ba > fa) { gl.uniform2f(U.bgScale, fa / ba, 1); gl.uniform2f(U.bgOff, (1 - fa / ba) / 2, 0); }
+        else { gl.uniform2f(U.bgScale, 1, ba / fa); gl.uniform2f(U.bgOff, 0, (1 - ba / fa) / 2); }
+        gl.uniform1f(U.sim, settings.gsSim); gl.uniform1f(U.smoothness, settings.gsSmooth); gl.uniform1f(U.spill, settings.gsSpill);
+        gl.uniform1f(U.flip, flip ? 1 : 0);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        return canvas;
+      }
+    };
+  })();
+  const gsActive = () => !!(settings.gs && keyer && keyer.hasBg() && camReady());
+
+  // Built-in backgrounds are painted here, so they need no files. Uploaded ones are kept in IndexedDB.
+  function paintBuiltin(draw) { const c = document.createElement('canvas'); c.width = 1600; c.height = 1200; draw(c.getContext('2d'), 1600, 1200); return c; }
+  const radial = (ctx, w, h, inner, outer) => { const g = ctx.createRadialGradient(w / 2, h * 0.45, 0, w / 2, h * 0.45, w * 0.75); g.addColorStop(0, inner); g.addColorStop(1, outer); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); };
+  const BUILTIN_BGS = [
+    { id: 'b:green', name: 'Studio green', draw: (ctx, w, h) => radial(ctx, w, h, '#4a9082', '#10201b') },
+    { id: 'b:cream', name: 'Cream studio', draw: (ctx, w, h) => radial(ctx, w, h, '#faf6f0', '#d9c6a6') },
+    { id: 'b:gold', name: 'Golden hour', draw: (ctx, w, h) => { const g = ctx.createLinearGradient(0, 0, w * 0.3, h); g.addColorStop(0, '#f6d77e'); g.addColorStop(0.55, '#c49a1a'); g.addColorStop(1, '#b05a2a'); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); } },
+    { id: 'b:lights', name: 'Party lights', draw: (ctx, w, h) => {
+      radial(ctx, w, h, '#2a2350', '#0b0a18');
+      let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      const cols = ['#f6d77e', '#e88aa8', '#7fc8f8', '#d4b030', '#ffffff'];
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 70; i++) {
+        const x = rnd() * w, y = rnd() * h, r = 20 + rnd() * 90, g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, cols[i % cols.length]); g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = 0.25 + rnd() * 0.45; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+      }
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    } }
+  ].map(b => ({ ...b, img: null }));
+  let backgrounds = [];                                     // [{ id, name, img, thumb, builtin }]
+  const thumbOf = (img) => { const c = document.createElement('canvas'); c.width = 160; c.height = 120; const ctx = c.getContext('2d'), w = img.naturalWidth || img.width, h = img.naturalHeight || img.height, k = Math.max(160 / w, 120 / h); ctx.drawImage(img, (160 - w * k) / 2, (120 - h * k) / 2, w * k, h * k); return c.toDataURL('image/jpeg', 0.8); };
+  async function loadBackgrounds() {
+    const list = [];
+    if (settings.gsBuiltin) for (const b of BUILTIN_BGS) { if (!b.img) { b.img = paintBuiltin(b.draw); b.thumb = thumbOf(b.img); } list.push({ id: b.id, name: b.name, img: b.img, thumb: b.thumb, builtin: true }); }
+    let saved = [];
+    try { saved = await idb.all('backgrounds'); } catch (e) {}
+    for (const r of saved) {
+      const old = backgrounds.find(b => b.id === 'u:' + r.id);
+      if (old) { list.push(old); continue; }
+      try { const img = await loadImg(URL.createObjectURL(r.blob)); list.push({ id: 'u:' + r.id, name: r.name, img, thumb: thumbOf(img) }); } catch (e) {}
+    }
+    backgrounds = list;
+    paintBgChips();
+  }
+  let liveBg = null;
+  function useBg(id) {
+    const b = backgrounds.find(x => x.id === id) || backgrounds.find(x => x.id === settings.gsBg) || backgrounds[0];
+    liveBg = b ? b.id : null;
+    if (b && keyer) keyer.setBg(b.img);
+    for (const el of $('bgChips').children) el.setAttribute('aria-pressed', String(el.dataset.id === liveBg));
+  }
+  function paintBgChips() {
+    $('bgChips').innerHTML = backgrounds.map(b => `<button data-id="${b.id}" aria-pressed="false" aria-label="${b.name.replace(/"/g, '&quot;')}"><img src="${b.thumb}" alt=""></button>`).join('');
+    useBg(liveBg);
+  }
+  $('bgChips').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) useBg(b.dataset.id); });
+
+  // Live keyed preview: runs while the get-ready and shooting screens (or the settings preview) are showing.
+  let keyLoop = 0;
+  function startKeyLoop() {
+    cancelAnimationFrame(keyLoop);
+    const on = settings.gs && keyer && keyer.hasBg();
+    viewport.classList.toggle('keyed', !!(on && screen === 'shoot'));
+    document.body.classList.toggle('gs', !!on);
+    if (!on) return;
+    if (screen === 'shoot' && keyer.canvas.parentNode !== viewport) viewport.insertBefore(keyer.canvas, $('still'));
+    const tick = () => {
+      if (!(settings.gs && (screen === 'shoot' || setDlg.open))) { viewport.classList.remove('keyed'); return; }
+      if (camReady()) keyer.render(settings.mirror);
+      keyLoop = requestAnimationFrame(tick);
+    };
+    tick();
   }
 
   // Keep the screen awake while the booth is open.
@@ -571,6 +768,7 @@
     viewport.style.removeProperty('--aspect');
     $('countdown').textContent = ''; $('still').hidden = true;
     applyLiveFilter('none');
+    liveBg = null; viewport.classList.remove('keyed');
   }
 
   /* ---------- attract → choose ---------- */
@@ -598,6 +796,7 @@
   function applyLiveFilter(key) {
     liveFilter = key;
     video.style.filter = cssFilter(FILTERS[key].ops);
+    if (keyer) keyer.canvas.style.filter = video.style.filter;
     for (const b of $('filterChips').children) b.setAttribute('aria-pressed', String(b.dataset.k === key));
   }
   $('filterChips').innerHTML = Object.entries(FILTERS).map(([k, f]) => `<button class="chip" data-k="${k}" aria-pressed="false">${f.name}</button>`).join('');
@@ -612,6 +811,9 @@
     $('readyBox').hidden = false; $('progressBox').hidden = true;
     $('filterChips').hidden = !settings.filters;
     if (!settings.filters) applyLiveFilter('none'); else applyLiveFilter(liveFilter);
+    $('bgChips').hidden = !(settings.gs && keyer && settings.gsPick && backgrounds.length > 1);
+    if (settings.gs && (!settings.gsPick || !liveBg)) useBg(settings.gsBg);
+    startKeyLoop();
     $('shootTitle').textContent = L.kind === 'boomerang' ? 'Get ready to move!' : `${L.shots} photo${L.shots > 1 ? 's' : ''} · get ready`;
     $('startBtn').textContent = 'Start';
     $('shootBack').hidden = false;
@@ -944,30 +1146,88 @@
     ['setEvent', 'event', 'value'], ['setDate', 'showDate', 'checked'], ['setTheme', 'theme', 'value'],
     ['setCount', 'countdown', 'num'], ['setBetween', 'between', 'num'], ['setMirror', 'mirror', 'checked'], ['setMirrorPhoto', 'mirrorPhoto', 'checked'],
     ['setFilters', 'filters', 'checked'], ['setRetake', 'retake', 'checked'], ['setPrint', 'print', 'checked'], ['setAutoPrint', 'autoPrint', 'checked'],
-    ['setPhone', 'phone', 'checked'], ['setSave', 'save', 'checked'], ['setIdle', 'idle', 'num']
+    ['setPhone', 'phone', 'checked'], ['setSave', 'save', 'checked'], ['setIdle', 'idle', 'num'],
+    ['setGs', 'gs', 'checked'], ['setGsKey', 'gsKey', 'value'], ['setGsSim', 'gsSim', 'num'], ['setGsSmooth', 'gsSmooth', 'num'],
+    ['setGsSpill', 'gsSpill', 'num'], ['setGsPick', 'gsPick', 'checked'], ['setGsBuiltin', 'gsBuiltin', 'checked']
   ];
   $('setLayouts').innerHTML = ORDER.map(k => `<label class="check"><input type="checkbox" data-layout="${k}"><span>${LAYOUTS[k].name} <span style="opacity:.7">· ${LAYOUTS[k].desc}</span></span></label>`).join('');
 
+  let formFilled = false;                                   // only read the form back after it was filled from the settings
   function fillSettings() {
+    formFilled = true;
     for (const [id, key, how] of bind) { const el = $(id); if (how === 'checked') el.checked = !!settings[key]; else el.value = String(settings[key]); }
     for (const el of $('setLayouts').querySelectorAll('input')) el.checked = !!settings.layouts[el.dataset.layout];
-    paintOverlays(); listCameras(); updateCount();
+    paintOverlays(); listCameras(); updateCount(); paintGs();
   }
   function readSettings() {
+    if (!formFilled) return;
     for (const [id, key, how] of bind) { const el = $(id); settings[key] = how === 'checked' ? el.checked : how === 'num' ? Number(el.value) : el.value; }
     for (const el of $('setLayouts').querySelectorAll('input')) settings.layouts[el.dataset.layout] = el.checked;
     if (!ORDER.some(k => settings.layouts[k])) { settings.layouts.strip = true; }
     saveSettings();
   }
   setDlg.addEventListener('change', (e) => {
-    if (e.target.id === 'overlayFile') return;
+    if (e.target.type === 'file') return;
     if (e.target.dataset.layout && !$('setLayouts').querySelector('input:checked')) { e.target.checked = true; toast('Keep at least one layout.'); }
     const camChanged = e.target.id === 'setCamera';
     readSettings();
     if (camChanged) { settings.cameraId = $('setCamera').value; saveSettings(); startCamera(); }
     applySettings();
+    if (e.target.id === 'setGsBuiltin') loadBackgrounds().then(paintGs);
+    else if (['setGs', 'setMirror'].includes(e.target.id)) paintGs();
   });
   $('setEvent').addEventListener('input', () => { readSettings(); applySettings(); });
+  for (const id of ['setGsSim', 'setGsSmooth', 'setGsSpill', 'setGsKey']) $(id).addEventListener('input', () => { readSettings(); paintGsValues(); });
+
+  /* green screen settings: live preview inside the dialog, backdrop colour, backgrounds */
+  function paintGsValues() { $('gsSimVal').textContent = settings.gsSim.toFixed(2); $('gsSmoothVal').textContent = settings.gsSmooth.toFixed(2); $('gsSpillVal').textContent = settings.gsSpill.toFixed(2); }
+  function paintGs() {
+    $('setGs').disabled = !keyer;
+    $('gsBox').hidden = !settings.gs || !keyer;
+    if (!keyer) { $('setGs').closest('label').lastChild.textContent = ' Green screen needs WebGL, which this browser does not have'; return; }
+    paintGsValues(); paintBgList();
+    const box = $('keyPreview');
+    box.classList.toggle('mirror', settings.mirror);
+    if (settings.gs) {
+      if (!settings.gsBuiltin && !backgrounds.length) $('keyPreviewMsg').textContent = 'Add a background first.';
+      else { useBg(settings.gsBg); box.append(keyer.canvas); }
+      startKeyLoop();
+    }
+  }
+  function paintBgList() {
+    $('bgList').innerHTML = backgrounds.length ? backgrounds.map(b =>
+      `<figure><button class="pick" data-id="${b.id}" aria-pressed="${b.id === settings.gsBg}" title="Picked first"><img src="${b.thumb}" alt=""></button>` +
+      `<figcaption>${b.name.replace(/</g, '&lt;')}</figcaption>${b.builtin ? '' : `<button class="linkdel" data-del="${b.id}">Remove</button>`}</figure>`).join('')
+      : '<p class="note" style="margin:0">No backgrounds yet. Add some, or switch on the built-in ones.</p>';
+  }
+  $('bgList').addEventListener('click', async (e) => {
+    const pick = e.target.closest('.pick'), del = e.target.closest('[data-del]');
+    if (pick) { settings.gsBg = pick.dataset.id; saveSettings(); useBg(settings.gsBg); paintBgList(); }
+    if (del && confirm('Remove this background from this device?')) {
+      await idb.del('backgrounds', Number(del.dataset.del.slice(2)));
+      backgrounds = backgrounds.filter(b => b.id !== del.dataset.del);
+      await loadBackgrounds(); paintBgList(); useBg(settings.gsBg);
+    }
+  });
+  $('bgAdd').addEventListener('click', () => { $('bgFile').value = ''; $('bgFile').click(); });
+  $('bgFile').addEventListener('change', async () => {
+    let added = 0;
+    for (const f of $('bgFile').files) {
+      try { await loadImg(URL.createObjectURL(f)); await idb.put('backgrounds', { name: f.name.replace(/\.[^.]+$/, ''), blob: f }); added++; } catch (e) {}
+    }
+    if (added < $('bgFile').files.length) toast('Some files could not be read as pictures.');
+    await loadBackgrounds(); paintBgList(); paintGs();
+  });
+  $('gsSample').addEventListener('click', () => {
+    if (!camReady()) { toast('The camera is not on.'); return; }
+    // Average the two top corners of the camera picture, where the backdrop shows when nobody stands there.
+    const c = document.createElement('canvas'); c.width = 64; c.height = 48;
+    const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(video, 0, 0, 64, 48);
+    let r = 0, g = 0, b = 0, n = 0;
+    for (const x0 of [0, 54]) { const d = ctx.getImageData(x0, 0, 10, 10).data; for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; } }
+    const hex = '#' + [r, g, b].map(v => Math.round(v / n).toString(16).padStart(2, '0')).join('');
+    $('setGsKey').value = hex; readSettings(); toast('Backdrop colour set to ' + hex + '.');
+  });
   function applySettings() {
     viewport.classList.toggle('mirror', settings.mirror);
     $('attractTitle').textContent = settings.event || 'Photo Booth';
@@ -1010,10 +1270,10 @@
   $('staffBtn').addEventListener('click', async (e) => {
     e.stopPropagation();
     if (!(await checkPin('Staff PIN', 'Enter the 4-digit staff PIN to open the booth settings.'))) return;
-    fillSettings(); setDlg.showModal();
+    setDlg.showModal(); fillSettings();                     // open first: the green screen preview runs while the dialog is open
   });
   $('setDone').addEventListener('click', () => setDlg.close());
-  setDlg.addEventListener('close', () => { readSettings(); applySettings(); goAttract(); });
+  setDlg.addEventListener('close', () => { readSettings(); applySettings(); goAttract(); if (keyer) viewport.insertBefore(keyer.canvas, $('still')); });
   $('pinChange').addEventListener('click', async () => {
     if (readPin() && !(await checkPin('Current PIN', 'Enter the current PIN to change it.'))) return;
     if (await createPin()) toast('The PIN was changed.');
@@ -1071,6 +1331,7 @@
   /* ---------- start ---------- */
   applySettings();
   loadOverlays();
+  loadBackgrounds();
   updateCount();
   goAttract();
   startCamera();
