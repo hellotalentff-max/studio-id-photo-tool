@@ -53,6 +53,29 @@ Sideways frames start with the photo turned 90° and carry a sideways logo, as o
 
 Frames have rounded corners and the sheet carries the same cut marks as the studio's sheets. Photos are repositioned, zoomed and rotated inside each frame, and always fill it. Each sheet downloads as a 1205 × 1807 px PNG tagged 300 dpi.
 
+## Photo booth
+
+`photobooth.html` turns an iPad, tablet or laptop with a camera into a self-service photo booth, in the spirit of apps like Lumabooth. It runs full screen as a kiosk:
+
+1. **Start screen**: the studio logo and event name over the live camera. Guests tap anywhere.
+2. **Pick your photo**: Photo strips (3 photos, two identical 2 × 6 in strips on one 4 × 6 in print), Four-up (4 photos), Big photo (1 photo), Animated GIF (4 photos that flip) or Boomerang (a 1.5 second back-and-forth clip). If only one layout is switched on, this step is skipped.
+3. **Get ready**: the camera preview is cut to the shape of the photo, so what guests see is what prints. They can pick a filter (Natural, Black & white, Warm, Vintage) and press Start.
+4. **Countdown and shots** with big numbers, beeps, a white flash and a shutter sound. Each shot is shown for a moment.
+5. **Review**: the finished print (4 × 6 in, 300 dpi JPEG) or GIF, with Retake, Print, Send to my phone (the same QR code transfer as the other pages) and Done. It goes back to the start screen by itself after the chosen time.
+
+Every print shows the studio logo, plus the event name and date if set, in one of four sheet colours (cream, white, studio green, black). For event artwork, staff can upload a **custom overlay** per print layout: a 1200 × 1800 px PNG drawn on top of the sheet, with see-through holes where the photos go.
+
+**Staff settings** open from the small gear on the start screen and need a 4-digit staff PIN (created the first time, kept on the device as a salted hash, 3 wrong tries lock it for a minute; the same scheme as the freebie timer, but its own PIN). Settings: event name and date, sheet colour, which layouts guests can pick, overlays, camera, countdown lengths, mirroring, filters, retake, Print and Send to phone buttons, print automatically, and the return-to-start time. Settings stay on that device.
+
+**Photos taken on this device**: every result is kept in the browser's storage (IndexedDB) on the booth device, so staff can save, print, re-send or delete them, or Download all after the event. They stay until deleted or the browser data is cleared.
+
+Notes:
+- The camera only works over https (GitHub Pages) or on localhost. Allow camera access when the browser asks.
+- On iPad, use Share → Add to Home Screen and open the booth from the home screen icon for a full-screen app, and turn on Guided Access (Settings → Accessibility) so guests cannot leave it. On a laptop, use Full screen in the settings.
+- Printing opens the browser's print box on a 4 × 6 in page. For one-tap printing on a laptop, start Chrome with `--kiosk-printing` and set the photo printer as the default printer.
+- GIFs are made in the browser with gifenc (MIT) from jsDelivr, loaded once when a GIF layout is switched on, so the booth needs internet the first time.
+- Nothing is uploaded. Send to my phone goes straight from the booth to the guest's phone over WebRTC.
+
 ## Printing and sending to a phone
 
 On the freebie page, **Print this sheet** and **Print all sheets** open the browser's print dialog with one 102 × 153 mm page per sheet. On the ID photo page, **Print sheet** prints the sheet at its real size (153 × 102 mm landscape for 35 × 45 mm, 101.6 × 152.4 mm (4 × 6 in) portrait for 2 × 2 in). Choose the matching paper and 100% scale.

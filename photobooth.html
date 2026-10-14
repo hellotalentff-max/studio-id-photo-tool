@@ -1,0 +1,1080 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>ClickLounge Photo Booth</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="studio.css">
+<style>
+  /* Full-screen kiosk: one stage, the live camera behind it, and one screen at a time on top
+     (attract → choose a layout → get ready → countdown and shots → review). */
+  html, body { height: 100%; }
+  body.booth {
+    min-height: 0; height: 100dvh; overflow: hidden; background: #10201b; color: var(--cream);
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
+  }
+  #stage { position: fixed; inset: 0; }
+
+  /* live camera: full screen behind attract/choose, a framed box the shape of the photo while shooting */
+  #viewport {
+    position: absolute; left: 50%; top: 50%; width: 100%; height: 100%; transform: translate(-50%, -50%);
+    overflow: hidden; background: #000; transition: width 0.35s, height 0.35s, border-radius 0.35s, top 0.35s;
+  }
+  #viewport video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  #viewport.mirror video { transform: scaleX(-1); }
+  #viewport::after { content: ''; position: absolute; inset: 0; background: rgba(16, 32, 27, 0.62); transition: background 0.35s; pointer-events: none; }
+  body[data-screen='shoot'] #viewport {
+    --vh: calc(100dvh - 270px);                            /* room for the title above and the buttons below */
+    width: min(94vw, calc(var(--vh) * var(--aspect, 1))); height: auto; aspect-ratio: var(--aspect, 1);
+    top: calc(80px + var(--vh) / 2); border-radius: 20px; box-shadow: 0 0 0 4px rgba(245, 237, 224, 0.9), 0 20px 60px rgba(0, 0, 0, 0.5);
+  }
+  body[data-screen='shoot'] #viewport::after { background: transparent; }
+  body[data-screen='review'] #viewport { opacity: 0; }
+
+  #countdown {
+    position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 2;
+    font-family: var(--font-display); font-weight: 900; font-size: min(42vw, 42vh); line-height: 1; color: #fff;
+    text-shadow: 0 6px 40px rgba(0, 0, 0, 0.55);
+  }
+  #countdown.word { font-size: min(14vw, 16vh); font-style: italic; }
+  #countdown.pop { animation: pop 1s ease-out; }
+  @keyframes pop { 0% { transform: scale(1.5); opacity: 0; } 15% { transform: scale(1); opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0.15; transform: scale(0.85); } }
+  #still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+  #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 50; }
+  #flash.go { animation: flash 0.45s ease-out; }
+  @keyframes flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+  .screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; z-index: 5; padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom)); }
+  .screen[hidden] { display: none !important; }
+  .eyebrow.light { color: var(--amber-light); }
+  .title { font-family: var(--font-display); font-weight: 900; color: #fff; text-align: center; margin: 0; line-height: 1.05; }
+  .sub { color: rgba(245, 237, 224, 0.75); text-align: center; margin: 0; }
+
+  /* big pill buttons for guests */
+  .bbtn {
+    font-family: var(--font-mono); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; font-size: clamp(0.9rem, 2vw, 1.1rem);
+    border-radius: 100px; padding: 1rem 2rem; border: 2px solid rgba(245, 237, 224, 0.5); background: rgba(245, 237, 224, 0.08);
+    color: var(--cream); cursor: pointer; transition: transform 0.12s, background 0.2s; min-height: 56px;
+  }
+  .bbtn:active { transform: scale(0.97); }
+  .bbtn.go { background: var(--amber); border-color: var(--amber); color: #fff; box-shadow: 0 8px 28px rgba(196, 154, 26, 0.45); }
+  .bbtn.go.huge { font-size: clamp(1.1rem, 3vw, 1.5rem); padding: 1.3rem 3.2rem; }
+  .bbtn:disabled { opacity: 0.45; }
+  .bar-row { display: flex; flex-wrap: wrap; gap: 0.8rem; justify-content: center; }
+
+  /* attract */
+  #sAttract { justify-content: center; gap: 1.4rem; cursor: pointer; }
+  #sAttract img.logo { width: min(340px, 62vw); height: auto; filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.35)); }
+  #sAttract .title { font-size: clamp(2.2rem, 7vw, 4.6rem); font-style: italic; }
+  .tap { font-family: var(--font-mono); font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--amber-light); font-size: clamp(0.95rem, 2.4vw, 1.3rem); }
+  @media (prefers-reduced-motion: no-preference) { .tap { animation: breathe 2.2s ease-in-out infinite; } }
+  @keyframes breathe { 50% { opacity: 0.35; } }
+  .staff-btn {
+    position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; width: 44px; height: 44px; border-radius: 50%;
+    border: 1px solid rgba(245, 237, 224, 0.2); background: rgba(0, 0, 0, 0.2); color: rgba(245, 237, 224, 0.5); font-size: 1.2rem; cursor: pointer;
+  }
+  .cam-msg { max-width: 520px; text-align: center; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(245, 237, 224, 0.2); border-radius: 16px; padding: 1rem 1.2rem; }
+  .cam-msg p { margin: 0 0 0.8rem; }
+
+  /* choose a layout */
+  #sChoose { justify-content: center; gap: 1.3rem; overflow-y: auto; }
+  #sChoose .title { font-size: clamp(1.8rem, 5vw, 3rem); }
+  .cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; width: min(980px, 100%); }
+  .cards > * { flex: 0 1 180px; min-width: 140px; }
+  .card-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 1.1rem 0.8rem 1rem; cursor: pointer;
+    border-radius: 20px; border: 2px solid rgba(245, 237, 224, 0.25); background: rgba(16, 32, 27, 0.7); color: var(--cream); font: inherit;
+    transition: transform 0.12s, border-color 0.2s, background 0.2s;
+  }
+  .card-btn:hover, .card-btn:focus-visible { border-color: var(--amber-light); background: rgba(30, 77, 66, 0.85); }
+  .card-btn:active { transform: scale(0.97); }
+  .card-btn svg { height: 96px; width: auto; }
+  .card-btn b { font-family: var(--font-display); font-size: 1.25rem; color: #fff; }
+  .card-btn span { font-size: 0.82rem; color: rgba(245, 237, 224, 0.7); text-align: center; }
+
+  /* get ready / shooting */
+  #sShoot { justify-content: flex-end; pointer-events: none; }
+  #sShoot > * { pointer-events: auto; }
+  .shoot-top { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 0; right: 0; text-align: center; }
+  .shoot-top .title { font-size: clamp(1.2rem, 3vw, 1.8rem); font-family: var(--font-display); }
+  .shoot-bottom { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; width: 100%; min-height: 120px; justify-content: flex-end; }
+  .filters { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
+  .filters .chip { font-size: 0.9rem; padding: 0.5rem 1.1rem; background: rgba(16, 32, 27, 0.75); color: var(--cream); border-color: rgba(245, 237, 224, 0.3); }
+  .filters .chip[aria-pressed='true'] { background: var(--cream); color: var(--green-dark); border-color: var(--cream); }
+  .dots { display: flex; gap: 10px; }
+  .dots i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--cream); }
+  .dots i.done { background: var(--amber-light); border-color: var(--amber-light); }
+  .thumbs { display: flex; gap: 8px; height: 64px; }
+  .thumbs img { height: 64px; border-radius: 8px; border: 2px solid var(--cream); }
+  .x-btn { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 12px; }
+  .x-btn.bbtn { padding: 0.6rem 1.1rem; min-height: 44px; font-size: 0.8rem; }
+
+  /* review */
+  #sReview { justify-content: center; gap: 1rem; background: radial-gradient(ellipse at center, #1e4d42 0%, #10201b 75%); }
+  #sReview .title { font-size: clamp(1.5rem, 4vw, 2.4rem); }
+  #result {
+    max-width: min(92vw, 900px); max-height: calc(100dvh - 250px); width: auto; height: auto; display: block;
+    border-radius: 6px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55); background: #fff;
+  }
+  .making { display: flex; flex-direction: column; align-items: center; gap: 0.9rem; }
+  .spinner { width: 54px; height: 54px; border-radius: 50%; border: 5px solid rgba(245, 237, 224, 0.2); border-top-color: var(--amber-light); animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .idle-note { font-family: var(--font-mono); font-size: 0.75rem; color: rgba(245, 237, 224, 0.5); margin: 0; min-height: 1.2em; }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--cream); color: var(--green-dark); padding: 0.7rem 1.2rem; border-radius: 100px; font-weight: 600; z-index: 60; box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+
+  /* staff dialogs */
+  dialog { user-select: text; -webkit-user-select: text; }
+  dialog.wide { width: min(620px, calc(100% - 32px)); max-height: calc(100dvh - 32px); }
+  dialog.gallery { width: min(980px, calc(100% - 32px)); }
+  .note { font-size: 0.82rem; color: var(--text-mid); margin: 0.3rem 0 0.7rem; }
+  .set-group { border-top: 1px solid var(--line-soft); padding-top: 0.8rem; margin-top: 0.8rem; }
+  .set-group h3 { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--rust); margin: 0 0 0.6rem; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0 1rem; }
+  input[type='text'] {
+    width: 100%; padding: 0.6rem 0.85rem; border: 2px solid rgba(45, 110, 95, 0.2); border-radius: 12px;
+    font: inherit; font-size: 0.9rem; color: var(--text-dark); background: #fff;
+  }
+  input[type='text']:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(45, 110, 95, 0.12); }
+  .overlay-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin: 0.35rem 0; font-size: 0.85rem; }
+  .overlay-row b { min-width: 7.5rem; color: var(--text-dark); }
+  .overlay-row .st { color: var(--text-mid); flex: 1; }
+  .btn.sm { padding: 0.35rem 0.9rem; font-size: 0.78rem; }
+  .pin-fields { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.9rem 0 0.3rem; }
+  .pin-fields input {
+    width: 100%; padding: 0.7rem; text-align: center; font-family: var(--font-mono); font-size: 1.6rem; letter-spacing: 0.5em;
+    border: 2px solid rgba(45, 110, 95, 0.2); border-radius: 12px; background: #fff; color: var(--text-dark);
+  }
+  .pin-fields input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(45, 110, 95, 0.12); }
+  .pin-error { min-height: 1.3em; margin: 0 0 0.6rem; color: var(--rust); font-weight: 600; font-size: 0.85rem; text-align: center; }
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
+  .gal { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin: 0.8rem 0; max-height: 58dvh; overflow-y: auto; padding: 2px; }
+  .gal figure { margin: 0; border: 1px solid var(--line-soft); border-radius: 12px; padding: 6px; display: flex; flex-direction: column; gap: 6px; background: var(--warm-white); }
+  .gal img { width: 100%; aspect-ratio: 2 / 3; object-fit: contain; background: #fff; border-radius: 6px; }
+  .gal figcaption { font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-mid); }
+  .gal .acts { display: flex; flex-wrap: wrap; gap: 4px; }
+  .gal .acts .btn { padding: 0.25rem 0.6rem; font-size: 0.72rem; flex: 1; }
+  .empty { color: var(--text-mid); text-align: center; padding: 2rem 0; grid-column: 1 / -1; }
+
+  #printArea { display: none; }
+  @media print {
+    @page { size: 4in 6in; margin: 0; }
+    html, body.booth { height: auto; overflow: visible; background: #fff; }
+    #printArea { display: block; }
+    #printArea img { width: 4in; height: 6in; display: block; }
+  }
+</style>
+</head>
+<body class="booth" data-screen="attract">
+
+<div id="stage">
+  <div id="viewport" class="mirror">
+    <video id="cam" playsinline muted autoplay></video>
+    <img id="still" alt="" hidden>
+    <div id="countdown" aria-live="assertive"></div>
+  </div>
+
+  <!-- 1. attract -->
+  <section class="screen" id="sAttract" aria-label="Start">
+    <img class="logo" src="logo-white.png" alt="ClickLounge Studio">
+    <h1 class="title" id="attractTitle">Photo Booth</h1>
+    <div class="tap" id="tapText">Tap anywhere to start</div>
+    <div class="cam-msg" id="camMsg" hidden>
+      <p id="camMsgText"></p>
+      <button class="bbtn go" id="camRetry">Turn on the camera</button>
+    </div>
+    <button class="staff-btn" id="staffBtn" aria-label="Staff settings" title="Staff settings">⚙︎</button>
+  </section>
+
+  <!-- 2. choose a layout -->
+  <section class="screen" id="sChoose" aria-label="Choose your photo" hidden>
+    <span class="eyebrow light">Step 1</span>
+    <h2 class="title">Pick your photo</h2>
+    <div class="cards" id="cards"></div>
+    <button class="bbtn" id="chooseBack">Back</button>
+    <p class="idle-note" id="chooseIdle"></p>
+  </section>
+
+  <!-- 3. get ready, then countdown and shots -->
+  <section class="screen" id="sShoot" aria-label="Take photos" hidden>
+    <button class="bbtn x-btn" id="shootBack">✕ Cancel</button>
+    <div class="shoot-top"><h2 class="title" id="shootTitle">Get ready</h2></div>
+    <div class="shoot-bottom">
+      <div id="readyBox" class="bar-row" style="flex-direction:column;align-items:center">
+        <div class="filters" id="filterChips"></div>
+        <button class="bbtn go huge" id="startBtn">Start</button>
+      </div>
+      <div id="progressBox" hidden style="display:flex;flex-direction:column;align-items:center;gap:0.6rem">
+        <div class="thumbs" id="thumbs"></div>
+        <div class="dots" id="dots"></div>
+      </div>
+      <p class="idle-note" id="shootIdle"></p>
+    </div>
+  </section>
+
+  <!-- 4. review -->
+  <section class="screen" id="sReview" aria-label="Your photo" hidden>
+    <div class="making" id="making">
+      <div class="spinner"></div>
+      <h2 class="title">Making your photo…</h2>
+      <p class="sub" id="makingNote"></p>
+    </div>
+    <img id="result" alt="Your photo" hidden>
+    <div class="bar-row" id="reviewActions" hidden>
+      <button class="bbtn" id="retakeBtn">Retake</button>
+      <button class="bbtn" id="printBtn">Print</button>
+      <button class="bbtn" id="phoneBtn">Send to my phone</button>
+      <button class="bbtn go" id="doneBtn">Done</button>
+    </div>
+    <p class="idle-note" id="reviewIdle"></p>
+  </section>
+</div>
+<div id="flash"></div>
+
+<!-- staff PIN -->
+<dialog id="pinDialog" aria-labelledby="pinTitle">
+  <h2 id="pinTitle">Enter PIN</h2>
+  <p class="note" id="pinHint" style="margin:0"></p>
+  <div class="pin-fields">
+    <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="••••" aria-label="4-digit PIN">
+    <input id="pinInput2" type="password" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="••••" aria-label="Repeat the PIN" hidden>
+  </div>
+  <p class="pin-error" id="pinError" role="alert"></p>
+  <div class="row" style="margin:0"><button class="btn" id="pinCancel">Cancel</button><button class="btn primary" id="pinOk">OK</button></div>
+</dialog>
+
+<!-- staff settings -->
+<dialog id="setDialog" class="wide" aria-labelledby="setTitle">
+  <div class="dlg-head"><h2 id="setTitle">Booth settings</h2><button class="btn primary" id="setDone">Done</button></div>
+  <p class="note">Settings are kept on this device. Guests cannot open this without the staff PIN.</p>
+  <div class="row" style="flex-wrap:wrap">
+    <button class="btn" id="fullBtn">Full screen</button>
+    <button class="btn" id="galleryBtn">Photos taken (<span id="galCount">0</span>)</button>
+    <button class="btn" id="pinChange">Change PIN</button>
+  </div>
+
+  <div class="set-group">
+    <h3>Event</h3>
+    <div class="field"><label for="setEvent">Name on the photos (leave empty for none)</label><input type="text" id="setEvent" maxlength="40" placeholder="e.g. Ana &amp; Ben · Debut"></div>
+    <div class="grid2">
+      <label class="check"><input type="checkbox" id="setDate"> Print the date under the name</label>
+      <div class="field"><label for="setTheme">Sheet colour</label>
+        <select id="setTheme"><option value="cream">Cream, dark logo</option><option value="white">White, dark logo</option><option value="green">Studio green, light logo</option><option value="black">Black, light logo</option></select></div>
+    </div>
+  </div>
+
+  <div class="set-group">
+    <h3>Layouts guests can pick</h3>
+    <div class="grid2" id="setLayouts"></div>
+    <p class="note">Custom overlay: a PNG the size of the sheet (1200 × 1800 px for the 4 × 6 in sheets) drawn on top of the photos, with see-through holes where the photos go. Use it for event artwork. The studio logo and name are drawn underneath, so leave them out or cover them on purpose.</p>
+    <div id="setOverlays"></div>
+    <input type="file" id="overlayFile" accept="image/png" hidden>
+  </div>
+
+  <div class="set-group">
+    <h3>Camera and timing</h3>
+    <div class="field"><label for="setCamera">Camera</label><select id="setCamera"></select></div>
+    <div class="grid2">
+      <div class="field"><label for="setCount">Countdown before the first photo</label><select id="setCount"><option>3</option><option>5</option><option>10</option></select></div>
+      <div class="field"><label for="setBetween">Countdown between photos</label><select id="setBetween"><option>2</option><option>3</option><option>5</option></select></div>
+      <label class="check"><input type="checkbox" id="setMirror"> Mirror the screen (like a mirror)</label>
+      <label class="check"><input type="checkbox" id="setMirrorPhoto"> Mirror the photos too</label>
+    </div>
+  </div>
+
+  <div class="set-group">
+    <h3>After the photos</h3>
+    <div class="grid2">
+      <label class="check"><input type="checkbox" id="setFilters"> Guests can pick a filter</label>
+      <label class="check"><input type="checkbox" id="setRetake"> Allow a retake</label>
+      <label class="check"><input type="checkbox" id="setPrint"> Show the Print button</label>
+      <label class="check"><input type="checkbox" id="setAutoPrint"> Print automatically</label>
+      <label class="check"><input type="checkbox" id="setPhone"> Show Send to my phone</label>
+      <label class="check"><input type="checkbox" id="setSave"> Keep every photo on this device</label>
+      <div class="field"><label for="setIdle">Back to the start screen after</label><select id="setIdle"><option value="30">30 seconds</option><option value="60">1 minute</option><option value="120">2 minutes</option><option value="300">5 minutes</option></select></div>
+    </div>
+    <p class="note">Printing opens the browser's print box on a 4 × 6 in page. For printing with no box, run Chrome with the <code>--kiosk-printing</code> option and set the photo printer as the default.</p>
+  </div>
+  <p class="note"><a href="index.html">Studio tools</a></p>
+</dialog>
+
+<!-- photos taken on this device -->
+<dialog id="galDialog" class="gallery" aria-labelledby="galTitle">
+  <div class="dlg-head"><h2 id="galTitle">Photos taken on this device</h2><button class="btn primary" id="galClose">Close</button></div>
+  <p class="note" id="galNote"></p>
+  <div class="gal" id="gal"></div>
+  <div class="row" style="flex-wrap:wrap;margin:0">
+    <button class="btn" id="galAll">Download all</button>
+    <button class="btn danger" id="galClear">Delete all</button>
+  </div>
+</dialog>
+
+<!-- send to phone -->
+<dialog id="qrDialog" aria-labelledby="qrTitle">
+  <h2 id="qrTitle">Get it on your phone</h2>
+  <p class="note" style="margin:0">Scan this code with your phone camera.</p>
+  <div class="qr" id="qrBox" aria-label="QR code"></div>
+  <p class="qr-status" id="qrStatus" role="status" aria-live="polite">Preparing…</p>
+  <code id="qrUrl" hidden></code>
+  <div class="row" style="margin:0"><button class="btn primary" id="qrClose">Close</button></div>
+  <p class="note">Keep this open until it says Sent. The code works once.</p>
+</dialog>
+
+<div id="printArea" aria-hidden="true"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js" integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" integrity="sha384-mZT2gIty7ZDdOGkxfP6joZcYdMW1Jvj9dRlfpTmaJAKKXTqzygtB22k7FLe+KZC1" crossorigin="anonymous"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const GIFENC_URL = 'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js';
+
+  /* ---------- layouts ---------- */
+  // Print layouts are 4 × 6 in at 300 dpi (1200 × 1800 px). Each slot takes one shot (strips repeat the same 3 shots in
+  // both strips, so one sheet cuts into two strips). `brand` boxes get the logo, event name and date.
+  const SHEET = { w: 1200, h: 1800, dpi: 300 };
+  const LAYOUTS = {
+    strip: {
+      name: 'Photo strips', desc: '3 photos · 2 strips to share', shots: 3, aspect: 540 / 450, kind: 'print',
+      slots: [0, 1, 2].flatMap(i => [0, 600].map(dx => ({ x: 30 + dx, y: 30 + i * 470, w: 540, h: 450, shot: i }))),
+      brand: [{ x: 30, y: 1440, w: 540, h: 330 }, { x: 630, y: 1440, w: 540, h: 330 }], cut: true,
+      icon: '<rect x="4" y="2" width="22" height="60" rx="2"/><rect x="34" y="2" width="22" height="60" rx="2"/><g class="f"><rect x="7" y="5" width="16" height="12"/><rect x="7" y="20" width="16" height="12"/><rect x="7" y="35" width="16" height="12"/><rect x="37" y="5" width="16" height="12"/><rect x="37" y="20" width="16" height="12"/><rect x="37" y="35" width="16" height="12"/></g>'
+    },
+    grid: {
+      name: 'Four-up', desc: '4 photos on one print', shots: 4, aspect: 550 / 688, kind: 'print',
+      slots: [0, 1, 2, 3].map(i => ({ x: 40 + (i % 2) * 570, y: 40 + Math.floor(i / 2) * 708, w: 550, h: 688, shot: i })),
+      brand: [{ x: 40, y: 1456, w: 1120, h: 304 }],
+      icon: '<rect x="12" y="2" width="40" height="60" rx="2"/><g class="f"><rect x="15" y="5" width="16" height="20"/><rect x="33" y="5" width="16" height="20"/><rect x="15" y="27" width="16" height="20"/><rect x="33" y="27" width="16" height="20"/></g>'
+    },
+    single: {
+      name: 'Big photo', desc: '1 photo, full print', shots: 1, aspect: 1120 / 1400, kind: 'print',
+      slots: [{ x: 40, y: 40, w: 1120, h: 1400, shot: 0 }],
+      brand: [{ x: 40, y: 1460, w: 1120, h: 300 }],
+      icon: '<rect x="12" y="2" width="40" height="60" rx="2"/><g class="f"><rect x="15" y="5" width="34" height="42"/></g>'
+    },
+    gif: {
+      name: 'Animated GIF', desc: '4 photos that flip', shots: 4, aspect: 1, kind: 'gif',
+      icon: '<rect x="8" y="10" width="40" height="40" rx="3" opacity=".4"/><rect x="16" y="14" width="40" height="40" rx="3"/><text x="36" y="40" text-anchor="middle" class="t">GIF</text>'
+    },
+    boomerang: {
+      name: 'Boomerang', desc: 'A quick back-and-forth clip', shots: 0, aspect: 1, kind: 'boomerang',
+      icon: '<rect x="10" y="10" width="44" height="44" rx="3"/><path class="s" d="M22 32a10 10 0 1 1 10 10M22 32l-4-5M22 32l5-4"/>'
+    }
+  };
+  const ORDER = ['strip', 'grid', 'single', 'gif', 'boomerang'];
+  // GIFs: a square photo over a band with the logo, small enough to send quickly.
+  const GIF = { w: 640, h: 760, photo: { x: 20, y: 20, w: 600, h: 600 }, brand: { x: 20, y: 632, w: 600, h: 112 } };
+
+  const THEMES = {
+    cream: { bg: '#f5ede0', ink: '#1a2e28', soft: '#4a6058', logo: 'dark' },
+    white: { bg: '#ffffff', ink: '#1a2e28', soft: '#4a6058', logo: 'dark' },
+    green: { bg: '#1e4d42', ink: '#f5ede0', soft: '#d4b030', logo: 'white' },
+    black: { bg: '#111111', ink: '#ffffff', soft: '#d4b030', logo: 'white' }
+  };
+
+  // Filters are written like CSS filters, so the live preview (CSS) and the saved photo (pixels) match.
+  const FILTERS = {
+    none: { name: 'Natural', ops: [] },
+    bw: { name: 'Black & white', ops: [['grayscale', 1], ['contrast', 1.12]] },
+    warm: { name: 'Warm', ops: [['sepia', 0.22], ['saturate', 1.3], ['brightness', 1.04]] },
+    vintage: { name: 'Vintage', ops: [['sepia', 0.5], ['contrast', 0.9], ['brightness', 1.07], ['saturate', 0.85]] }
+  };
+  const cssFilter = (ops) => ops.map(([f, a]) => `${f}(${a})`).join(' ') || 'none';
+  function opMatrix(f, a) {                               // 3 × 3 colour matrix + offset, from the Filter Effects spec
+    const s = 1 - a;
+    switch (f) {
+      case 'grayscale': return [[0.2126 + 0.7874 * s, 0.7152 - 0.7152 * s, 0.0722 - 0.0722 * s, 0.2126 - 0.2126 * s, 0.7152 + 0.2848 * s, 0.0722 - 0.0722 * s, 0.2126 - 0.2126 * s, 0.7152 - 0.7152 * s, 0.0722 + 0.9278 * s], 0];
+      case 'sepia': return [[0.393 + 0.607 * s, 0.769 - 0.769 * s, 0.189 - 0.189 * s, 0.349 - 0.349 * s, 0.686 + 0.314 * s, 0.168 - 0.168 * s, 0.272 - 0.272 * s, 0.534 - 0.534 * s, 0.131 + 0.869 * s], 0];
+      case 'saturate': return [[0.213 + 0.787 * a, 0.715 - 0.715 * a, 0.072 - 0.072 * a, 0.213 - 0.213 * a, 0.715 + 0.285 * a, 0.072 - 0.072 * a, 0.213 - 0.213 * a, 0.715 - 0.715 * a, 0.072 + 0.928 * a], 0];
+      case 'brightness': return [[a, 0, 0, 0, a, 0, 0, 0, a], 0];
+      case 'contrast': return [[a, 0, 0, 0, a, 0, 0, 0, a], (0.5 - 0.5 * a) * 255];
+    }
+  }
+  function applyFilter(ctx, w, h, ops) {
+    if (!ops.length) return;
+    const mats = ops.map(([f, a]) => opMatrix(f, a)), img = ctx.getImageData(0, 0, w, h), d = img.data;
+    const cl = (v) => v < 0 ? 0 : v > 255 ? 255 : v;
+    for (let i = 0; i < d.length; i += 4) {
+      let r = d[i], g = d[i + 1], b = d[i + 2];
+      for (let k = 0; k < mats.length; k++) {
+        const m = mats[k][0], o = mats[k][1];
+        const R = m[0] * r + m[1] * g + m[2] * b + o, G = m[3] * r + m[4] * g + m[5] * b + o, B = m[6] * r + m[7] * g + m[8] * b + o;
+        r = cl(R); g = cl(G); b = cl(B);
+      }
+      d[i] = r; d[i + 1] = g; d[i + 2] = b;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  /* ---------- device storage ---------- */
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+    del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+  };
+  const SET_KEY = 'booth-settings', PIN_KEY = 'booth-pin', LOCK_KEY = 'booth-pin-lock';
+  const DEFAULTS = {
+    event: '', showDate: true, theme: 'cream', layouts: { strip: true, grid: true, single: true, gif: true, boomerang: true },
+    countdown: 5, between: 3, mirror: true, mirrorPhoto: true, filters: true, retake: true,
+    print: true, autoPrint: false, phone: true, save: true, idle: 60, cameraId: ''
+  };
+  let settings = (() => {
+    try { const s = JSON.parse(store.get(SET_KEY)) || {}; return { ...DEFAULTS, ...s, layouts: { ...DEFAULTS.layouts, ...(s.layouts || {}) } }; }
+    catch (e) { return { ...DEFAULTS }; }
+  })();
+  const saveSettings = () => store.set(SET_KEY, JSON.stringify(settings));
+
+  // Finished photos and overlay artwork live in IndexedDB, so they survive a reload and can be collected after the event.
+  const idb = (() => {
+    let p = null;
+    const open = () => p || (p = new Promise((res, rej) => {
+      const r = indexedDB.open('clicklounge-booth', 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore('captures', { keyPath: 'id', autoIncrement: true }); r.result.createObjectStore('overlays'); };
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    }));
+    const run = async (name, mode, fn) => {
+      const db = await open();
+      return new Promise((res, rej) => {
+        const tx = db.transaction(name, mode), req = fn(tx.objectStore(name));
+        tx.oncomplete = () => res(req && req.result); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+      });
+    };
+    return {
+      put: (s, v, k) => run(s, 'readwrite', o => o.put(v, k)),
+      get: (s, k) => run(s, 'readonly', o => o.get(k)),
+      all: (s) => run(s, 'readonly', o => o.getAll()),
+      count: (s) => run(s, 'readonly', o => o.count()),
+      del: (s, k) => run(s, 'readwrite', o => o.delete(k)),
+      clear: (s) => run(s, 'readwrite', o => o.clear())
+    };
+  })();
+
+  /* ---------- images: logos and overlays ---------- */
+  const loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+  const logos = {};
+  const logosReady = Promise.all([['dark', 'logo-dark.png'], ['white', 'logo-white.png']].map(([k, src]) => loadImg(src).then(i => { logos[k] = i; }).catch(() => {})));
+  const overlays = {};                                     // layout key → Image
+  async function loadOverlays() {
+    for (const k of ORDER) {
+      if (LAYOUTS[k].kind !== 'print') continue;
+      try { const b = await idb.get('overlays', k); if (b) overlays[k] = await loadImg(URL.createObjectURL(b)); else delete overlays[k]; } catch (e) {}
+    }
+  }
+
+  /* ---------- sound ---------- */
+  let audioCtx = null;
+  function wakeAudio() { try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {} }
+  function beep(freq, dur = 0.15) {
+    if (!audioCtx) return;
+    try {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = audioCtx.currentTime;
+      o.type = 'sine'; o.frequency.value = freq; o.connect(g); g.connect(audioCtx.destination);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.start(t); o.stop(t + dur + 0.02);
+    } catch (e) {}
+  }
+  function shutter() {
+    if (!audioCtx) return;
+    try {
+      const n = audioCtx.sampleRate * 0.12, buf = audioCtx.createBuffer(1, n, audioCtx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3);
+      const s = audioCtx.createBufferSource(), g = audioCtx.createGain(); g.gain.value = 0.5;
+      s.buffer = buf; s.connect(g); g.connect(audioCtx.destination); s.start();
+    } catch (e) {}
+  }
+
+  /* ---------- camera ---------- */
+  const video = $('cam'), viewport = $('viewport');
+  let stream = null;
+  function camMessage(text) {
+    $('camMsg').hidden = !text; $('camMsgText').textContent = text || '';
+    $('tapText').hidden = !!text;
+  }
+  async function startCamera() {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null;
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      camMessage('This browser cannot use the camera here. Open the booth from its https:// link in Safari or Chrome.'); return false;
+    }
+    const video_ = { width: { ideal: 1920 }, height: { ideal: 1440 } };
+    if (settings.cameraId) video_.deviceId = { exact: settings.cameraId }; else video_.facingMode = 'user';
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: video_, audio: false });
+    } catch (e) {
+      if (settings.cameraId && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError')) { settings.cameraId = ''; saveSettings(); return startCamera(); }
+      camMessage(e.name === 'NotAllowedError' ? 'The camera is blocked. Allow camera access for this page in the browser settings, then try again.' : 'Could not start the camera. Check that it is connected and not used by another app.');
+      return false;
+    }
+    video.srcObject = stream;
+    try { await video.play(); } catch (e) {}
+    stream.getVideoTracks()[0].addEventListener('ended', () => camMessage('The camera stopped. Tap to turn it on again.'));
+    camMessage('');
+    return true;
+  }
+  $('camRetry').addEventListener('click', (e) => { e.stopPropagation(); startCamera(); });
+  const camReady = () => stream && video.videoWidth > 0;
+
+  // Grab the middle of the video in the slot's shape: the same part the guest sees in the framed preview.
+  function grab(aspect, maxLong, ops) {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    let sw = vw, sh = vw / aspect;
+    if (sh > vh) { sh = vh; sw = vh * aspect; }
+    const k = Math.min(1, maxLong / Math.max(sw, sh)), c = document.createElement('canvas');
+    c.width = Math.round(sw * k); c.height = Math.round(sh * k);
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    if (settings.mirrorPhoto) { ctx.translate(c.width, 0); ctx.scale(-1, 1); }
+    ctx.drawImage(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, c.width, c.height);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    applyFilter(ctx, c.width, c.height, ops);
+    return c;
+  }
+
+  // Keep the screen awake while the booth is open.
+  let wakeLock = null;
+  async function keepAwake() { try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) {} }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    keepAwake();
+    if (!stream || stream.getVideoTracks().every(t => t.readyState === 'ended')) startCamera();
+  });
+
+  /* ---------- screens and idle timeouts ---------- */
+  const SCREENS = { attract: 'sAttract', choose: 'sChoose', shoot: 'sShoot', review: 'sReview' };
+  let screen = 'attract';
+  function show(name) {
+    screen = name; document.body.dataset.screen = name;
+    for (const [k, id] of Object.entries(SCREENS)) $(id).hidden = k !== name;
+    stopIdle();
+  }
+  let idle = null;
+  function stopIdle() { if (idle) { clearInterval(idle.id); idle.label.textContent = ''; idle = null; } }
+  function startIdle(secs, label, onTimeout) {
+    stopIdle();
+    const it = { left: secs, total: secs, label, id: 0 };
+    it.id = setInterval(() => {
+      if (document.querySelector('dialog[open]')) return;          // never leave while staff or the QR code are open
+      it.left--;
+      label.textContent = it.left <= 15 ? `Back to the start in ${it.left}s` : '';
+      if (it.left <= 0) { stopIdle(); onTimeout(); }
+    }, 1000);
+    idle = it;
+  }
+  document.addEventListener('pointerdown', () => { if (idle) { idle.left = idle.total; idle.label.textContent = ''; } }, true);
+
+  function goAttract() {
+    runToken++;
+    show('attract');
+    $('attractTitle').textContent = settings.event || 'Photo Booth';
+    viewport.style.removeProperty('--aspect');
+    $('countdown').textContent = ''; $('still').hidden = true;
+    applyLiveFilter('none');
+  }
+
+  /* ---------- attract → choose ---------- */
+  $('sAttract').addEventListener('click', async (e) => {
+    if (e.target.closest('button')) return;
+    wakeAudio(); keepAwake();
+    if (!camReady() && !(await startCamera())) return;
+    const enabled = ORDER.filter(k => settings.layouts[k]);
+    if (enabled.length === 1) { ready(enabled[0]); return; }
+    show('choose');
+    startIdle(45, $('chooseIdle'), goAttract);
+  });
+  function buildCards() {
+    const enabled = ORDER.filter(k => settings.layouts[k]);
+    $('cards').innerHTML = enabled.map(k => {
+      const L = LAYOUTS[k];
+      return `<button class="card-btn" data-k="${k}"><svg viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="#f5ede0" stroke-width="2.5"><style>.f rect{fill:#d4b030;stroke:none}.t{fill:#f5ede0;stroke:none;font:700 13px monospace}.s{stroke:#d4b030;stroke-width:3.5;stroke-linecap:round}</style>${L.icon}</svg><b>${L.name}</b><span>${L.desc}</span></button>`;
+    }).join('');
+  }
+  $('cards').addEventListener('click', (e) => { const b = e.target.closest('.card-btn'); if (b) ready(b.dataset.k); });
+  $('chooseBack').addEventListener('click', goAttract);
+
+  /* ---------- get ready: filter + Start ---------- */
+  let session = null, runToken = 0, liveFilter = 'none';
+  function applyLiveFilter(key) {
+    liveFilter = key;
+    video.style.filter = cssFilter(FILTERS[key].ops);
+    for (const b of $('filterChips').children) b.setAttribute('aria-pressed', String(b.dataset.k === key));
+  }
+  $('filterChips').innerHTML = Object.entries(FILTERS).map(([k, f]) => `<button class="chip" data-k="${k}" aria-pressed="false">${f.name}</button>`).join('');
+  $('filterChips').addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) applyLiveFilter(b.dataset.k); });
+
+  function ready(key) {
+    const L = LAYOUTS[key];
+    session = { key, shots: [] };
+    show('shoot');
+    viewport.style.setProperty('--aspect', L.aspect);
+    $('still').hidden = true; $('countdown').textContent = '';
+    $('readyBox').hidden = false; $('progressBox').hidden = true;
+    $('filterChips').hidden = !settings.filters;
+    if (!settings.filters) applyLiveFilter('none'); else applyLiveFilter(liveFilter);
+    $('shootTitle').textContent = L.kind === 'boomerang' ? 'Get ready to move!' : `${L.shots} photo${L.shots > 1 ? 's' : ''} · get ready`;
+    $('startBtn').textContent = 'Start';
+    $('shootBack').hidden = false;
+    startIdle(45, $('shootIdle'), goAttract);
+  }
+  $('shootBack').addEventListener('click', goAttract);
+  $('startBtn').addEventListener('click', () => shootSession().catch(err => { if (err !== ABORT) { console.error(err); toast('Something went wrong. Please try again.'); goAttract(); } }));
+
+  /* ---------- countdown and shots ---------- */
+  const ABORT = {};
+  async function countdown(n, token) {
+    const cd = $('countdown');
+    cd.classList.remove('word');
+    for (let k = n; k > 0; k--) {
+      if (token !== runToken) throw ABORT;
+      cd.textContent = k; cd.classList.remove('pop'); void cd.offsetWidth; cd.classList.add('pop');
+      beep(k === 1 ? 990 : 660);
+      await sleep(1000);
+    }
+    if (token !== runToken) throw ABORT;
+    cd.textContent = '';
+  }
+  function flash() { const f = $('flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); shutter(); }
+  function sayBig(word) { const cd = $('countdown'); cd.classList.add('word'); cd.textContent = word; cd.classList.remove('pop'); void cd.offsetWidth; cd.classList.add('pop'); }
+
+  async function shootSession() {
+    const token = ++runToken, L = LAYOUTS[session.key], ops = FILTERS[settings.filters ? liveFilter : 'none'].ops;
+    if (!camReady()) { toast('The camera is not ready.'); return; }
+    stopIdle();
+    session.shots = []; session.filter = ops;
+    $('readyBox').hidden = true; $('progressBox').hidden = false; $('thumbs').innerHTML = '';
+    if (L.kind === 'boomerang') {
+      $('dots').innerHTML = '';
+      $('shootTitle').textContent = 'Wave, jump, toss your hair!';
+      await countdown(settings.countdown, token);
+      sayBig('Move!'); beep(990, 0.3);
+      const frames = [], N = 18, gap = 85;                 // about 1.5 seconds
+      for (let i = 0; i < N; i++) {
+        const t0 = performance.now();
+        frames.push(grab(1, GIF.photo.w, ops));
+        if (token !== runToken) throw ABORT;
+        await sleep(Math.max(0, gap - (performance.now() - t0)));
+      }
+      $('countdown').textContent = '';
+      session.shots = frames;
+    } else {
+      $('dots').innerHTML = '<i></i>'.repeat(L.shots);
+      const maxLong = L.kind === 'gif' ? GIF.photo.w : 1600;
+      for (let i = 0; i < L.shots; i++) {
+        $('shootTitle').textContent = L.shots > 1 ? `Photo ${i + 1} of ${L.shots}` : 'Smile!';
+        await countdown(i === 0 ? settings.countdown : settings.between, token);
+        flash();
+        const shot = grab(L.aspect, maxLong, ops);
+        session.shots.push(shot);
+        $('dots').children[i].classList.add('done');
+        const url = shot.toDataURL('image/jpeg', 0.6);
+        const t = new Image(); t.src = url; $('thumbs').append(t);
+        const st = $('still'); st.src = url; st.hidden = false;
+        await sleep(1100);
+        if (token !== runToken) throw ABORT;
+        st.hidden = true;
+      }
+    }
+    $('shootBack').hidden = true;
+    await finish(token);
+  }
+
+  /* ---------- making the result ---------- */
+  const pad = (n) => String(n).padStart(2, '0');
+  function stamp(d = new Date()) { return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`; }
+  const dateText = () => new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
+
+  function fitFont(ctx, text, font, size, maxW) {
+    let s = size;
+    ctx.font = font(s);
+    while (s > 10 && ctx.measureText(text).width > maxW) { s -= 2; ctx.font = font(s); }
+    return s;
+  }
+  const displayFont = (s) => `italic 700 ${s}px "Playfair Display", Georgia, serif`;
+  const monoFont = (s) => `700 ${s}px "Space Mono", Menlo, monospace`;
+
+  // Logo, event name and date inside a box: stacked when the box is tall, side by side in the GIF band.
+  function drawBrand(ctx, box, theme) {
+    const T = THEMES[theme], logo = logos[T.logo];
+    const name = settings.event.trim(), date = settings.showDate ? dateText() : '';
+    ctx.textBaseline = 'alphabetic'; ctx.fillStyle = T.ink;
+    if (box.w / box.h > 4.5) {
+      const lh = box.h * 0.82, lw = logo ? lh * logo.width / logo.height : 0, cx = box.x + lw + 18, room = box.w - lw - 24;
+      if (logo) ctx.drawImage(logo, box.x + 4, box.y + (box.h - lh) / 2, lw, lh);
+      ctx.textAlign = 'left';
+      const nameS = name ? fitFont(ctx, name, displayFont, 34, room) : 0, dateS = date ? 16 : 0;
+      const total = nameS + (name && date ? 10 : 0) + dateS;
+      let y = box.y + (box.h - total) / 2;
+      if (name) { ctx.font = displayFont(nameS); ctx.fillStyle = T.ink; y += nameS * 0.85; ctx.fillText(name, cx, y); y += nameS * 0.15 + 10; }
+      if (date) { ctx.font = monoFont(dateS); ctx.fillStyle = T.soft; if ('letterSpacing' in ctx) ctx.letterSpacing = '3px'; y += dateS * 0.85; ctx.fillText(date, cx, y); if ('letterSpacing' in ctx) ctx.letterSpacing = '0px'; }
+      return;
+    }
+    const nameS = name ? fitFont(ctx, name, displayFont, Math.round(box.h * 0.15), box.w * 0.92) : 0;
+    const dateS = date ? Math.round(box.h * 0.075) : 0;
+    const textH = nameS + dateS + (name && date ? box.h * 0.04 : 0);
+    const lh = Math.min(box.h * (textH ? 0.48 : 0.7), (box.w * 0.8) / (logo ? logo.width / logo.height : 2));
+    const lw = logo ? lh * logo.width / logo.height : 0, gap = textH ? box.h * 0.06 : 0;
+    let y = box.y + (box.h - (lh + gap + textH)) / 2;
+    if (logo) ctx.drawImage(logo, box.x + (box.w - lw) / 2, y, lw, lh);
+    y += lh + gap; ctx.textAlign = 'center';
+    const cx = box.x + box.w / 2;
+    if (name) { ctx.font = displayFont(nameS); ctx.fillStyle = T.ink; y += nameS * 0.85; ctx.fillText(name, cx, y); y += nameS * 0.15 + box.h * 0.04; }
+    if (date) { ctx.font = monoFont(dateS); ctx.fillStyle = T.soft; if ('letterSpacing' in ctx) ctx.letterSpacing = Math.round(dateS * 0.25) + 'px'; y += dateS * 0.85; ctx.fillText(date, cx, y); if ('letterSpacing' in ctx) ctx.letterSpacing = '0px'; }
+  }
+
+  async function fontsReady() {
+    try { await Promise.all([document.fonts.load(displayFont(40)), document.fonts.load(monoFont(20))]); } catch (e) {}
+    await logosReady;
+  }
+
+  async function composeSheet(key, shots) {
+    await fontsReady();
+    const L = LAYOUTS[key], T = THEMES[settings.theme], c = document.createElement('canvas');
+    c.width = SHEET.w; c.height = SHEET.h;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = T.bg; ctx.fillRect(0, 0, c.width, c.height);
+    for (const s of L.slots) ctx.drawImage(shots[s.shot], s.x, s.y, s.w, s.h);
+    for (const b of L.brand) drawBrand(ctx, b, settings.theme);
+    if (L.cut) {                                            // small ticks where the sheet is cut into two strips
+      ctx.fillStyle = T.logo === 'dark' ? 'rgba(26,46,40,0.35)' : 'rgba(255,255,255,0.4)';
+      ctx.fillRect(599, 0, 2, 18); ctx.fillRect(599, SHEET.h - 18, 2, 18);
+    }
+    if (overlays[key]) ctx.drawImage(overlays[key], 0, 0, c.width, c.height);
+    return c;
+  }
+
+  // Tag the JPEG with the print resolution in its JFIF header, so it prints at 4 × 6 in.
+  async function tagJpegDpi(blob, dpi) {
+    const b = new Uint8Array(await blob.arrayBuffer());
+    if (b[2] === 0xFF && b[3] === 0xE0 && b[6] === 0x4A && b[7] === 0x46) { b[13] = 1; b[14] = dpi >> 8; b[15] = dpi & 255; b[16] = dpi >> 8; b[17] = dpi & 255; }
+    return new Blob([b], { type: 'image/jpeg' });
+  }
+
+  let gifenc = null;
+  const loadGifenc = () => gifenc || (gifenc = import(GIFENC_URL).catch(e => { gifenc = null; throw e; }));
+  async function makeGif(frames, delays, note) {
+    await fontsReady();
+    const { GIFEncoder, quantize, applyPalette } = await loadGifenc();
+    const base = document.createElement('canvas'); base.width = GIF.w; base.height = GIF.h;
+    const bctx = base.getContext('2d');
+    bctx.fillStyle = THEMES[settings.theme].bg; bctx.fillRect(0, 0, GIF.w, GIF.h);
+    drawBrand(bctx, GIF.brand, settings.theme);
+    const c = document.createElement('canvas'); c.width = GIF.w; c.height = GIF.h;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    const enc = GIFEncoder();
+    for (let i = 0; i < frames.length; i++) {
+      ctx.drawImage(base, 0, 0);
+      ctx.drawImage(frames[i], GIF.photo.x, GIF.photo.y, GIF.photo.w, GIF.photo.h);
+      const { data } = ctx.getImageData(0, 0, GIF.w, GIF.h);
+      const palette = quantize(data, 256), index = applyPalette(data, palette);
+      enc.writeFrame(index, GIF.w, GIF.h, { palette, delay: delays[i] });
+      note(Math.round((i + 1) / frames.length * 100));
+      await sleep(0);
+    }
+    enc.finish();
+    return new Blob([enc.bytes()], { type: 'image/gif' });
+  }
+
+  let current = null;                                       // { blob, name, kind, url }
+  async function finish(token) {
+    const L = LAYOUTS[session.key];
+    show('review');
+    $('making').hidden = false; $('result').hidden = true; $('reviewActions').hidden = true; $('makingNote').textContent = '';
+    if (current && current.url) URL.revokeObjectURL(current.url);
+    current = null;
+    let blob, ext;
+    try {
+      if (L.kind === 'print') {
+        const c = await composeSheet(session.key, session.shots);
+        blob = await tagJpegDpi(await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92)), SHEET.dpi); ext = 'jpg';
+      } else {
+        const f = session.shots;
+        const seq = L.kind === 'gif' ? f : f.concat(f.slice(1, -1).reverse());
+        const delays = L.kind === 'gif' ? seq.map(() => 650) : seq.map(() => 70);
+        blob = await makeGif(seq, delays, (p) => { $('makingNote').textContent = p + '%'; }); ext = 'gif';
+      }
+    } catch (e) {
+      if (token !== runToken) return;
+      $('makingNote').textContent = L.kind === 'print' ? 'Could not make the photo.' : 'Could not make the GIF. It needs an internet connection the first time.';
+      $('reviewActions').hidden = false; setActions(L, false);
+      startIdle(settings.idle, $('reviewIdle'), goAttract);
+      return;
+    }
+    if (token !== runToken) return;
+    current = { blob, kind: L.kind, name: `clicklounge-booth-${stamp()}.${ext}`, url: URL.createObjectURL(blob) };
+    $('result').src = current.url;
+    await new Promise(r => { $('result').onload = r; $('result').onerror = r; });
+    $('making').hidden = true; $('result').hidden = false; $('reviewActions').hidden = false;
+    setActions(L, true);
+    if (settings.save) idb.put('captures', { time: Date.now(), name: current.name, kind: current.kind, layout: session.key, event: settings.event, blob }).then(updateCount).catch(() => toast('Could not keep a copy on this device (storage full?).'));
+    if (L.kind === 'print' && settings.autoPrint) printBlob(blob);
+    startIdle(settings.idle, $('reviewIdle'), goAttract);
+  }
+  function setActions(L, ok) {
+    $('retakeBtn').hidden = !settings.retake;
+    $('printBtn').hidden = !(ok && settings.print && L.kind === 'print');
+    $('phoneBtn').hidden = !(ok && settings.phone);
+  }
+  $('retakeBtn').addEventListener('click', () => ready(session.key));
+  $('doneBtn').addEventListener('click', goAttract);
+  $('printBtn').addEventListener('click', () => current && printBlob(current.blob));
+  $('phoneBtn').addEventListener('click', () => current && sendToPhone(current.blob, current.name));
+
+  function printBlob(blob) {
+    const area = $('printArea'), url = URL.createObjectURL(blob), img = new Image();
+    area.innerHTML = '';
+    img.onload = () => setTimeout(() => { window.print(); setTimeout(() => URL.revokeObjectURL(url), 60000); }, 60);
+    img.src = url; area.append(img);
+  }
+
+  let toastT = 0;
+  function toast(msg) {
+    let t = document.querySelector('.toast');
+    if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t); }
+    t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 3500);
+  }
+
+  /* ---------- send to phone (QR), same as the other studio tools: receive.html on the guest's phone ---------- */
+  const qrDlg = $('qrDialog');
+  let peer = null, expireTimer = null, sending = false;
+  const qrSay = (m, cls) => { const e = $('qrStatus'); e.textContent = m; e.className = 'qr-status' + (cls ? ' ' + cls : ''); };
+  const randomId = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => (b % 36).toString(36)).join('');
+  function stopPeer() { clearTimeout(expireTimer); if (peer) { try { peer.destroy(); } catch (e) {} peer = null; } sending = false; }
+  qrDlg.addEventListener('close', stopPeer);
+  $('qrClose').addEventListener('click', () => qrDlg.close());
+
+  async function transfer(conn, blob, name) {
+    qrSay('Phone connected. Sending…');
+    const buf = await blob.arrayBuffer(), CH = 16384, dc = conn.dataChannel;
+    conn.send(JSON.stringify({ name, size: buf.byteLength, type: blob.type }));
+    for (let off = 0; off < buf.byteLength; off += CH) {
+      while (dc.bufferedAmount > (1 << 20)) await sleep(15);
+      conn.send(buf.slice(off, off + CH));
+      qrSay(`Sending… ${Math.round(Math.min(off + CH, buf.byteLength) / buf.byteLength * 100)}%`);
+    }
+    qrSay('Sent. Waiting for the phone…');
+  }
+  function sendToPhone(blob, name) {
+    if (!window.Peer || !window.qrcode) { toast('Sending to a phone needs an internet connection.'); return; }
+    stopPeer();
+    $('qrBox').innerHTML = ''; qrSay('Preparing…');
+    if (!qrDlg.open) qrDlg.showModal();
+    const id = 'clb-' + randomId(14), p = new Peer(id);
+    peer = p;
+    p.on('open', () => {
+      const url = new URL('receive.html', location.href).href + '#' + id;
+      const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
+      $('qrBox').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 24, scalable: true });
+      $('qrUrl').textContent = url;
+      qrSay('Waiting for your phone to scan…');
+      expireTimer = setTimeout(() => { qrSay('This code expired. Close and try again.', 'error'); stopPeer(); }, 10 * 60 * 1000);
+    });
+    p.on('connection', (conn) => {
+      if (sending) { conn.close(); return; }
+      sending = true;
+      conn.on('open', () => transfer(conn, blob, name).catch(() => qrSay('Sending failed. Close and try again.', 'error')));
+      conn.on('data', (d) => { if (d === 'done') { qrSay('Sent ✓ Check your phone.', 'ok'); setTimeout(() => { if (peer === p) { stopPeer(); qrDlg.close(); } }, 2500); } });
+    });
+    p.on('error', (e) => {
+      if (peer !== p) return;
+      qrSay(['network', 'server-error', 'socket-error', 'socket-closed'].includes(e.type) ? 'No internet connection. Ask the staff for help.' : 'Something went wrong. Close and try again.', 'error');
+    });
+  }
+
+  /* ---------- staff PIN: 4 digits, kept on this device as a salted hash ---------- */
+  let memPin = null;
+  const readPin = () => { try { return JSON.parse(store.get(PIN_KEY)) || memPin; } catch (e) { return memPin; } };
+  async function hashPin(pin, salt) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + ':' + pin));
+    return Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('');
+  }
+  async function savePin(pin) {
+    const salt = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
+    const rec = { salt, hash: await hashPin(pin, salt) };
+    memPin = rec; store.set(PIN_KEY, JSON.stringify(rec));
+  }
+  function openPin({ title, hint, repeat, validate }) {
+    const dlg = $('pinDialog'), a = $('pinInput'), b = $('pinInput2'), err = $('pinError');
+    $('pinTitle').textContent = title; $('pinHint').textContent = hint;
+    b.hidden = !repeat; a.value = b.value = ''; err.textContent = '';
+    return new Promise((resolve) => {
+      let closed = false;
+      const done = (v) => { if (closed) return; closed = true; dlg.close(); resolve(v); };
+      const digits = (el) => { el.value = el.value.replace(/\D/g, '').slice(0, 4); };
+      a.oninput = () => digits(a); b.oninput = () => digits(b);
+      const submit = async () => {
+        if (!/^\d{4}$/.test(a.value)) { err.textContent = 'Enter 4 digits.'; return; }
+        if (repeat && a.value !== b.value) { err.textContent = 'The two PINs do not match.'; return; }
+        const problem = validate ? await validate(a.value) : '';
+        if (problem) { err.textContent = problem; a.value = b.value = ''; a.focus(); return; }
+        done(a.value);
+      };
+      $('pinOk').onclick = submit;
+      $('pinCancel').onclick = () => done(null);
+      dlg.oncancel = () => { closed = true; resolve(null); };
+      [a, b].forEach(el => { el.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }; });
+      dlg.showModal(); a.focus();
+    });
+  }
+  async function createPin() {
+    const pin = await openPin({ title: 'Create a staff PIN', hint: 'Choose a 4-digit PIN. It opens the booth settings, so guests cannot change them. Keep it to staff.', repeat: true });
+    if (pin === null) return false;
+    await savePin(pin); return true;
+  }
+  async function checkPin(title, hint) {
+    const rec = readPin();
+    if (!rec) return createPin();
+    let fails = 0;
+    const pin = await openPin({
+      title, hint,
+      validate: async (p) => {
+        const until = parseInt(store.get(LOCK_KEY) || '0', 10);
+        if (Date.now() < until) return `Too many tries. Wait ${Math.ceil((until - Date.now()) / 1000)} seconds.`;
+        if (await hashPin(p, rec.salt) === rec.hash) { store.del(LOCK_KEY); return ''; }
+        if (++fails >= 3) { store.set(LOCK_KEY, String(Date.now() + 60000)); fails = 0; return 'Too many tries. Wait 1 minute.'; }
+        return 'Wrong PIN.';
+      }
+    });
+    return pin !== null;
+  }
+
+  /* ---------- staff settings ---------- */
+  const setDlg = $('setDialog');
+  const bind = [
+    ['setEvent', 'event', 'value'], ['setDate', 'showDate', 'checked'], ['setTheme', 'theme', 'value'],
+    ['setCount', 'countdown', 'num'], ['setBetween', 'between', 'num'], ['setMirror', 'mirror', 'checked'], ['setMirrorPhoto', 'mirrorPhoto', 'checked'],
+    ['setFilters', 'filters', 'checked'], ['setRetake', 'retake', 'checked'], ['setPrint', 'print', 'checked'], ['setAutoPrint', 'autoPrint', 'checked'],
+    ['setPhone', 'phone', 'checked'], ['setSave', 'save', 'checked'], ['setIdle', 'idle', 'num']
+  ];
+  $('setLayouts').innerHTML = ORDER.map(k => `<label class="check"><input type="checkbox" data-layout="${k}"><span>${LAYOUTS[k].name} <span style="opacity:.7">· ${LAYOUTS[k].desc}</span></span></label>`).join('');
+
+  function fillSettings() {
+    for (const [id, key, how] of bind) { const el = $(id); if (how === 'checked') el.checked = !!settings[key]; else el.value = String(settings[key]); }
+    for (const el of $('setLayouts').querySelectorAll('input')) el.checked = !!settings.layouts[el.dataset.layout];
+    paintOverlays(); listCameras(); updateCount();
+  }
+  function readSettings() {
+    for (const [id, key, how] of bind) { const el = $(id); settings[key] = how === 'checked' ? el.checked : how === 'num' ? Number(el.value) : el.value; }
+    for (const el of $('setLayouts').querySelectorAll('input')) settings.layouts[el.dataset.layout] = el.checked;
+    if (!ORDER.some(k => settings.layouts[k])) { settings.layouts.strip = true; }
+    saveSettings();
+  }
+  setDlg.addEventListener('change', (e) => {
+    if (e.target.id === 'overlayFile') return;
+    if (e.target.dataset.layout && !$('setLayouts').querySelector('input:checked')) { e.target.checked = true; toast('Keep at least one layout.'); }
+    const camChanged = e.target.id === 'setCamera';
+    readSettings();
+    if (camChanged) { settings.cameraId = $('setCamera').value; saveSettings(); startCamera(); }
+    applySettings();
+  });
+  $('setEvent').addEventListener('input', () => { readSettings(); applySettings(); });
+  function applySettings() {
+    viewport.classList.toggle('mirror', settings.mirror);
+    $('attractTitle').textContent = settings.event || 'Photo Booth';
+    buildCards();
+    if (ORDER.some(k => settings.layouts[k] && LAYOUTS[k].kind !== 'print')) loadGifenc().catch(() => {});
+  }
+
+  async function listCameras() {
+    const sel = $('setCamera');
+    try {
+      const cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+      sel.innerHTML = '<option value="">Front camera (default)</option>' + cams.map((d, i) => `<option value="${d.deviceId}">${(d.label || 'Camera ' + (i + 1)).replace(/</g, '&lt;')}</option>`).join('');
+      sel.value = settings.cameraId;
+    } catch (e) { sel.innerHTML = '<option value="">Default camera</option>'; }
+  }
+
+  let overlayFor = null;
+  function paintOverlays() {
+    $('setOverlays').innerHTML = ORDER.filter(k => LAYOUTS[k].kind === 'print').map(k =>
+      `<div class="overlay-row"><b>${LAYOUTS[k].name}</b><span class="st">${overlays[k] ? 'Custom overlay on' : 'No overlay'}</span>` +
+      `<button class="btn sm" data-ov="${k}">${overlays[k] ? 'Replace' : 'Add overlay'}</button>` +
+      (overlays[k] ? `<button class="btn sm danger" data-ovdel="${k}">Remove</button>` : '') + '</div>').join('');
+  }
+  $('setOverlays').addEventListener('click', async (e) => {
+    const add = e.target.closest('[data-ov]'), del = e.target.closest('[data-ovdel]');
+    if (add) { overlayFor = add.dataset.ov; $('overlayFile').value = ''; $('overlayFile').click(); }
+    if (del) { await idb.del('overlays', del.dataset.ovdel); await loadOverlays(); paintOverlays(); }
+  });
+  $('overlayFile').addEventListener('change', async () => {
+    const f = $('overlayFile').files[0];
+    if (!f || !overlayFor) return;
+    try {
+      const img = await loadImg(URL.createObjectURL(f));
+      if (Math.abs(img.width / img.height - SHEET.w / SHEET.h) > 0.02) toast(`That image is ${img.width} × ${img.height}. It will be stretched to 2 : 3; 1200 × 1800 fits exactly.`);
+      await idb.put('overlays', f, overlayFor);
+      await loadOverlays(); paintOverlays();
+    } catch (e) { toast('Could not read that image.'); }
+  });
+
+  $('staffBtn').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!(await checkPin('Staff PIN', 'Enter the 4-digit staff PIN to open the booth settings.'))) return;
+    fillSettings(); setDlg.showModal();
+  });
+  $('setDone').addEventListener('click', () => setDlg.close());
+  setDlg.addEventListener('close', () => { readSettings(); applySettings(); goAttract(); });
+  $('pinChange').addEventListener('click', async () => {
+    if (readPin() && !(await checkPin('Current PIN', 'Enter the current PIN to change it.'))) return;
+    if (await createPin()) toast('The PIN was changed.');
+  });
+  $('fullBtn').addEventListener('click', async () => {
+    const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+    try {
+      if (document.fullscreenElement || document.webkitFullscreenElement) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+      setDlg.close();
+      await req.call(el);
+    } catch (e) { toast('Full screen is not available here. On iPad, use Share → Add to Home Screen and open it from there.'); }
+  });
+
+  /* ---------- photos kept on this device ---------- */
+  const galDlg = $('galDialog');
+  let galUrls = [];
+  async function updateCount() { try { $('galCount').textContent = await idb.count('captures'); } catch (e) {} }
+  const download = (blob, name) => { const a = document.createElement('a'), u = URL.createObjectURL(blob); a.href = u; a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); };
+  async function paintGallery() {
+    galUrls.forEach(u => URL.revokeObjectURL(u)); galUrls = [];
+    let items = [];
+    try { items = (await idb.all('captures')).sort((a, b) => b.time - a.time); } catch (e) {}
+    let used = '';
+    try { const est = await navigator.storage.estimate(); used = ` · ${(est.usage / 1048576).toFixed(0)} MB used of about ${(est.quota / 1073741824).toFixed(1)} GB`; } catch (e) {}
+    $('galNote').textContent = `${items.length} photo${items.length === 1 ? '' : 's'} on this device${used}. They stay until deleted here or the browser data is cleared, so download them after each event.`;
+    $('gal').innerHTML = items.length ? items.map(it => {
+      const u = URL.createObjectURL(it.blob); galUrls.push(u);
+      const when = new Date(it.time).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      return `<figure data-id="${it.id}"><img src="${u}" alt="" loading="lazy"><figcaption>${when} · ${LAYOUTS[it.layout] ? LAYOUTS[it.layout].name : it.kind}</figcaption>` +
+        `<div class="acts"><button class="btn" data-a="dl">Save</button>${it.kind === 'print' ? '<button class="btn" data-a="pr">Print</button>' : ''}<button class="btn" data-a="qr">QR</button><button class="btn danger" data-a="rm">Delete</button></div></figure>`;
+    }).join('') : '<p class="empty">No photos yet.</p>';
+    galDlg._items = items;
+  }
+  $('galleryBtn').addEventListener('click', async () => { await paintGallery(); galDlg.showModal(); });
+  $('galClose').addEventListener('click', () => galDlg.close());
+  galDlg.addEventListener('close', () => { galUrls.forEach(u => URL.revokeObjectURL(u)); galUrls = []; $('gal').innerHTML = ''; updateCount(); });
+  $('gal').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-a]'); if (!b) return;
+    const id = Number(b.closest('figure').dataset.id), it = galDlg._items.find(x => x.id === id);
+    if (!it) return;
+    if (b.dataset.a === 'dl') download(it.blob, it.name);
+    if (b.dataset.a === 'pr') printBlob(it.blob);
+    if (b.dataset.a === 'qr') sendToPhone(it.blob, it.name);
+    if (b.dataset.a === 'rm' && confirm('Delete this photo from this device?')) { await idb.del('captures', id); paintGallery(); }
+  });
+  $('galAll').addEventListener('click', async () => {
+    for (const it of galDlg._items || []) { download(it.blob, it.name); await sleep(400); }
+  });
+  $('galClear').addEventListener('click', async () => {
+    const n = (galDlg._items || []).length;
+    if (!n || !confirm(`Delete all ${n} photos from this device? Download them first if you need them.`)) return;
+    await idb.clear('captures'); paintGallery();
+  });
+
+  /* ---------- start ---------- */
+  applySettings();
+  loadOverlays();
+  updateCount();
+  goAttract();
+  startCamera();
+})();
+</script>
+</body>
+</html>
