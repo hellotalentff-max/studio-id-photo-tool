@@ -131,6 +131,16 @@ textarea{width:100%;min-height:64px;resize:vertical}
 #toast.show{opacity:1}
 #dropHint{position:fixed;inset:10px;border:2px dashed var(--acc);border-radius:16px;background:rgba(37,208,230,.08);z-index:40;display:grid;place-items:center;font-size:20px;font-weight:600;pointer-events:none}
 #pool{position:fixed;left:-20px;top:0;width:2px;height:2px;overflow:hidden;opacity:0;pointer-events:none}
+.tabs button.auto{color:var(--acc)}
+.at{margin:0 0 4px;font-size:15px}
+.sm{font-size:12px}
+.alist{display:flex;flex-direction:column;gap:4px;max-height:190px;overflow:auto}
+.alist label{display:flex;align-items:center;gap:8px;padding:4px;border-radius:6px;background:var(--panel2);cursor:pointer}
+.alist .th{width:44px;height:28px;border-radius:4px;background:#333 center/cover no-repeat;flex:0 0 auto;display:grid;place-items:center;font-size:12px}
+.alist span.n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+.alist em{font-style:normal;font-size:11px;color:var(--mut)}
+#aStat{margin-top:8px;min-height:1.4em}
+#aBarWrap{margin:10px 0 0}
 </style>
 </head>
 <body>
@@ -148,12 +158,33 @@ textarea{width:100%;min-height:64px;resize:vertical}
 <main id="work">
   <aside id="lib">
     <nav class="tabs">
-      <button data-tab="media" class="on">Media</button><button data-tab="text">Text</button><button data-tab="stickers">Stickers</button><button data-tab="filters">Filters</button>
+      <button data-tab="media" class="on">Media</button><button data-tab="auto" class="auto">✨ Auto</button><button data-tab="text">Text</button><button data-tab="stickers">Stickers</button><button data-tab="filters">Filters</button>
     </nav>
     <section class="pane" data-pane="media">
       <label class="import">＋ Import media<input type="file" id="fileIn" multiple accept="video/*,image/*,audio/*" hidden></label>
       <div class="hint">Videos, photos, music. You can also drop files anywhere.</div>
       <div id="mediaGrid"></div>
+    </section>
+    <section class="pane" data-pane="auto" hidden>
+      <h3 class="at">✨ Beat highlights</h3>
+      <div class="mut sm">Finds the best moments in your clips (sharp, bright, colourful, moving, loud) and cuts them on the beat of your music.</div>
+      <div class="sub">Music</div>
+      <select id="aMusic" style="width:100%"></select>
+      <div class="sub">Clips to use</div>
+      <div id="aClips" class="alist"></div>
+      <div class="sub">Length</div>
+      <div class="seg" id="aLen"><button data-v="15">15s</button><button data-v="30" class="on">30s</button><button data-v="60">60s</button><button data-v="song">Song</button></div>
+      <div class="sub">Cut pace</div>
+      <div class="seg" id="aPace"><button data-v="fast">Fast</button><button data-v="medium">Medium</button><button data-v="slow">Slow</button><button data-v="dynamic" class="on">Auto</button></div>
+      <div class="mut sm" id="aPaceHint"></div>
+      <label class="chk"><input type="checkbox" id="aOrder" checked> Keep clips in time order</label>
+      <label class="chk"><input type="checkbox" id="aBest" checked> Start with the best moment</label>
+      <label class="chk"><input type="checkbox" id="aFill" checked> Fill the frame</label>
+      <label class="chk"><input type="checkbox" id="aPunch" checked> Zoom punch on each cut</label>
+      <label class="chk"><input type="checkbox" id="aMute" checked> Mute the clips' own sound</label>
+      <button id="aGo" class="primary" style="width:100%;justify-content:center;margin-top:8px">✨ Create highlight video</button>
+      <div class="bar" id="aBarWrap" hidden><i id="aBar"></i></div>
+      <div id="aStat" class="mut sm"></div>
     </section>
     <section class="pane" data-pane="text" hidden>
       <div class="sub" style="margin-top:0">Text styles · click to add at playhead</div>
@@ -430,7 +461,7 @@ async function importFiles(files) {
   for (const f of files) {
     const type = typeOf(f);
     if (!type) { toast('Skipped ' + f.name + ' (unsupported)'); continue; }
-    const m = {id: uid(), name: f.name, type, url: URL.createObjectURL(f), duration: 0, w: 0, h: 0, thumbs: [], peaks: null, ready: false};
+    const m = {id: uid(), name: f.name, type, url: URL.createObjectURL(f), duration: 0, w: 0, h: 0, thumbs: [], peaks: null, ready: false, file: f};
     media.set(m.id, m); renderLib(); out.push(m);
     try {
       if (type === 'image') {
@@ -445,7 +476,7 @@ async function importFiles(files) {
         const a = new Audio(); a.preload = 'metadata'; a.src = m.url;
         await evt(a, 'loadedmetadata');
         m.duration = isFinite(a.duration) ? a.duration : 0;
-        makePeaks(m, f).then(renderTimeline);
+        makePeaks(m, f).then(renderTimeline).then(() => analyzeMusic(m)).then(() => { renderTimeline(); if (sel && byId(sel)?.mediaId === m.id) renderProps(); }).catch(() => {});
       }
       if (type !== 'image' && !m.duration) throw new Error('no duration');
       m.ready = true;
@@ -617,7 +648,9 @@ function drawMedia(c, T, isMain) {
     ctx.save(); ctx.globalAlpha = a; ctx.filter = `blur(${Math.round(W / 36)}px) brightness(.75)`;
     ctx.drawImage(src, (W - sw * k) / 2, (H - sh * k) / 2, sw * k, sh * k); ctx.restore();
   }
-  const fit = Math.min(W / sw, H / sh) * c.scale, dw = sw * fit, dh = sh * fit;
+  // punch: a quick zoom that settles at the start of the clip, so cuts hit harder on the beat
+  const punch = c.punch ? 1 + 0.07 * (1 - easeOut(clamp((T - c.start) / 0.3, 0, 1))) : 1;
+  const fit = Math.min(W / sw, H / sh) * c.scale * punch, dw = sw * fit, dh = sh * fit;
   const cx = W / 2 + c.x * W, cy = H / 2 + c.y * H;
   ctx.save();
   ctx.globalAlpha = a; ctx.translate(cx, cy); ctx.rotate(c.rot * Math.PI / 180); ctx.filter = filterStr(c);
@@ -797,6 +830,14 @@ function drawWave(cvs, c) {
     const bh = Math.max(1, a * Math.min(1, c.volume) * (h - top - 3));
     g.fillRect(x, top + (h - top - bh) / 2, 1, bh);
   }
+  if (m.beats) {  // beat markers; bigger on the first beat of each bar
+    g.fillStyle = '#ffd84d';
+    m.beats.times.forEach((b, k) => {
+      if (b < c.in || b > c.out) return;
+      const x = (b - c.in) / span * w, big = (k - m.beats.down) % 4 === 0;
+      g.beginPath(); g.arc(x, 4, big ? 3 : 1.8, 0, 7); g.fill();
+    });
+  }
 }
 function updPlayhead() {
   const x = HEAD + t * pps;
@@ -829,8 +870,16 @@ lanesEl.addEventListener('pointerdown', e => {
   e.preventDefault();
 });
 $('#ticks').addEventListener('pointerdown', e => { scrub = true; seek(timeAt(e.clientX)); });
+function beatTimes() {
+  const out = [];
+  for (const c of S.clips) {
+    const b = c.type === 'audio' && media.get(c.mediaId)?.beats;
+    if (b) for (const x of b.times) if (x >= c.in && x <= c.out) out.push(c.start + (x - c.in) / c.speed);
+  }
+  return out;
+}
 function snapPoints(c) {
-  const p = [0, t];
+  const p = [0, t, ...beatTimes()];
   for (const o of S.clips) if (o !== c) p.push(o.start, end(o));
   return p;
 }
@@ -1017,6 +1066,12 @@ function renderProps() {
     b.append(button('Center', () => { c.x = 0; c.y = 0; commit(); renderProps(); }), button('Reset', () => { Object.assign(c, {scale: 1, x: 0, y: 0, rot: 0, opacity: 1}); commit(); renderProps(); }));
     s.append(b);
   }
+  if (c.type === 'audio') {
+    const s = sec(P, 'Beats'), m = media.get(c.mediaId);
+    if (m?.beats) s.append(mk('div', 'mut', `${Math.round(m.beats.bpm)} BPM. The yellow dots on the clip are beats, and clips you drag snap to them.`));
+    else s.append(button('Detect beats', async e => { e.target.disabled = true; e.target.textContent = 'Listening…'; try { await analyzeMusic(m); } catch (err) { toast('Could not read the beat of this file'); } renderTimeline(); renderProps(); }));
+  }
+  if (c.type === 'video' || c.type === 'image') sec(P, 'Effect').append(chk(c, 'punch', 'Zoom punch at the start'));
   const sf = sec(P, 'Fade');
   sf.append(rng(c, 'fadeIn', 'Fade in', 0, 3, 0.1, sec1), rng(c, 'fadeOut', 'Fade out', 0, 3, 0.1, sec1));
   if (c.type === 'video' || c.type === 'image') {
@@ -1056,6 +1111,7 @@ function projectProps(P) {
 
 // ---------- library panels ----------
 function renderLib() {
+  queueMicrotask(renderAuto);
   $('#mediaGrid').innerHTML = [...media.values()].map(m => {
     const th = m.thumbs[0], icon = m.type === 'audio' ? '♪' : m.type === 'image' ? '🖼' : '🎬';
     return `<div class="mi" draggable="${m.ready}" data-mid="${m.id}" title="${esc(m.name)}">
@@ -1116,7 +1172,301 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
   document.querySelectorAll('[data-pane]').forEach(p => p.hidden = p.dataset.pane !== b.dataset.tab);
   if (b.dataset.tab === 'filters') renderFilters();
+  if (b.dataset.tab === 'auto') renderAuto();
 });
+
+// ---------- auto edit: beat detection, highlight scoring, beat-synced assembly ----------
+// Beat tracking: onset strength from bass-weighted energy flux (100 frames/s), tempo from its
+// autocorrelation with a preference around 120 BPM, then a beat grid that re-locks to nearby onsets.
+async function analyzeMusic(m) {
+  if (m.beats) return m.beats;
+  if (m.beatsP) return m.beatsP;
+  m.beatsP = (async () => {
+    const ab = await new OfflineAudioContext(1, 1, 22050).decodeAudioData(await m.file.arrayBuffer());
+    const sr = ab.sampleRate, n = ab.length, nc = ab.numberOfChannels, x = new Float32Array(n);
+    for (let ch = 0; ch < nc; ch++) { const d = ab.getChannelData(ch); for (let i = 0; i < n; i++) x[i] += d[i] / nc; }
+    const hop = Math.round(sr / 100), F = Math.floor(n / hop);
+    const low = new Float32Array(F), full = new Float32Array(F), a = Math.exp(-2 * Math.PI * 150 / sr);
+    let lp = 0;
+    for (let f = 0; f < F; f++) {
+      let el = 0, ef = 0;
+      for (let i = f * hop, e = i + hop; i < e; i++) { const v = x[i]; lp = a * lp + (1 - a) * v; el += lp * lp; ef += v * v; }
+      low[f] = Math.log1p(1000 * el / hop); full[f] = Math.log1p(1000 * ef / hop);
+    }
+    const on = new Float32Array(F);
+    for (let f = 1; f < F; f++) on[f] = 0.65 * Math.max(0, low[f] - low[f - 1]) + 0.35 * Math.max(0, full[f] - full[f - 1]);
+    const ps = new Float64Array(F + 1);
+    for (let f = 0; f < F; f++) ps[f + 1] = ps[f] + on[f];
+    const o = new Float32Array(F);
+    for (let f = 0; f < F; f++) { const a0 = Math.max(0, f - 25), a1 = Math.min(F, f + 26); o[f] = Math.max(0, on[f] - (ps[a1] - ps[a0]) / (a1 - a0)); }
+    const acf = L => { let s = 0; for (let f = L; f < F; f++) s += o[f] * o[f - L]; return s / (F - L); };
+    let best = -1, L0 = 50;
+    for (let L = 30; L <= 90; L++) {   // 200 .. 67 BPM
+      const w = Math.exp(-0.5 * Math.pow(Math.log2(6000 / L / 120) / 0.8, 2)), v = acf(L) * w;
+      if (v > best) { best = v; L0 = L; }
+    }
+    const y0 = acf(L0 - 1), y1 = acf(L0), y2 = acf(L0 + 1), den = y0 - 2 * y1 + y2;
+    const P = L0 + (den < 0 ? clamp(0.5 * (y0 - y2) / den, -0.5, 0.5) : 0);
+    let ph = 0, bs = -1;
+    for (let p = 0; p < P; p += 0.5) { let s = 0; for (let b = p; b < F; b += P) s += o[Math.round(b)] || 0; if (s > bs) { bs = s; ph = p; } }
+    let mean = 0; for (let f = 0; f < F; f++) mean += o[f]; mean /= F || 1;
+    const times = [], str = [], win = Math.max(2, Math.round(P * 0.1));
+    for (let b = ph; b < F - 1;) {
+      const c = Math.round(b);
+      let bi = c, bv = -1;
+      for (let k = Math.max(0, c - win); k <= Math.min(F - 1, c + win); k++) if (o[k] > bv) { bv = o[k]; bi = k; }
+      const pos = bv > mean * 1.5 ? bi : b;
+      times.push(pos / 100); str.push(o[Math.round(pos)] || 0);
+      b = pos + P;
+    }
+    // loudness per beat, 0..1 between the quiet and loud ends of the song
+    const loud = times.map((tb, k) => {
+      const f0 = Math.round(tb * 100), f1 = Math.min(F, Math.round((times[k + 1] ?? tb + P / 100) * 100));
+      let s = 0; for (let f = f0; f < f1; f++) s += full[f]; return s / Math.max(1, f1 - f0);
+    });
+    const sorted = [...loud].sort((p, q) => p - q), lo = sorted[Math.floor(sorted.length * 0.1)] || 0, hi = sorted[Math.floor(sorted.length * 0.95)] || 1;
+    const energy = loud.map(v => clamp((v - lo) / (hi - lo || 1), 0, 1));
+    let down = 0, ds = -1;
+    for (let d = 0; d < 4; d++) { let s = 0; for (let k = d; k < str.length; k += 4) s += str[k]; if (s > ds) { ds = s; down = d; } }
+    const peak = sorted[sorted.length - 1] || 1, playing = loud.map(v => v > peak * 0.15);   // false in silent intros/outros
+    m.beats = {bpm: 6000 / P, times, energy, down, playing};
+    return m.beats;
+  })();
+  try { return await m.beatsP; } finally { m.beatsP = null; }
+}
+
+// Visual scoring: small frames sampled twice a second; motion, sharpness, colourfulness,
+// exposure, plus the clip's own loudness (cheers, laughs, speech).
+async function analyzeVisual(m, prog) {
+  if (m.vis) return m.vis;
+  const cw = 96, chh = Math.max(16, Math.round(96 * (m.h || 9) / (m.w || 16)));
+  const c = document.createElement('canvas'); c.width = cw; c.height = chh;
+  const g = c.getContext('2d', {willReadFrequently: true});
+  const measure = prev => {
+    const d = g.getImageData(0, 0, cw, chh).data, N = cw * chh, Y = new Float32Array(N);
+    let sb = 0, mr = 0, mr2 = 0, my = 0, my2 = 0;
+    for (let i = 0, j = 0; i < N; i++, j += 4) {
+      const r = d[j], gg = d[j + 1], b = d[j + 2];
+      Y[i] = (0.299 * r + 0.587 * gg + 0.114 * b) / 255; sb += Y[i];
+      const rg = r - gg, yb = 0.5 * (r + gg) - b;
+      mr += rg; mr2 += rg * rg; my += yb; my2 += yb * yb;
+    }
+    mr /= N; my /= N;
+    const colorful = (Math.sqrt(Math.max(0, mr2 / N - mr * mr) + Math.max(0, my2 / N - my * my)) + 0.3 * Math.hypot(mr, my)) / 255;
+    let lap = 0, cnt = 0;
+    for (let yy = 1; yy < chh - 1; yy++) for (let xx = 1; xx < cw - 1; xx++) {
+      const i = yy * cw + xx;
+      lap += Math.abs(4 * Y[i] - Y[i - 1] - Y[i + 1] - Y[i - cw] - Y[i + cw]); cnt++;
+    }
+    let motion = null;
+    if (prev) { motion = 0; for (let i = 0; i < N; i++) motion += Math.abs(Y[i] - prev[i]); motion /= N; }
+    return {Y, bright: sb / N, sharp: lap / (cnt || 1), colorful, motion};
+  };
+  if (m.type === 'image') {
+    g.drawImage(m.img, 0, 0, cw, chh);
+    const r = measure(null); delete r.Y;
+    m.vis = {ts: [0], raw: [r]}; prog && prog(1);
+    return m.vis;
+  }
+  const v = document.createElement('video');
+  v.muted = true; v.preload = 'auto'; v.src = m.url;
+  await evt(v, 'loadeddata');
+  const n = clamp(Math.round(m.duration * 2), 4, 400), ts = [], raw = [];
+  let prev = null;
+  for (let i = 0; i < n; i++) {
+    const tt = (i + 0.5) * m.duration / n;
+    v.currentTime = tt; await evt(v, 'seeked', 3000);
+    g.drawImage(v, 0, 0, cw, chh);
+    const r = measure(prev); prev = r.Y; delete r.Y;
+    if (m.peaks) {
+      const i0 = Math.max(0, Math.floor((tt - 0.25) * m.peakRate)), i1 = Math.min(m.peaks.length, Math.ceil((tt + 0.25) * m.peakRate));
+      let s = 0; for (let k = i0; k < i1; k++) s += m.peaks[k]; r.audio = s / Math.max(1, i1 - i0);
+    } else r.audio = null;
+    ts.push(tt); raw.push(r);
+    prog && prog((i + 1) / n);
+  }
+  if (raw.length > 1) raw[0].motion = raw[1].motion;
+  v.removeAttribute('src'); v.load();
+  m.vis = {ts, raw};
+  return m.vis;
+}
+function scoreAll(list) {
+  const all = list.flatMap(m => m.vis.raw);
+  const p95 = k => { const a = all.map(r => r[k]).filter(v => v != null).sort((p, q) => p - q); return a.length ? a[Math.floor((a.length - 1) * 0.95)] || 1e-6 : 1; };
+  const P = {sharp: p95('sharp'), colorful: p95('colorful'), motion: p95('motion'), audio: p95('audio')};
+  const nz = (v, k) => v == null ? 0.5 : clamp(v / (P[k] || 1e-6), 0, 1);
+  for (const m of list) {
+    m.vis.s = m.vis.raw.map(r => {
+      const sh = nz(r.sharp, 'sharp'), mo = nz(r.motion, 'motion');
+      const ex = clamp(1 - Math.abs(r.bright - 0.5) * 2.2, 0, 1);
+      let s = 0.3 * mo + 0.25 * sh + 0.15 * nz(r.colorful, 'colorful') + 0.15 * ex + 0.15 * nz(r.audio, 'audio');
+      if (r.bright < 0.1 || r.bright > 0.95) s *= 0.3;   // black or blown-out frames
+      if (sh < 0.2) s *= 0.6;                             // blurry
+      return s;
+    });
+    m.vis.best = Math.max(...m.vis.s);
+  }
+}
+function winScore(m, a, len) {
+  const {ts, s} = m.vis;
+  let sum = 0, n = 0, mn = Infinity;
+  for (let i = 0; i < ts.length; i++) if (ts[i] >= a && ts[i] <= a + len) { sum += s[i]; n++; if (s[i] < mn) mn = s[i]; }
+  if (n) return 0.5 * sum / n + 0.5 * mn;   // the weakest frame counts: a moment is only as good as its dull bits
+  let bi = 0; for (let i = 1; i < ts.length; i++) if (Math.abs(ts[i] - a - len / 2) < Math.abs(ts[bi] - a - len / 2)) bi = i;
+  return s[bi];
+}
+// Greedy: for each cut, take the best-scoring unused window across all clips. Repeating a clip
+// costs 25% per use so the edit spreads across sources; weak material (under 45% of the best) is left out.
+function pickMoments(pool, durs) {
+  const used = new Map(), count = new Map(), picks = [];
+  const floor = Math.max(0.18, 0.45 * Math.max(...pool.map(m => m.vis.best)));
+  for (const d of durs) {
+    let best = null;
+    for (const m of pool) {
+      const div = Math.pow(0.75, count.get(m.id) || 0);
+      if (m.type === 'image') {
+        if (!count.get(m.id)) { const sc = m.vis.s[0] * div; if (!best || sc > best.sc) best = {m, a: 0, len: d, sc, raw: m.vis.s[0]}; }
+        continue;
+      }
+      const L = Math.min(d, m.duration - 0.1);
+      if (L < 0.4) continue;
+      const lo = Math.min(0.3, (m.duration - L) / 2), hi = m.duration - L - lo, u = used.get(m.id) || [];
+      for (let a = lo; a <= hi + 1e-6; a += 0.25) {
+        if (u.some(([u0, u1]) => a < u1 + 0.3 && a + L > u0 - 0.3)) continue;
+        const raw = winScore(m, a, L), sc = raw * div;
+        if (!best || sc > best.sc) best = {m, a, len: L, sc, raw};
+      }
+    }
+    if (!best || best.raw < floor) break;
+    picks.push(best);
+    count.set(best.m.id, (count.get(best.m.id) || 0) + 1);
+    if (best.m.type !== 'image') { if (!used.has(best.m.id)) used.set(best.m.id, []); used.get(best.m.id).push([best.a, best.a + best.len]); }
+  }
+  return picks;
+}
+
+const AUTO = {music: null, skip: new Set(), len: '30', pace: 'dynamic', busy: false};
+const PACE_HINT = {fast: 'A cut on every beat (or every 2 on very fast songs).', medium: 'A cut about every second.', slow: 'A cut every bar, about 2 seconds.', dynamic: 'Cuts faster when the music gets louder, slower in calm parts.'};
+function renderAuto() {
+  const ms = [...media.values()].filter(m => m.ready);
+  const aud = ms.filter(m => m.type === 'audio'), vis = ms.filter(m => m.type !== 'audio');
+  if (!aud.some(m => m.id === AUTO.music)) AUTO.music = aud[0]?.id || null;
+  $('#aMusic').innerHTML = aud.length ? aud.map(m => `<option value="${m.id}"${m.id === AUTO.music ? ' selected' : ''}>♪ ${esc(m.name)}${m.beats ? ` · ${Math.round(m.beats.bpm)} BPM` : ''}</option>`).join('')
+    : '<option value="">Import a song first (Media tab)</option>';
+  $('#aClips').innerHTML = vis.length ? vis.map(m => `<label><input type="checkbox" data-id="${m.id}"${AUTO.skip.has(m.id) ? '' : ' checked'}>
+    <span class="th" style="${m.thumbs[0] ? `background-image:url(${m.thumbs[0]})` : ''}">${m.thumbs[0] ? '' : '🎬'}</span>
+    <span class="n">${esc(m.name)}</span><em>${m.type === 'image' ? 'photo' : fmtS(m.duration)}</em></label>`).join('')
+    : '<div class="mut sm">Import videos or photos in the Media tab.</div>';
+  $('#aPaceHint').textContent = PACE_HINT[AUTO.pace];
+  $('#aGo').disabled = AUTO.busy || !aud.length || !vis.length;
+}
+$('#aMusic').onchange = e => { AUTO.music = e.target.value; };
+$('#aClips').addEventListener('change', e => { const id = e.target.dataset.id; if (id) e.target.checked ? AUTO.skip.delete(id) : AUTO.skip.add(id); });
+for (const [id, key] of [['#aLen', 'len'], ['#aPace', 'pace']]) $(id).addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  AUTO[key] = b.dataset.v;
+  $(id).querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  $('#aPaceHint').textContent = PACE_HINT[AUTO.pace];
+});
+function autoStatus(msg, frac) {
+  $('#aStat').textContent = msg;
+  $('#aBarWrap').hidden = frac == null;
+  if (frac != null) $('#aBar').style.width = (100 * frac).toFixed(1) + '%';
+}
+function coverScale(m) {
+  if (!m.w || !m.h) return 1;
+  const W = cv.width, H = cv.height;
+  return Math.max(W / m.w, H / m.h) / Math.min(W / m.w, H / m.h);
+}
+async function autoEdit() {
+  const music = media.get(AUTO.music);
+  const pool = [...media.values()].filter(m => m.ready && m.type !== 'audio' && !AUTO.skip.has(m.id));
+  if (!music) return toast('Import a song first');
+  if (!pool.length) return toast('Pick at least one video or photo');
+  if (S.clips.length && !confirm('Replace what is on the timeline now? You can undo this.')) return;
+  pause(); AUTO.busy = true; renderAuto();
+  try {
+    autoStatus('Listening for the beat…', 0.02);
+    const beats = await analyzeMusic(music);
+    for (let i = 0; i < pool.length; i++) {
+      autoStatus(`Finding the best moments (${i + 1} of ${pool.length})…`, (i + 0.02) / pool.length);
+      await analyzeVisual(pool[i], f => autoStatus(`Finding the best moments (${i + 1} of ${pool.length})…`, (i + f) / pool.length));
+    }
+    scoreAll(pool);
+    // cut plan: start on the first bar where the music is playing, cut every N beats
+    const B = beats.times, P = 60 / beats.bpm;
+    let k0 = B.findIndex((x, k) => beats.playing[k] && ((k - beats.down) % 4 + 4) % 4 === 0);
+    if (k0 < 0) k0 = 0;
+    const room = music.duration - B[k0], maxLen = AUTO.len === 'song' ? room : Math.min(+AUTO.len, room);
+    const nF = Math.max(1, Math.round(0.5 / P)), nM = Math.max(1, Math.round(1 / P)), nS = Math.max(1, Math.round(2 / P));
+    const nFor = e => AUTO.pace === 'fast' ? nF : AUTO.pace === 'medium' ? nM : AUTO.pace === 'slow' ? nS : e > 0.7 ? nF : e < 0.35 ? nS : nM;
+    const durs = [], nbeats = [];
+    for (let k = k0; ;) {
+      const k2 = k + nFor(beats.energy[k] ?? 0.5);
+      if (k2 >= B.length || B[k2] - B[k0] > maxLen + 0.01) break;
+      durs.push(B[k2] - B[k]); nbeats.push(k2 - k); k = k2;
+    }
+    if (!durs.length) throw new Error('The song is too short for this length');
+    autoStatus('Picking highlights…', 0.99);
+    const picks = pickMoments(pool, durs);
+    if (!picks.length) throw new Error('No usable moments found in these clips');
+    const order = [...media.keys()];
+    // Reorder within each cut length only, so every moment keeps the slot length it was chosen for
+    // (with the Auto pace, calm parts get the long moments and loud parts the quick ones).
+    const seq = new Array(picks.length), groups = new Map();
+    picks.forEach((p, i) => { p.slot = i; const k = nbeats[i]; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
+    for (const g of groups.values()) {
+      const slots = g.map(p => p.slot);
+      let ordered = g.slice();
+      if ($('#aOrder').checked) ordered.sort((p, q) => order.indexOf(p.m.id) - order.indexOf(q.m.id) || p.a - q.a);
+      if ($('#aBest').checked && slots[0] === 0) { const top = g.reduce((x, y) => y.raw > x.raw ? y : x); ordered = [top, ...ordered.filter(p => p !== top)]; }
+      slots.forEach((sl, j) => { seq[sl] = ordered[j]; });
+    }
+    // Fine-tune each moment to its exact slot length (beats differ by a few ms), nudging it at most
+    // half a second so it stays in time order and never overlaps another moment from that clip.
+    seq.forEach((p, i) => { p.d = durs[i]; });
+    for (const p of seq) {
+      if (p.m.type === 'image') continue;
+      const d = p.d, avail = p.m.duration - 0.05, c0 = p.a + p.len / 2;
+      if (d > avail) continue;
+      const others = seq.filter(q => q !== p && q.m === p.m).map(q => q.a2 != null ? [q.a2, q.a2 + q.d] : [q.a, q.a + q.len]);
+      let best = null;
+      for (let a = Math.max(0, c0 - d / 2 - 0.5); a <= Math.min(avail - d, c0 - d / 2 + 0.5) + 1e-6; a += 0.125) {
+        if (others.some(([u0, u1]) => a < u1 - 0.05 && a + d > u0 + 0.05)) continue;
+        const sc = winScore(p.m, a, d) - 0.02 * Math.abs(a + d / 2 - c0);
+        if (!best || sc > best.sc) best = {a, sc};
+      }
+      p.a2 = best ? best.a : clamp(c0 - d / 2, 0, avail - d);
+    }
+    // build the timeline
+    S.clips = []; S.tracks = [{id: 'main', kind: 'main'}]; sel = null;
+    let cur = 0;
+    seq.forEach((p, i) => {
+      const d = durs[i], m = p.m;
+      const c = newClip(m.type, {mediaId: m.id, name: m.name, track: 'main', start: cur, punch: $('#aPunch').checked,
+        volume: $('#aMute').checked ? 0 : 1, scale: $('#aFill').checked ? coverScale(m) : 1});
+      if (m.type === 'image') { c.in = 0; c.out = d; }
+      else {
+        const avail = m.duration - 0.05;
+        if (d <= avail) { c.in = p.a2; c.out = c.in + d; }
+        else { c.in = 0; c.speed = Math.max(0.25, avail / d); c.out = d * c.speed; }   // short clip: slow it down to fill the beat
+      }
+      S.clips.push(c); cur += dur(c);
+    });
+    const tr = addTrack('audio'), endsEarly = B[k0] + cur < music.duration - 0.5;
+    S.clips.push(newClip('audio', {mediaId: music.id, name: music.name, track: tr.id, start: 0, in: B[k0], out: B[k0] + cur, fadeOut: endsEarly ? Math.min(1.5, cur / 4) : 0}));
+    if (endsEarly) S.clips[seq.length - 1].fadeOut = Math.min(0.5, durs[seq.length - 1] / 2);
+    commit(); t = 0;
+    renderTimeline(); renderProps();
+    $('#fitBtn').click();
+    const used = new Set(seq.map(p => p.m.id)).size;
+    autoStatus(`Done: ${seq.length} cuts from ${used} clip${used > 1 ? 's' : ''} at ${Math.round(beats.bpm)} BPM, ${cur.toFixed(1)}s long.` +
+      (seq.length < durs.length ? ` Shorter than asked: the rest of the footage was too weak or already used.` : '') + ' Press play to watch it.');
+  } catch (e) {
+    autoStatus(e.message || 'Something went wrong');
+  } finally { AUTO.busy = false; renderAuto(); }
+}
+$('#aGo').onclick = autoEdit;
 
 // ---------- export ----------
 async function doExport() {

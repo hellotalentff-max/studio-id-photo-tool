@@ -92,6 +92,8 @@ Notes:
 - Per clip: volume (up to 200%), speed (0.25x to 4x), fade in/out, scale, position, rotation, opacity, 12 filters and brightness/contrast/saturation
 - Text styles and emoji stickers with fade, pop, slide and typewriter animations; drag and resize them in the preview
 - Undo/redo and keyboard shortcuts (listed in the right panel when nothing is selected)
+- **✨ Auto → Beat highlights**: pick a song and the clips to use, and it builds the edit for you. It finds the song's beat (BPM), scores every half second of each clip on motion, sharpness, colour, exposure and the clip's own loudness (cheers, laughs), skips dark, blurry and dull parts, and cuts the best moments exactly on the beat, starting on the first bar where the music begins. Length 15 s, 30 s, 60 s or the whole song; pace Fast (every beat), Medium (about every second), Slow (every bar) or Auto (faster cuts when the music gets louder). Options: keep clips in time order, start with the best moment, fill the frame, a zoom punch on each cut, and mute the clips' own sound. If there is not enough good footage the video comes out shorter rather than using weak shots. It replaces the timeline, and Undo brings the old one back
+- Songs on the timeline show their beats as yellow dots (bigger on the first beat of each bar), and clips snap to them when dragged or trimmed
 - Export at 720p or 1080p with sound: MP4 in Chrome, WebM where MP4 recording is not available. Export plays the video once in real time, so keep the tab open and in front
 
 Use Chrome or Edge (Safari does not apply the filters and may not export). Projects are not saved, and media never leaves the device.
