@@ -476,10 +476,8 @@ const AI = (() => {
     c.getContext('2d').drawImage(src, 0, 0, c.width, c.height); return c;
   }
   // Faces: 478 landmarks each, in 0..1 image coordinates. Seg: soft masks packed as R face skin, G body skin, B background, A hair.
-  async function analyze(canvas) {
+  async function analyze(canvas, full) {
     await load();
-    const r = lm.detect(scaled(canvas, 1280));
-    const faces = (r.faceLandmarks || []).map((f) => f.map((p) => ({ x: p.x, y: p.y })));
     let seg = null;
     const res = sg.segment(scaled(canvas, 768));
     const ms = res && res.confidenceMasks;
@@ -492,7 +490,100 @@ const AI = (() => {
       seg = { w, h, data, data2 };
       ms.forEach((m) => m.close());
     }
-    return { faces, seg };
+    return { faces: findFaces(canvas, seg, full), seg };
+  }
+  // The face finder looks at the whole photo at once and misses faces that are small in the frame (group and
+  // full-length shots). So after the whole-photo pass, it looks again, zoomed in: around every patch of face
+  // skin the segmenter found, then over overlapping tiles. Faces already found are skipped.
+  function findFaces(canvas, seg, full) {
+    const W = canvas.width, H = canvas.height, faces = [], boxes = [];
+    const src = full || canvas, fk = src.width / W;   // zoomed-in crops come from the full-size photo when available
+    const box = (f) => { let x0 = 1, y0 = 1, x1 = 0, y1 = 0; for (const p of f) { if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y; } return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: (x1 - x0) * W, h: (y1 - y0) * H }; };
+    // a face found in a zoomed-in crop must sit on a person (face skin, or at least not background), to rule out false finds
+    const onPerson = (p) => { if (!seg) return true; const i = Math.min(seg.h - 1, Math.max(0, Math.floor(p.y * seg.h))) * seg.w + Math.min(seg.w - 1, Math.max(0, Math.floor(p.x * seg.w))); return seg.data[i * 4] > 64 || seg.data[i * 4 + 2] < 128; };
+    // or, when the segmenter missed the person, the cheeks and forehead must be skin-coloured
+    const cctx = canvas.getContext('2d', { willReadFrequently: true });
+    const skinColoured = (f) => {
+      let ok = 0;
+      for (const i of [50, 280, 151]) {
+        const d = cctx.getImageData(Math.round(f[i].x * W), Math.round(f[i].y * H), 1, 1).data;
+        const y = (0.299 * d[0] + 0.587 * d[1] + 0.114 * d[2]) / 255, cb = (d[2] / 255 - y) * 0.564, cr = (d[0] / 255 - y) * 0.713;
+        if (y > 0.08 && cr > 0.01 && cr < 0.2 && cb < 0.04) ok++;
+      }
+      return ok >= 2;
+    };
+    const add = (res, sx, sy, sw, sh) => {
+      for (const f0 of (res && res.faceLandmarks) || []) {
+        const f = f0.map((p) => ({ x: (sx + p.x * sw) / W, y: (sy + p.y * sh) / H })), b = box(f);
+        if (b.w < 10) continue;
+        if (boxes.some((o) => Math.hypot((o.cx - b.cx) * W, (o.cy - b.cy) * H) < 0.5 * Math.max(o.w, b.w))) continue;
+        if ((sx || sy || sw < W) && !onPerson(f[1]) && !onPerson(f[9]) && !skinColoured(f)) continue;
+        faces.push(f); boxes.push(b);
+      }
+    };
+    const crop = (sx, sy, sw, sh) => {
+      sx = Math.max(0, Math.round(sx)); sy = Math.max(0, Math.round(sy)); sw = Math.min(W - sx, Math.round(sw)); sh = Math.min(H - sy, Math.round(sh));
+      if (sw < 16 || sh < 16) return;
+      const k = Math.min(4 * fk, 640 / Math.max(sw, sh)), c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(sw * k)); c.height = Math.max(1, Math.round(sh * k));
+      c.getContext('2d').drawImage(src, sx * fk, sy * fk, sw * fk, sh * fk, 0, 0, c.width, c.height);
+      add(lm.detect(c), sx, sy, sw, sh);
+    };
+    add(lm.detect(scaled(canvas, 1280)), 0, 0, W, H);
+    if (seg) {
+      // connected patches in the segmentation, labelled with a flood fill
+      const sw = seg.w, sh = seg.h;
+      const blobs = (inside) => {
+        const lab = new Uint8Array(sw * sh), st = [], out = [];
+        for (let i = 0; i < sw * sh; i++) {
+          if (lab[i] || !inside(i)) continue;
+          let x0 = sw, y0 = sh, x1 = 0, y1 = 0, area = 0; st.push(i); lab[i] = 1;
+          while (st.length) {
+            const j = st.pop(), x = j % sw, y = (j / sw) | 0; area++;
+            if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+            if (x > 0 && !lab[j - 1] && inside(j - 1)) { lab[j - 1] = 1; st.push(j - 1); }
+            if (x < sw - 1 && !lab[j + 1] && inside(j + 1)) { lab[j + 1] = 1; st.push(j + 1); }
+            if (y > 0 && !lab[j - sw] && inside(j - sw)) { lab[j - sw] = 1; st.push(j - sw); }
+            if (y < sh - 1 && !lab[j + sw] && inside(j + sw)) { lab[j + sw] = 1; st.push(j + sw); }
+          }
+          out.push({ x0: x0 / sw, y0: y0 / sh, x1: (x1 + 1) / sw, y1: (y1 + 1) / sh, area });
+        }
+        return out;
+      };
+      const covered = (cx, cy) => boxes.some((o) => Math.abs(o.cx - cx) * W < o.w * 0.6 && Math.abs(o.cy - cy) * H < o.h * 0.6);
+      // 1. around each patch of face skin
+      for (const bl of blobs((i) => seg.data[i * 4] >= 128)) {
+        if (bl.area < 6) continue;
+        const cx = (bl.x0 + bl.x1) / 2, cy = (bl.y0 + bl.y1) / 2;
+        if (covered(cx, cy)) continue;
+        const side = Math.max((bl.x1 - bl.x0) * W, (bl.y1 - bl.y0) * H) * 3;
+        crop(cx * W - side / 2, cy * H - side / 2, side, side);
+      }
+      // 2. along the top of each person (where the heads are); people standing close together form one patch,
+      //    so the top band is scanned with overlapping windows
+      for (const bl of blobs((i) => seg.data[i * 4 + 2] < 128)) {
+        if (bl.area < 150) continue;
+        const bw = (bl.x1 - bl.x0) * W, bh = (bl.y1 - bl.y0) * H;
+        const S = Math.min(bw, Math.max(bh * 0.33, Math.min(bw, bh) * 0.5)), steps = Math.max(1, Math.ceil((bw - S) / (S * 0.6)) + 1);
+        for (let k = 0; k < steps; k++) {
+          const x = bl.x0 * W + (steps === 1 ? (bw - S) / 2 : k * (bw - S) / (steps - 1));
+          crop(x - S * 0.15, bl.y0 * H - S * 0.15, S * 1.3, S * 1.3);
+        }
+      }
+    }
+    // 3. overlapping tiles, for anything still missed (finer tiles on big photos)
+    if (Math.max(W, H) > 900) for (const g of Math.max(W, H) > 1800 ? [2, 3, 4] : [2, 3]) {
+      const tw = W / g, th = H / g;
+      for (let j = 0; j < g; j++) for (let i = 0; i < g; i++) crop(i * tw - tw * 0.25, j * th - th * 0.25, tw * 1.5, th * 1.5);
+    }
+    // 4. people in one photo tend to have similar face sizes: scan with windows about four times the smallest face
+    //    found so far, so a slightly smaller face (a person further back) is big enough in its window to be found
+    if (boxes.length) {
+      const S = clamp(4 * Math.min(...boxes.map((b) => b.w)), 240, Math.max(W, H) / 2), step = S * 0.6;
+      const nx = Math.ceil((W - S) / step) + 1, ny = Math.ceil((H - S) / step) + 1;
+      if (nx * ny <= 90) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) crop(Math.min(i * step, W - S), Math.min(j * step, H - S), S, S);
+    }
+    return faces;
   }
   return { load, analyze, failed: () => failed, chip };
 })();
@@ -967,7 +1058,9 @@ const LM = {
 };
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 function drawMasks(faces, W, H) {
-  const m = Math.max(W, H), k = Math.min(1, 1024 / m), w = Math.round(W * k), h = Math.round(H * k);
+  // Mask size: 1024 px on the long edge, more (up to 2048) when a face is small, so small lips and eyes stay crisp.
+  const m = Math.max(W, H), fwMin = Math.min(...faces.map((f) => Math.hypot((f[454].x - f[234].x) * W / m, (f[454].y - f[234].y) * H / m)), 1);
+  const k = Math.min(1, clamp(140 / fwMin, 1024, 2048) / m), w = Math.round(W * k), h = Math.round(H * k);
   const layers = [];
   const layer = (draw) => {
     const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -1418,7 +1511,13 @@ async function ensurePrev(p) {
 }
 async function ensureAnalysis(p) {
   if (p.an || p.anFail) return p.an;
-  try { const c = await ensurePrev(p); p.an = await AI.analyze(c); p.masks = null; p.stats = faceStats(p); }
+  try {
+    const c = await ensurePrev(p);
+    // the full-size photo helps find small faces; it is only held while the faces are found
+    let full = null; if (p.w > c.width * 1.2) { try { full = await decode(p); } catch (e) {} }
+    p.an = await AI.analyze(c, full); if (full && full.close) full.close();
+    p.masks = null; p.stats = faceStats(p);
+  }
   catch (e) { console.error(e); p.anFail = true; }
   return p.an;
 }
