@@ -96,6 +96,15 @@ dialog h2{margin:0 0 10px;font-size:16px}
 dialog label.ck{display:flex;gap:8px;align-items:center;margin:7px 0}
 dialog .f{display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:center;margin:8px 0}
 dialog .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+#wmDlg{max-width:min(900px,96vw)}
+.wm-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+@media(max-width:760px){.wm-grid{grid-template-columns:1fr}}
+#wmPrev{max-width:100%;max-height:min(66vh,620px);width:auto;height:auto;display:block;margin:0 auto;border-radius:8px;background:#000}
+#wmDlg .wm-ctl{max-height:min(66vh,620px)}
+.wm-ctl{max-height:70vh;overflow:auto;padding-right:4px}
+.wm-ctl textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px;resize:vertical}
+.anchor{display:grid;grid-template-columns:repeat(3,30px);gap:4px}
+.anchor button{width:30px;height:30px;padding:0;justify-content:center}
 #prog{height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:12px;display:none}
 #prog i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
 @media(max-width:1000px){
@@ -226,10 +235,45 @@ dialog .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
   <div class="f"><span>Quality</span><input type="range" id="exQ" min="60" max="100" value="92"></div>
   <div class="f"><span>Long edge</span><select id="exSize"><option value="0">Original size</option><option value="4000">4000 px</option><option value="3000">3000 px</option><option value="2048">2048 px</option><option value="1080">1080 px (social)</option></select></div>
   <div class="f"><span>File name</span><input type="text" id="exSuffix" value="_retouched"></div>
+  <div class="f"><span>Watermark</span><div style="display:flex;gap:6px;min-width:0"><select id="exWm" style="flex:1"></select><button id="exWmEdit" type="button">Edit…</button></div></div>
   <label class="ck"><input type="checkbox" id="exZip" checked> Put several photos in one ZIP file</label>
   <div id="prog"><i></i></div>
   <div class="note" id="exNote"></div>
   <div class="acts"><button id="exCancel">Close</button><button class="primary" id="exGo">Export</button></div>
+</dialog>
+
+<dialog id="wmDlg">
+  <h2>Watermarks</h2>
+  <div class="wm-grid">
+    <div><canvas id="wmPrev" width="800" height="600"></canvas><div class="note">Preview on this photo. The watermark scales with the export size.</div></div>
+    <div class="wm-ctl">
+      <div class="f"><span>Watermark</span><select id="wmSel"></select></div>
+      <div class="btnrow"><button id="wmNew" type="button">＋ New</button><button id="wmDup" type="button">Duplicate</button><button id="wmDel" type="button">Delete</button></div>
+      <div class="f"><span>Name</span><input type="text" id="wmName" maxlength="40"></div>
+      <div class="seg" id="wmType"><button data-t="image" type="button">Graphic (logo)</button><button data-t="text" type="button">Text</button></div>
+      <div id="wmImgBox">
+        <div class="f"><span>Image</span><select id="wmImg"></select></div>
+        <div class="btnrow"><label class="btn">Upload PNG logo…<input type="file" id="wmFile" accept="image/png,image/webp,image/svg+xml,image/jpeg" hidden></label></div>
+        <div class="note">Use a PNG with a transparent background for a clean logo.</div>
+      </div>
+      <div id="wmTextBox">
+        <textarea id="wmText" rows="2"></textarea>
+        <div class="f"><span>Font</span><select id="wmFont"><option value="sans">Sans</option><option value="serif">Serif</option><option value="script">Script</option><option value="mono">Mono</option><option value="impact">Impact</option></select></div>
+        <div class="btnrow"><label class="ck"><input type="checkbox" id="wmBold"> Bold</label><label class="ck"><input type="checkbox" id="wmItalic"> Italic</label><input type="color" id="wmColor"></div>
+        <label class="ck"><input type="checkbox" id="wmShadow"> Shadow</label>
+      </div>
+      <div class="row"><label>Opacity</label><span class="val" id="wmOpacityV"></span><input type="range" id="wmOpacity" min="5" max="100"></div>
+      <div class="row"><label>Size (% of photo width)</label><span class="val" id="wmSizeV"></span><input type="range" id="wmSize" min="2" max="90"></div>
+      <div class="row"><label>Inset across</label><span class="val" id="wmInsetXV"></span><input type="range" id="wmInsetX" min="0" max="25"></div>
+      <div class="row"><label>Inset down</label><span class="val" id="wmInsetYV"></span><input type="range" id="wmInsetY" min="0" max="25"></div>
+      <div class="h4">Position</div>
+      <div class="anchor" id="wmAnchor"><button data-a="tl" type="button">↖</button><button data-a="tc" type="button">↑</button><button data-a="tr" type="button">↗</button><button data-a="ml" type="button">←</button><button data-a="mc" type="button">•</button><button data-a="mr" type="button">→</button><button data-a="bl" type="button">↙</button><button data-a="bc" type="button">↓</button><button data-a="br" type="button">↘</button></div>
+      <div class="h4">Rotate</div>
+      <div class="seg" id="wmRot"><button data-r="0" type="button">0°</button><button data-r="-90" type="button">90° left</button><button data-r="90" type="button">90° right</button><button data-r="180" type="button">180°</button></div>
+      <label class="ck"><input type="checkbox" id="wmTile"> Repeat across the photo (for proofs)</label>
+    </div>
+  </div>
+  <div class="acts"><button class="primary" id="wmDone" type="button">Done</button></div>
 </dialog>
 
 <script>
@@ -2205,6 +2249,145 @@ document.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfe
 window.addEventListener('resize', () => invalidate('view'));
 new ResizeObserver(() => invalidate('view')).observe(viewEl);
 
+// ---------------------------------------------------------------- watermarks (added on export, like Lightroom)
+const WM_KEY = 'clickretouch-watermarks';
+const WM_BUILTIN = [['logo-white', 'Studio logo (white)', 'logo-white.png'], ['logo-dark', 'Studio logo (dark)', 'logo-dark.png'], ['logo', 'Studio logo (colour)', 'logo.webp']];
+const WM_FONTS = { sans: 'system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif', serif: 'Georgia,"Times New Roman",serif', script: '"Snell Roundhand","Brush Script MT","Segoe Script",cursive', mono: '"SF Mono",Menlo,Consolas,monospace', impact: 'Impact,"Arial Black",sans-serif' };
+const wmNew = (o = {}) => Object.assign({ id: uid(), name: 'Watermark', type: 'image', image: 'logo-white', text: '© ClickLounge Studio', font: 'sans', bold: true, italic: false, color: '#ffffff', shadow: true, opacity: 80, size: 18, anchor: 'br', insetX: 3, insetY: 3, rotate: 0, tile: false }, o);
+function loadWM() {
+  try { const o = JSON.parse(localStorage.getItem(WM_KEY)); if (o && Array.isArray(o.list) && o.list.length) return o; } catch (e) {}
+  return { list: [wmNew({ name: 'Studio logo' }), wmNew({ name: 'Copyright text', type: 'text', size: 22 }), wmNew({ name: 'Proof (repeat)', type: 'text', text: 'PROOF · ClickLounge Studio', opacity: 30, size: 30, tile: true, shadow: false })], use: '' };
+}
+let WM = loadWM();
+const saveWM = () => { try { localStorage.setItem(WM_KEY, JSON.stringify(WM)); } catch (e) {} };
+const wmImgCache = new Map();
+async function wmImage(key) {
+  if (wmImgCache.has(key)) return wmImgCache.get(key);
+  let src = null;
+  const b = WM_BUILTIN.find((x) => x[0] === key);
+  if (b) src = b[2];
+  else { const r = await DB.get('files', key); if (r) src = URL.createObjectURL(r.blob); }
+  if (!src) return null;
+  const img = new Image(); img.src = src;
+  try { await img.decode(); } catch (e) { return null; }
+  wmImgCache.set(key, img); return img;
+}
+// Draws the watermark onto a finished photo. Size and insets are proportional, so it looks the same at any export size.
+async function drawWatermark(canvas, wm) {
+  const ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height;
+  const bw = W * wm.size / 100;
+  let w, h, fontPx = 0, img = null;
+  if (wm.type === 'image') {
+    img = await wmImage(wm.image); if (!img || !img.naturalWidth) return;
+    w = bw; h = bw * img.naturalHeight / img.naturalWidth;
+  } else {
+    const lines = String(wm.text || '').split('\n'); if (!lines.join('').trim()) return;
+    const font = (px) => `${wm.italic ? 'italic ' : ''}${wm.bold ? '700' : '400'} ${px}px ${WM_FONTS[wm.font] || WM_FONTS.sans}`;
+    ctx.font = font(100);
+    const mw = Math.max(...lines.map((l) => ctx.measureText(l).width)) || 1;
+    fontPx = 100 * bw / mw; w = bw; h = fontPx * 1.2 * lines.length;
+    img = { lines, font: font(fontPx) };
+  }
+  const rot = (wm.rotate || 0) * Math.PI / 180, side = Math.abs(wm.rotate) === 90;
+  const bx = side ? h : w, by = side ? w : h;
+  const ix = W * wm.insetX / 100, iy = H * wm.insetY / 100, a = wm.anchor || 'br';
+  const draw = (cx, cy) => {
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot); ctx.globalAlpha = wm.opacity / 100;
+    if (wm.type === 'image') ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    else {
+      ctx.font = img.font; ctx.fillStyle = wm.color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (wm.shadow) { ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = fontPx * 0.12; ctx.shadowOffsetY = fontPx * 0.05; }
+      img.lines.forEach((l, i) => ctx.fillText(l, 0, (i - (img.lines.length - 1) / 2) * fontPx * 1.2));
+    }
+    ctx.restore();
+  };
+  if (wm.tile) {
+    // Diagonal rows across the whole photo, so it cannot simply be cropped off.
+    const sx = bx * 1.5 + W * 0.04, sy = by * 2.6 + H * 0.04;
+    ctx.save(); ctx.translate(W / 2, H / 2); ctx.rotate(-Math.PI / 7); ctx.translate(-W / 2, -H / 2);
+    const R2 = Math.hypot(W, H);
+    for (let y = H / 2 - R2, r = 0; y < H / 2 + R2; y += sy, r++) for (let x = W / 2 - R2 + (r % 2) * sx / 2; x < W / 2 + R2; x += sx) draw(x, y);
+    ctx.restore(); return;
+  }
+  const cx = a[1] === 'l' ? ix + bx / 2 : a[1] === 'r' ? W - ix - bx / 2 : W / 2;
+  const cy = a[0] === 't' ? iy + by / 2 : a[0] === 'b' ? H - iy - by / 2 : H / 2;
+  draw(cx, cy);
+}
+const wmActive = () => WM.list.find((w) => w.id === WM.use) || null;
+
+// editor
+let wmEdit = null, wmBase = null;
+function wmFill() {
+  $('exWm').innerHTML = '<option value="">None</option>' + WM.list.map((w) => `<option value="${w.id}"></option>`).join('');
+  [...$('exWm').options].slice(1).forEach((o, i) => o.textContent = WM.list[i].name);
+  $('exWm').value = wmActive() ? WM.use : '';
+}
+async function wmImgOptions() {
+  const files = ((await DB.all('files')) || []).filter((f) => f.id.startsWith('wm-'));
+  $('wmImg').innerHTML = WM_BUILTIN.map(([k, n]) => `<option value="${k}">${n}</option>`).join('') + files.map((f) => `<option value="${f.id}"></option>`).join('');
+  files.forEach((f, i) => $('wmImg').options[WM_BUILTIN.length + i].textContent = f.name);
+}
+function wmSync() {
+  const w = wmEdit; if (!w) return;
+  $('wmSel').innerHTML = WM.list.map((x) => `<option value="${x.id}"></option>`).join('');
+  [...$('wmSel').options].forEach((o, i) => o.textContent = WM.list[i].name);
+  $('wmSel').value = w.id; $('wmName').value = w.name;
+  $('wmType').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.t === w.type));
+  $('wmImgBox').hidden = w.type !== 'image'; $('wmTextBox').hidden = w.type !== 'text';
+  $('wmImg').value = w.image; $('wmText').value = w.text; $('wmFont').value = w.font;
+  $('wmBold').checked = w.bold; $('wmItalic').checked = w.italic; $('wmColor').value = w.color; $('wmShadow').checked = w.shadow; $('wmTile').checked = w.tile;
+  for (const k of ['opacity', 'size', 'insetX', 'insetY']) { const id = 'wm' + k[0].toUpperCase() + k.slice(1); $(id).value = w[k]; $(id + 'V').textContent = w[k] + '%'; }
+  $('wmAnchor').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.a === w.anchor));
+  $('wmRot').querySelectorAll('button').forEach((b) => b.classList.toggle('on', +b.dataset.r === w.rotate));
+}
+let wmDrawTok = 0;
+async function wmPreview() {
+  const c = $('wmPrev'), x = c.getContext('2d'), tok = ++wmDrawTok;
+  if (!wmBase) { x.fillStyle = '#333'; x.fillRect(0, 0, c.width, c.height); }
+  else { c.width = wmBase.width; c.height = wmBase.height; x.drawImage(wmBase, 0, 0); }
+  if (!wmEdit) return;
+  const tmp = document.createElement('canvas'); tmp.width = c.width; tmp.height = c.height; tmp.getContext('2d').drawImage(c, 0, 0);
+  await drawWatermark(tmp, wmEdit);
+  if (tok === wmDrawTok) x.drawImage(tmp, 0, 0);
+}
+function wmChanged() { saveWM(); wmSync(); wmPreview(); wmFill(); }
+async function openWM() {
+  wmEdit = wmActive() || WM.list[0];
+  wmBase = null;
+  if (cur && R.loaded) {
+    // A small render of the current photo with all its edits, as the preview background.
+    if (raf) { cancelAnimationFrame(raf); raf = 0; } frame();
+    const g = geometry(cur.s, ...R.size, false), k = Math.min(1, 900 / Math.max(g.outW, g.outH));
+    wmBase = R.exportCanvas(finalUniforms(cur.s, g), Math.max(1, Math.round(g.outW * k)), Math.max(1, Math.round(g.outH * k)));
+  }
+  await wmImgOptions(); wmSync(); wmPreview();
+  $('wmDlg').showModal();
+}
+$('exWmEdit').addEventListener('click', openWM);
+$('exWm').addEventListener('change', () => { WM.use = $('exWm').value; saveWM(); });
+$('wmDone').addEventListener('click', () => { if (wmEdit) WM.use = wmEdit.id; saveWM(); wmFill(); $('wmDlg').close(); });
+$('wmSel').addEventListener('change', () => { wmEdit = WM.list.find((w) => w.id === $('wmSel').value); wmSync(); wmPreview(); });
+$('wmNew').addEventListener('click', () => { wmEdit = wmNew({ name: 'New watermark', type: 'text' }); WM.list.push(wmEdit); wmChanged(); });
+$('wmDup').addEventListener('click', () => { if (!wmEdit) return; wmEdit = Object.assign(clone(wmEdit), { id: uid(), name: wmEdit.name + ' copy' }); WM.list.push(wmEdit); wmChanged(); });
+$('wmDel').addEventListener('click', () => {
+  if (!wmEdit || WM.list.length < 2 || !confirm(`Delete watermark "${wmEdit.name}"?`)) return;
+  WM.list = WM.list.filter((w) => w !== wmEdit); if (WM.use === wmEdit.id) WM.use = ''; wmEdit = WM.list[0]; wmChanged();
+});
+$('wmName').addEventListener('input', () => { if (wmEdit) { wmEdit.name = $('wmName').value || 'Watermark'; saveWM(); wmFill(); const o = $('wmSel').selectedOptions[0]; if (o) o.textContent = wmEdit.name; } });
+$('wmType').addEventListener('click', (e) => { const t = e.target.dataset.t; if (t && wmEdit) { wmEdit.type = t; wmChanged(); } });
+$('wmImg').addEventListener('change', () => { if (wmEdit) { wmEdit.image = $('wmImg').value; wmChanged(); } });
+$('wmFile').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f || !wmEdit) return;
+  const id = 'wm-' + uid(); await DB.put('files', { id, name: f.name, blob: f });
+  wmEdit.image = id; wmEdit.type = 'image'; await wmImgOptions(); wmChanged();
+});
+for (const [id, key, num] of [['wmText', 'text'], ['wmFont', 'font'], ['wmColor', 'color'], ['wmOpacity', 'opacity', 1], ['wmSize', 'size', 1], ['wmInsetX', 'insetX', 1], ['wmInsetY', 'insetY', 1]])
+  $(id).addEventListener('input', () => { if (!wmEdit) return; wmEdit[key] = num ? +$(id).value : $(id).value; saveWM(); wmSync(); wmPreview(); });
+for (const [id, key] of [['wmBold', 'bold'], ['wmItalic', 'italic'], ['wmShadow', 'shadow'], ['wmTile', 'tile']])
+  $(id).addEventListener('change', () => { if (wmEdit) { wmEdit[key] = $(id).checked; wmChanged(); } });
+$('wmAnchor').addEventListener('click', (e) => { const a = e.target.dataset.a; if (a && wmEdit) { wmEdit.anchor = a; wmChanged(); } });
+$('wmRot').addEventListener('click', (e) => { const r = e.target.dataset.r; if (r != null && wmEdit) { wmEdit.rotate = +r; wmChanged(); } });
+
 // ---------------------------------------------------------------- export
 function exportTargets() {
   const v = $('exScope').value;
@@ -2219,6 +2402,7 @@ $('exportBtn').addEventListener('click', () => {
   $('exScope').innerHTML = `<option value="cur">This photo</option>${n > 1 ? `<option value="sel">Selected (${n})</option>` : ''}<option value="all">All photos (${photos.length})</option>`;
   $('exScope').value = n > 1 ? 'sel' : 'cur';
   $('exNote').textContent = ''; $('prog').style.display = 'none'; $('exGo').disabled = false;
+  wmFill();
   $('expDlg').showModal();
 });
 $('exCancel').addEventListener('click', () => { exporting = false; $('expDlg').close(); });
@@ -2230,7 +2414,7 @@ function loadZip() {
   return jszip;
 }
 function save(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 20000); }
-async function renderFull(p, longEdge, fmt, q) {
+async function renderFull(p, longEdge, fmt, q, wm) {
   // Full-size render: decode the original, apply heals at full size, run the same pipeline.
   await ensureAnalysis(p);
   const bmp = await decode(p);
@@ -2249,6 +2433,7 @@ async function renderFull(p, longEdge, fmt, q) {
   let ow = Math.round(g.outW), oh = Math.round(g.outH);
   if (longEdge && Math.max(ow, oh) > longEdge) { const f = longEdge / Math.max(ow, oh); ow = Math.round(ow * f); oh = Math.round(oh * f); }
   const c = R.exportCanvas(finalUniforms(p.s, g), ow, oh);
+  if (wm) await drawWatermark(c, wm);
   return new Promise((res) => c.toBlob(res, fmt, q));
 }
 $('exGo').addEventListener('click', async () => {
@@ -2266,7 +2451,7 @@ $('exGo').addEventListener('click', async () => {
     if (!exporting) break;
     $('exNote').textContent = `Rendering ${done + 1} of ${list.length}: ${p.name}`;
     try {
-      const blob = await renderFull(p, size, fmt, q);
+      const blob = await renderFull(p, size, fmt, q, wmActive());
       let base = p.name.replace(/\.[^.]+$/, '') + suf, name = `${base}.${ext}`, i = 2;
       while (used.has(name)) name = `${base}-${i++}.${ext}`;
       used.add(name);

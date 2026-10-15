@@ -130,5 +130,6 @@ The freebie sheets and the 35 × 45 mm sheet are made for **102 × 153 mm** phot
 - Retouch presets, looks, and your own presets (export and import them as a file to share between devices)
 - Before/after split (or hold `\`), undo/redo, histogram, and select several photos in the strip (Ctrl/Cmd or Shift click) then **Sync…**
 - Export JPEG, PNG or WebP at full size or a set long edge; several photos come as one ZIP
+- **Watermark on export** (like Lightroom): pick a saved watermark in the Export dialog, or Edit… to make one. Graphic (the studio logo in white, dark or colour, or an uploaded PNG) or text (font, bold, italic, colour, shadow). Opacity, size as a % of the photo width, insets, 9-point position, rotation, and Repeat across the photo for proofs. A live preview shows it on the current photo. Watermarks are saved on the device
 
 The AI is Google's MediaPipe face landmarker and selfie multiclass segmenter (Apache-2.0), loaded from jsDelivr and Google's model storage the first time (about 20 MB), then run on the device. Photos are kept in the browser's storage on that device so work survives a reload; they are never uploaded. Needs WebGL 2 (current Chrome, Edge or Safari). Exports are capped at 36 MP on computers and 16 MP on phones and tablets.
