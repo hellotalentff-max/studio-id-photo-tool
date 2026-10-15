@@ -644,8 +644,9 @@
   // Drawn in code (no image files), so they print sharp at any paper size. One design applies to every sheet;
   // the Christmas card layouts fall back to Classic red when no design is picked.
   const XMAS = {
-    red:   { name: 'Classic red', sw: '#a3171f', bg: ['#b01c25', '#6b0d12'], dark: true, flake: 'rgba(255,255,255,0.17)', frame: '#e9c46a', text: '#ffffff', sub: '#f3dfb0', sparkle: false },
-    green: { name: 'Green & gold', sw: '#1f5a3d', bg: ['#22623f', '#0e2f20'], dark: true, flake: 'rgba(233,196,106,0.26)', frame: '#e9c46a', text: '#f7e2a0', sub: '#ffffff', sparkle: true },
+    // Light backgrounds with fine coloured details only (no solid colour areas), to save printer ink.
+    red:   { name: 'Classic red', sw: '#b3202a', bg: ['#ffffff', '#fff8f6'], dark: false, flake: 'rgba(179,32,42,0.22)', frame: '#b3202a', text: '#b3202a', sub: '#6b4a2b', sparkle: false, border: '#b3202a' },
+    green: { name: 'Green & gold', sw: '#1f5a3d', bg: ['#ffffff', '#fbf8ef'], dark: false, flake: 'rgba(196,154,26,0.38)', frame: '#c49a1a', text: '#1f5a3d', sub: '#9a7a14', sparkle: true, border: '#1f5a3d' },
     snow:  { name: 'Snow white', sw: '#eaf1f7', bg: ['#ffffff', '#e8eff6'], dark: false, flake: 'rgba(110,150,195,0.30)', frame: '#c8a24a', text: '#b3202a', sub: '#2f5d46', sparkle: false },
     candy: { name: 'Candy cane', sw: '#c8102e', bg: ['#fffdfb', '#fff0ec'], dark: false, flake: 'rgba(200,16,46,0.12)', frame: '#c8102e', text: '#c8102e', sub: '#1f5a3d', sparkle: false, stripes: true }
   };
@@ -706,6 +707,10 @@
       ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, P.W, P.H); ctx.fillStyle = '#c8102e';
       for (let i = -P.H; i < P.W + P.H; i += 44) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + 22, 0); ctx.lineTo(i + 22 - P.H, P.H); ctx.lineTo(i - P.H, P.H); ctx.fill(); }
       ctx.restore();
+    }
+    if (th.border) {                               // a thin double line just inside the edge
+      ctx.strokeStyle = th.border; ctx.lineWidth = 5; ctx.strokeRect(22, 22, P.W - 44, P.H - 44);
+      ctx.lineWidth = 2; ctx.strokeRect(34, 34, P.W - 68, P.H - 68);
     }
     const rnd = seeded(P.W * 7 + P.H);
     const n = Math.round(P.W * P.H / 26000);
