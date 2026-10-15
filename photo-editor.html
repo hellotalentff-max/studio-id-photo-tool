@@ -265,6 +265,7 @@ const DEFS = {
   bgSat: S('Background saturation', -100, 100), bgEdge: S('Edge softness', 0, 100, 30),
   ambient: S('Scene brightness', -100, 100), shape3d: S('3D shaping', 0, 100, 60),
   goboAmt: S('Strength', 0, 100, 50), goboScale: S('Size', 0, 100, 50), goboAngle: S('Angle', -90, 90, -20, 1, (v) => v + '°'), goboSoft: S('Softness', 0, 100, 30),
+  goboDir: S('Comes from', -180, 180, 160, 1, (v) => v + '°'), goboReach: S('Reach across', 0, 100, 60),
   glow: S('Glow', 0, 100), orton: S('Dreamy (Orton)', 0, 100), halation: S('Halation', 0, 100),
   sunAmt: S('Sun rays', 0, 100), sunLen: S('Ray length', 0, 100, 60), sunWarm: S('Warmth', 0, 100, 60), flare: S('Lens flare', 0, 100),
   rimAmt: S('Rim light', 0, 100), rimWidth: S('Width', 0, 100, 40), rimAngle: S('Comes from', -180, 180, 0, 1, (v) => v + '°'),
@@ -282,7 +283,7 @@ function defaults() {
     lipColor: '#b8344f', blushColor: '#e2777a', hslH: Array(8).fill(0), hslS: Array(8).fill(0), hslL: Array(8).fill(0),
     curve: { rgb: flatCurve(), r: flatCurve(), g: flatCurve(), b: flatCurve() },
     bgMode: 'none', bgColor: '#ffffff', bgImage: null,
-    lights: [], goboType: 'none', goboColor: '#ffe6bd', goboTarget: 'all', sunX: 0.85, sunY: 0.12, rimColor: '#ffffff', leakStyle: 'none', bokehStyle: 'warm',
+    lights: [], goboType: 'none', goboFrom: 'left', goboColor: '#ffe6bd', goboTarget: 'all', sunX: 0.85, sunY: 0.12, rimColor: '#ffffff', leakStyle: 'none', bokehStyle: 'warm',
     crop: { x: 0, y: 0, w: 1, h: 1 }, rot90: 0, flipH: false, aspect: 'free',
     heals: [], liq: [],
   });
@@ -301,7 +302,7 @@ const GROUP_KEYS = {
   detail: ['clarity', 'texture', 'dehaze', 'sharpen'],
   effects: ['vignette', 'vigMid', 'grain', 'fade'],
   relight: ['lights', 'ambient', 'shape3d'],
-  gobo: ['goboType', 'goboAmt', 'goboScale', 'goboAngle', 'goboSoft', 'goboColor', 'goboTarget'],
+  gobo: ['goboType', 'goboFrom', 'goboDir', 'goboReach', 'goboAmt', 'goboScale', 'goboAngle', 'goboSoft', 'goboColor', 'goboTarget'],
   glowfx: ['glow', 'orton', 'halation'], sunfx: ['sunAmt', 'sunX', 'sunY', 'sunLen', 'sunWarm', 'flare'], rimfx: ['rimAmt', 'rimWidth', 'rimAngle', 'rimColor'],
   leakfx: ['leakStyle', 'leakAmt', 'leakAngle'], bokehfx: ['bokehAmt', 'bokehSize', 'bokehStyle'],
   bg: ['bgMode', 'bgBlur', 'bgClean', 'bgBright', 'bgSat', 'bgEdge', 'bgColor', 'bgImage'],
@@ -467,7 +468,7 @@ uniform sampler2D S,L,B,BL,G1,G2,G3,M1,M2,SEG,BGI,CRV;
 uniform float hasSkin;uniform vec2 skinC,skinT,downUV;
 uniform sampler2D HM;uniform vec2 aspN;
 uniform float nL,amb,shp,nF;uniform vec4 lP[5],lC[5],lQ[5],fE[6];
-uniform float gType,gAmt,gScale,gAng,gSoft,gTgt;uniform vec3 gCol;
+uniform float gType,gAmt,gScale,gAng,gSoft,gTgt,gDir,gReach,gFront;uniform vec3 gCol;
 uniform float glowA,ortonA,halA,sunA,sunLen,sunWarm,flareA,rimA,rimW,rimAng,leakS,leakA,leakAng,bokA,bokSz,bokS;uniform vec2 sunP;uniform vec3 rimCol;
 float gobo(vec2 q,float t,float w){
  if(t<1.5)return smoothstep(-w,w,sin(q.y*30.)+.25);
@@ -588,10 +589,23 @@ void main(){
   lin+=base*acc*1.8+acc*.02;
  }
  if(gType>.5){
-  vec2 q=pN-.5*aspN;float ca=cos(gAng),sa=sin(gAng);q=mat2(ca,-sa,sa,ca)*q/(.15+gScale*.6);
+  // The pattern is light from one side (a window or gobo beside the subject): it reaches into the frame from
+  // that side, falls on the sides of faces and bodies turned toward it, and stretches as it rakes across.
+  // The far side stays in shadow. "Front" keeps the flat, camera-on projection.
+  vec2 dir=vec2(cos(gDir),-sin(gDir));
+  vec2 q=pN-.5*aspN;
+  if(gFront<.5){float a=dot(q,dir);q=q-dir*a+dir*a/1.7;}
+  float ca=cos(gAng),sa=sin(gAng);q=mat2(ca,-sa,sa,ca)*q/(.15+gScale*.6);
   float pat=gobo(q,gType,.02+gSoft*.35);
+  float lit=1.;
+  if(gFront<.5){
+   float u=dot((pN-.5*aspN)/max(aspN.x,aspN.y),dir)+.5;
+   float e0=1.-gReach*1.25;lit=smoothstep(e0,e0+.5,u);
+   float face=max(dot(nrm,normalize(vec3(dir,.3))),0.);
+   lit*=clamp(mix(.75,face*1.6,.35+.65*hmv.r),0.,1.15);
+  }
   float tg=gTgt<.5?person:gTgt<1.5?1.-person:1.;
-  lin*=mix(vec3(1.),mix(vec3(1.-gAmt*.7),(1.+gAmt*1.3)*gCol,pat),tg);
+  lin*=mix(vec3(1.),mix(vec3(1.-gAmt*.75),(1.+gAmt*1.25)*gCol,pat*lit),tg);
  }
  c=pow(max(lin,0.),vec3(1./2.2));
  // tone
@@ -1107,6 +1121,7 @@ function mainUniforms(s) {
 }
 const TARGETS = { subject: 0, background: 1, all: 2 };
 const GOBOS = [['none', 'None'], ['blinds', 'Blinds'], ['window', 'Window'], ['leaves', 'Leaves'], ['water', 'Water'], ['dots', 'Dots'], ['lattice', 'Lattice'], ['beams', 'Beams']];
+const GOBO_FROM = [['left', 'Left', 180], ['topleft', 'Top left', 135], ['top', 'Top', 90], ['topright', 'Top right', 45], ['right', 'Right', 0], ['front', 'Front']];
 const LEAKS = [['none', 'None'], ['warm', 'Warm'], ['rainbow', 'Rainbow'], ['pink', 'Pink'], ['golden', 'Golden'], ['burn', 'Film burn']];
 const lightRadius = (l) => 0.06 + l.size / 100 * 1.1;
 function lightUniforms(s) {
@@ -1120,7 +1135,7 @@ function lightUniforms(s) {
   });
   return {
     nL: on.length, amb: k(s.ambient), shp: k(s.shape3d), lP: { v4: P }, lC: { v4: C }, lQ: { v4: Q },
-    gType: GOBOS.findIndex((g) => g[0] === s.goboType), gAmt: k(s.goboAmt), gScale: k(s.goboScale), gAng: s.goboAngle * Math.PI / 180, gSoft: k(s.goboSoft), gTgt: TARGETS[s.goboTarget] ?? 2, gCol: hex2rgb(s.goboColor),
+    gType: GOBOS.findIndex((g) => g[0] === s.goboType), gAmt: k(s.goboAmt), gScale: k(s.goboScale), gAng: s.goboAngle * Math.PI / 180, gSoft: k(s.goboSoft), gTgt: TARGETS[s.goboTarget] ?? 2, gCol: hex2rgb(s.goboColor), gDir: s.goboDir * Math.PI / 180, gReach: k(s.goboReach), gFront: s.goboFrom === 'front' ? 1 : 0,
     glowA: k(s.glow), ortonA: k(s.orton), halA: k(s.halation), sunA: k(s.sunAmt), sunLen: k(s.sunLen), sunWarm: k(s.sunWarm), flareA: k(s.flare), sunP: [s.sunX, s.sunY],
     rimA: k(s.rimAmt), rimW: k(s.rimWidth), rimAng: s.rimAngle * Math.PI / 180, rimCol: hex2rgb(s.rimColor),
     leakS: Math.max(0, LEAKS.findIndex((g) => g[0] === s.leakStyle)), leakA: s.leakStyle === 'none' ? 0 : k(s.leakAmt), leakAng: s.leakAngle * Math.PI / 180,
@@ -1147,10 +1162,10 @@ const SETUPS = [
   ['Rim light', (F) => ({ ambient: -55, shape3d: 90, rimAmt: 45, lights: [mkLight(F, -1.9, -0.4, '#ffffff', 90, 2, 40, 6, 'subject'), mkLight(F, 1.9, -0.4, '#ffffff', 90, 2, 40, 6, 'subject')] })],
   ['Spotlight', (F) => ({ ambient: -75, shape3d: 50, lights: [mkLight(F, 0, -0.3, '#fffaf0', 70, 2.4, 70, 90)] })],
   ['Neon split', (F) => ({ ambient: -60, shape3d: 80, lights: [mkLight(F, -1.2, -0.2, '#ff2bd6', 95, 2.2, 55, 20), mkLight(F, 1.2, -0.2, '#21d4fd', 95, 2.2, 55, 20)] })],
-  ['Golden window', (F) => ({ ambient: -40, shape3d: 70, goboType: 'window', goboAmt: 55, goboAngle: -15, goboColor: '#ffc77a', lights: [mkLight(F, 1.5, -0.8, '#ffb45e', 85, 4, 70, 45)] })],
-  ['Blinds noir', (F) => ({ ambient: -50, shape3d: 70, goboType: 'blinds', goboAmt: 70, goboAngle: -18, goboColor: '#ffffff', lights: [mkLight(F, -1.4, -0.6, '#ffffff', 70, 4, 60, 50)] })],
-  ['Forest dapple', (F) => ({ ambient: -30, goboType: 'leaves', goboAmt: 60, goboScale: 45, goboColor: '#fff1b8', lights: [mkLight(F, -0.8, -1.2, '#fff3c4', 70, 4, 70, 60)] })],
-  ['Underwater', (F) => ({ ambient: -35, goboType: 'water', goboAmt: 55, goboColor: '#a8f0ff', lights: [mkLight(F, 0, -1.5, '#7fe3ff', 70, 4.5, 80, 70)] })],
+  ['Golden window', (F) => ({ ambient: -40, shape3d: 70, goboType: 'window', goboFrom: 'topright', goboDir: 30, goboReach: 65, goboAmt: 60, goboAngle: -15, goboColor: '#ffc77a', lights: [mkLight(F, 1.5, -0.8, '#ffb45e', 85, 4, 70, 45)] })],
+  ['Blinds noir', (F) => ({ ambient: -50, shape3d: 70, goboType: 'blinds', goboFrom: 'left', goboDir: 165, goboReach: 60, goboAmt: 75, goboAngle: -18, goboColor: '#ffffff', lights: [mkLight(F, -1.4, -0.6, '#ffffff', 45, 4, 60, 50)] })],
+  ['Forest dapple', (F) => ({ ambient: -30, goboType: 'leaves', goboFrom: 'topleft', goboDir: 125, goboReach: 70, goboAmt: 60, goboScale: 45, goboColor: '#fff1b8', lights: [mkLight(F, -0.8, -1.2, '#fff3c4', 70, 4, 70, 60)] })],
+  ['Underwater', (F) => ({ ambient: -35, goboType: 'water', goboFrom: 'top', goboDir: 90, goboReach: 80, goboAmt: 55, goboColor: '#a8f0ff', lights: [mkLight(F, 0, -1.5, '#7fe3ff', 70, 4.5, 80, 70)] })],
   ['Sunset', (F) => ({ ambient: -15, sunAmt: 55, sunWarm: 85, sunX: clamp((F.cx + 2 * F.fw) / F.ax, 0.05, 0.95), sunY: clamp((F.cy - 1.8 * F.fw) / F.ay, 0.03, 0.95), leakStyle: 'warm', leakAmt: 35, leakAngle: 0, glow: 20, lights: [mkLight(F, 1.4, -1, '#ff9a3c', 70, 4, 80, 40)] })],
   ['Party', (F) => ({ ambient: -50, bokehAmt: 60, bokehStyle: 'colour', bokehSize: 45, lights: [mkLight(F, -1.2, -0.5, '#ff3cac', 85, 2.4, 60, 25), mkLight(F, 1.2, -0.5, '#2b86ff', 85, 2.4, 60, 25)] })],
   ['Dreamy', (F) => ({ glow: 35, orton: 40, halation: 15, ambient: 5, lights: [mkLight(F, 0, -1.2, '#fff1e0', 40, 4, 90, 70)] })],
@@ -1575,6 +1590,7 @@ function applyLightSetup(i) {
 }
 function changed(key) {
   if (!cur) return;
+  if (key === 'goboFrom') { const f = GOBO_FROM.find((g) => g[0] === cur.s.goboFrom); if (f && f[2] != null) { cur.s.goboDir = f[2]; ui.goboDir && ui.goboDir.set(f[2]); } }
   if (SHAPE_KEYS.has(key)) { flags.disp = true; invalidate('disp'); return; }
   if (['straighten', 'vignette', 'vigMid', 'grain'].includes(key)) { invalidate('view'); return; }
   if (key === 'curve') R.setCurve(curveLUT(cur.s.curve));
@@ -1651,7 +1667,10 @@ function buildPanels() {
   note(b, 'Lower the scene brightness to make the lights stand out. 3D shaping lights the side of the face and body that faces each light.');
   b = section('light', 'Light pattern (gobo)', 'gobo', false);
   choices(b, 'goboType', GOBOS);
-  ['goboAmt', 'goboScale', 'goboAngle', 'goboSoft'].forEach((k) => sliderRow(k, b));
+  h4(b, 'Light comes from');
+  choices(b, 'goboFrom', GOBO_FROM.map(([v, l]) => [v, l]));
+  ['goboDir', 'goboReach', 'goboAmt', 'goboScale', 'goboAngle', 'goboSoft'].forEach((k) => sliderRow(k, b));
+  note(b, 'Side light falls on the side of faces and bodies turned toward it; the far side stays in shadow. Front lays the pattern flat over everything.');
   swatches(b, 'goboColor', ['#ffffff', '#ffe6bd', '#ffc77a', '#ff9a3c', '#a8f0ff', '#ff8fd8', '#b6ff9e']);
   choices(b, 'goboTarget', [['subject', 'Subject'], ['background', 'Background'], ['all', 'All']]);
   b = section('light', 'Glow', 'glowfx', false);
@@ -1743,7 +1762,7 @@ function drawCurve() {
 function syncUI() {
   if (!cur) return;
   for (const k in DEFS) if (ui[k]) ui[k].set(cur.s[k]);
-  for (const k of ['lipColor', 'blushColor', 'bgColor', 'goboColor', 'rimColor', 'goboType', 'goboTarget', 'leakStyle', 'bokehStyle', 'lights']) ui[k] && ui[k].set();
+  for (const k of ['lipColor', 'blushColor', 'bgColor', 'goboColor', 'rimColor', 'goboType', 'goboFrom', 'goboTarget', 'leakStyle', 'bokehStyle', 'lights']) ui[k] && ui[k].set();
   ui.hsl.set(); drawCurve();
   document.querySelectorAll('#bgModes button').forEach((b) => b.classList.toggle('on', b.dataset.m === cur.s.bgMode));
   $('bgBlurBox').hidden = cur.s.bgMode !== 'blur'; $('bgColBox').hidden = cur.s.bgMode !== 'color'; $('bgImgBox').hidden = cur.s.bgMode !== 'image';
