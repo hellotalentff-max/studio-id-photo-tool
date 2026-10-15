@@ -56,7 +56,7 @@ aside{background:var(--panel);min-height:0;overflow:auto}
 .row input[type=range]{grid-column:1/3}
 .row.changed label{color:var(--acc)}
 #tabs{display:flex;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2}
-#tabs button{flex:1;border:0;border-radius:0;background:none;padding:10px 4px;color:var(--mut);border-bottom:2px solid transparent}
+#tabs button{flex:1;border:0;border-radius:0;background:none;padding:10px 2px;font-size:12px;color:var(--mut);border-bottom:2px solid transparent}
 #tabs button.on{color:var(--txt);border-bottom-color:var(--acc);background:none}
 #panes{overflow:auto;flex:1;min-height:0}
 #histWrap{padding:8px 12px;border-bottom:1px solid var(--line)}
@@ -72,15 +72,12 @@ aside{background:var(--panel);min-height:0;overflow:auto}
 #left h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin:12px 2px 6px}
 #left h3:first-child{margin-top:2px}
 .plist{display:flex;flex-direction:column;gap:3px}
-.plist button.on,.pth.on{outline:2px solid var(--acc);outline-offset:-2px}
+.plist button.on{outline:2px solid var(--acc);outline-offset:-2px;background:var(--panel2);color:var(--txt)}
+[hidden]{display:none!important}
 .lcat{margin:8px 0 2px}
 .lcat>summary{list-style:none;cursor:pointer;font-size:11.5px;color:#c9c9cf;padding:4px 2px;user-select:none}
 .lcat>summary::-webkit-details-marker{display:none}
 .lcat>summary::before{content:'▸ ';color:var(--mut)}.lcat[open]>summary::before{content:'▾ '}
-.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.pth{position:relative;border:0;padding:0;border-radius:6px;overflow:hidden;aspect-ratio:1;background:#26262b;cursor:pointer;display:block}
-.pth img{width:100%;height:100%;object-fit:cover;display:block}
-.pth span{position:absolute;left:0;right:0;bottom:0;padding:10px 4px 3px;font-size:10.5px;text-align:left;background:linear-gradient(transparent,rgba(0,0,0,.85));color:#fff;line-height:1.15}
 .amount{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:6px}
 .plist button{justify-content:space-between;background:none;border-color:transparent;padding:6px 8px;text-align:left}
 .plist button:hover{background:var(--panel2)}
@@ -91,8 +88,9 @@ aside{background:var(--panel);min-height:0;overflow:auto}
 .hsl-r input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:1px solid #000}
 #curve{width:100%;aspect-ratio:1;display:block;background:#111114;border-radius:6px;touch-action:none;cursor:crosshair}
 footer{background:var(--panel);border-top:1px solid var(--line);display:grid;grid-template-columns:auto minmax(0,1fr);min-height:0}
-#stripBtns{display:flex;flex-direction:column;gap:5px;padding:8px;border-right:1px solid var(--line);justify-content:center}
-#stripBtns button,#stripBtns .btn{font-size:12px;padding:4px 8px;justify-content:center}
+#stripBtns{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px 10px;border-right:1px solid var(--line);align-content:center;min-width:0}
+#stripBtns button,#stripBtns .btn{font-size:12px;padding:5px 8px;justify-content:center;width:100%}
+#removeBtn{color:#f19a9a}
 #strip{display:flex;gap:6px;overflow-x:auto;padding:8px;align-items:center}
 .th{position:relative;flex:0 0 auto;height:96px;border-radius:6px;overflow:hidden;border:2px solid transparent;cursor:pointer;background:#000}
 .th img{height:100%;display:block}
@@ -152,7 +150,6 @@ dialog .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
     <h3>Retouch presets</h3>
     <div class="plist" id="retouchList"></div>
     <h3>Looks <button id="lookOrig" class="sm" style="float:right;padding:1px 7px;font-size:10px">Reset</button></h3>
-    <div class="note" style="margin-top:0">Hover to preview, click to apply.</div>
     <div id="lookList"></div>
     <h3>My presets</h3>
     <div class="plist" id="myList"></div>
@@ -170,11 +167,13 @@ dialog .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
       <div class="grp">
         <button data-tool="pan" class="on" title="Move and zoom (scroll or pinch to zoom)">✋</button>
         <button data-tool="heal" title="Healing brush: paint over spots, stray hairs, marks (H)">🩹 Heal</button>
+        <button data-tool="clone" title="Clone stamp: Option/Alt-click (or Set source) to pick where to copy from, then paint (S)">⎘ Clone</button>
         <button data-tool="liquify" title="Liquify brush: push, bloat, pinch (L)">〰 Liquify</button>
         <button data-tool="wb" title="White balance picker: click something that should be grey or white">💧 WB</button>
       </div>
       <div id="brushOpts">
         <span class="sep"></span>
+        <button id="cloneSrcBtn" class="sm" style="display:none" title="Then tap the spot to copy from">⊕ Set source</button>
         <div class="seg" id="liqModes" style="display:none">
           <button data-lm="push" class="on">Push</button><button data-lm="bloat">Bloat</button><button data-lm="pinch">Pinch</button>
         </div>
@@ -210,6 +209,7 @@ dialog .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
       <button data-tab="light">Light</button>
       <button data-tab="bg">Background</button>
       <button data-tab="crop">Crop</button>
+      <button data-tab="masks">Masks</button>
     </nav>
     <div id="panes">
       <section data-pane="portrait"></section>
@@ -217,6 +217,7 @@ dialog .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
       <section data-pane="light" hidden></section>
       <section data-pane="bg" hidden></section>
       <section data-pane="crop" hidden></section>
+      <section data-pane="masks" hidden></section>
     </div>
   </aside>
 </div>
@@ -312,7 +313,7 @@ const DEFS = {
   chin: S('Chin length', -100, 100), forehead: S('Forehead height', -100, 100), headSize: S('Head size', -100, 100),
   eyeSize: S('Eye size', -100, 100), noseSlim: S('Slim nose', -100, 100), mouthSize: S('Mouth size', -100, 100), smile: S('Smile', -100, 100),
   eyeBright: S('Brighten eyes', 0, 100), eyeWhite: S('Whiten eyes', 0, 100), teeth: S('Whiten teeth', 0, 100),
-  lipAmt: S('Lip colour', 0, 100), blushAmt: S('Blush', 0, 100),
+  lipAmt: S('Lip colour', 0, 100), blushAmt: S('Blush', 0, 100), contour: S('Contour', 0, 100), highlight: S('Highlight', 0, 100),
   hairDye: S('Hair colour', 0, 100), hairShine: S('Shine', 0, 100), hairBright: S('Brightness', -100, 100), hairSmooth: S('Smooth frizz', 0, 100), flyaways: S('Remove flyaways', 0, 100),
   clothWrinkle: S('Remove wrinkles', 0, 100), clothColorAmt: S('Colour change', 0, 100), clothBright: S('Brightness', -100, 100), clothSat: S('Saturation', -100, 100),
   exposure: S('Exposure', -4, 4, 0, 0.05, (v) => (v > 0 ? '+' : '') + v.toFixed(2)), contrast: S('Contrast', -100, 100),
@@ -346,7 +347,7 @@ function defaults() {
     bgMode: 'none', bgColor: '#ffffff', bgImage: null,
     lights: [], goboType: 'none', goboFrom: 'left', goboColor: '#ffe6bd', goboTarget: 'all', sunX: 0.85, sunY: 0.12, rimColor: '#ffffff', leakStyle: 'none', bokehStyle: 'warm',
     crop: { x: 0, y: 0, w: 1, h: 1 }, rot90: 0, flipH: false, aspect: 'free',
-    heals: [], liq: [],
+    heals: [], liq: [], masks: [],
   });
   return s;
 }
@@ -354,7 +355,7 @@ const GROUP_KEYS = {
   skin: ['smooth', 'smoothTex', 'blemish', 'wrinkles', 'darkCircles', 'eyeBags', 'shine', 'evenTone', 'skinBright', 'skinWarm', 'bodySmooth'],
   shape: ['faceSlim', 'jaw', 'cheekbones', 'chin', 'forehead', 'headSize', 'eyeSize', 'noseSlim', 'mouthSize', 'smile'],
   features: ['eyeBright', 'eyeWhite', 'teeth'],
-  makeup: ['lipAmt', 'lipColor', 'blushAmt', 'blushColor'],
+  makeup: ['lipAmt', 'lipColor', 'blushAmt', 'blushColor', 'contour', 'highlight'],
   hair: ['hairDye', 'hairColor', 'hairShine', 'hairBright', 'hairSmooth', 'flyaways'],
   clothes: ['clothWrinkle', 'clothColorAmt', 'clothColor', 'clothBright', 'clothSat'],
   light: ['exposure', 'contrast', 'highlights', 'shadows', 'whites', 'blacks'],
@@ -389,7 +390,7 @@ const RETOUCH = [
   { name: 'None', v: {} },
   { name: 'Natural', v: { smooth: 30, smoothTex: 75, blemish: 60, darkCircles: 30, eyeBags: 25, shine: 30, eyeBright: 20, teeth: 25 } },
   { name: 'Studio clean', v: { smooth: 50, smoothTex: 60, blemish: 80, wrinkles: 30, darkCircles: 50, eyeBags: 45, shine: 50, evenTone: 30, eyeBright: 35, eyeWhite: 25, teeth: 40, faceSlim: 15, eyeSize: 8 } },
-  { name: 'Glam', v: { smooth: 70, smoothTex: 45, blemish: 90, wrinkles: 50, darkCircles: 60, eyeBags: 60, shine: 60, evenTone: 45, skinBright: 10, eyeBright: 45, eyeWhite: 35, teeth: 50, faceSlim: 25, jaw: 20, eyeSize: 15, noseSlim: 15, lipAmt: 20, blushAmt: 20 } },
+  { name: 'Glam', v: { smooth: 70, smoothTex: 45, blemish: 90, wrinkles: 50, darkCircles: 60, eyeBags: 60, shine: 60, evenTone: 45, skinBright: 10, eyeBright: 45, eyeWhite: 35, teeth: 50, faceSlim: 25, jaw: 20, eyeSize: 15, noseSlim: 15, lipAmt: 20, blushAmt: 20, contour: 30, highlight: 25 } },
   { name: 'Men natural', v: { smooth: 20, smoothTex: 85, blemish: 60, darkCircles: 30, eyeBags: 30, shine: 55, eyeBright: 15, teeth: 20 } },
   { name: 'Kids', v: { smooth: 15, smoothTex: 85, blemish: 50, darkCircles: 25, shine: 30, eyeBright: 20 } },
   { name: 'Graduation / ID', v: { smooth: 40, smoothTex: 65, blemish: 80, darkCircles: 45, eyeBags: 40, shine: 60, evenTone: 35, eyeBright: 25, teeth: 30 } },
@@ -636,8 +637,8 @@ vec3 scr(vec3 a,vec3 b){return 1.-(1.-a)*(1.-clamp(b,0.,1.));}
       vec3 c=texture(t,uv+q*px*rad/5.).rgb;vec3 dc=c-c0;float w=exp(-r2/12.5-dot(dc,dc)/(2.*sig*sig));a+=c*w;ws+=w;}o=vec4(a/ws,1.);}`),
     main: mk(LIB + `
 uniform sampler2D S,L,B,BL,G1,G2,G3,M1,M2,SEG,BGI,CRV;
-uniform float hasSkin;uniform vec2 skinC,skinT,downUV;
-uniform sampler2D SEG2;uniform float hairDye,hairShine,hairBright,hairSmooth,flyA,clothWr,clothA,clothBr,clothSat;uniform vec3 hairCol,clothCol;
+uniform float hasSkin,fwN;uniform vec2 skinC,skinT,downUV;
+uniform sampler2D SEG2,M3,LMK;uniform float nM;uniform vec4 mA[4],mB[4];uniform float contourA,highA,hairDye,hairShine,hairBright,hairSmooth,flyA,clothWr,clothA,clothBr,clothSat;uniform vec3 hairCol,clothCol;
 uniform sampler2D HM;uniform vec2 aspN;
 uniform float nL,amb,shp,nF;uniform vec4 lP[5],lC[5],lQ[5],fE[6];
 uniform float gType,gAmt,gScale,gAng,gSoft,gTgt,gDir,gReach,gFront;uniform vec3 gCol;
@@ -671,6 +672,7 @@ void main(){
  vec3 fine=(texture(S,uv+vec2(d.x,0.)).rgb+texture(S,uv-vec2(d.x,0.)).rgb+texture(S,uv+vec2(0.,d.y)).rgb+texture(S,uv-vec2(0.,d.y)).rgb
   +texture(S,uv+e).rgb+texture(S,uv-e).rgb+texture(S,uv+vec2(e.x,-e.y)).rgb+texture(S,uv+vec2(-e.x,e.y)).rgb)*.125;
  float feat=m1.a;
+ vec2 pN0=uv*aspN;float lfw=fwN;{float bd=1e9;for(int i=0;i<6;i++){if(float(i)>=nF)break;float dd=length((pN0-fE[i].xy)/fE[i].zw);if(dd<bd){bd=dd;lfw=fE[i].z/.55;}}}   // width of the nearest face
  vec3 bl=texture(BL,uv).rgb;
  // Skin = AI skin mask, trimmed to pixels whose colour matches this photo's measured skin tone,
  // so hair, beards, brows and clothes at the mask edge are left alone.
@@ -683,18 +685,46 @@ void main(){
  // fine detail goes back on top. Mixing toward one target (not adding fixes) keeps them from overshooting.
  float ue=m1.b*(1.-m2.r);
  float sm=clamp(skin*smooth_+bodyS*body,0.,1.);
- // blemishes: spots darker or redder than the skin around them
- float dk=lum(g1)-lum(l);float rd=cbcr(l).y-cbcr(g1).y;
- float spot=max(smoothstep(.01,.04,dk),smoothstep(.008,.03,rd)*smoothstep(-.005,.01,dk))*skin;
+ // Blemishes and acne. The skin around a spot is sampled on two rings (small and larger spots), keeping the
+ // brighter half so a neighbouring spot does not pull it down. A spot must be darker or redder than nearly every
+ // ring sample: an edge or a shadow (nose side, jaw) is darker on one side only, so it is left alone.
+ float sl0=lum(l);float scr0=cbcr(l).y;vec2 r1=lfw*.035/aspN,r2=r1*2.;
+ vec3 t1[8];vec3 t2[8];float k1[8];float k2[8];float m1l=0.,m2l=0.,w1=0.,w2=0.;
+ for(int i=0;i<8;i++){float an=float(i)*.7854;vec2 dd=vec2(cos(an),sin(an));
+  t1[i]=texture(L,uv+dd*r1).rgb;t2[i]=texture(L,uv+dd*r2).rgb;
+  // only ring samples that land on skin count (not the shirt, hair or background next to the face)
+  vec4 q1s=texture(SEG,uv+dd*r1),q2s=texture(SEG,uv+dd*r2);
+  k1[i]=hasSeg>.5?step(.5,q1s.r+q1s.g):1.;k2[i]=hasSeg>.5?step(.5,q2s.r+q2s.g):1.;
+  m1l+=lum(t1[i])*k1[i];m2l+=lum(t2[i])*k2[i];w1+=k1[i];w2+=k2[i];}
+ m1l/=max(w1,1.);m2l/=max(w2,1.);
+ vec3 a1=vec3(0.),a2=vec3(0.),e1=vec3(0.),e2=vec3(0.);float n1=0.,n2=0.,s1=0.,s2=0.;
+ for(int i=0;i<8;i++){float q1=lum(t1[i]),q2=lum(t2[i]);
+  if(k1[i]>.5&&q1>=m1l-.004){a1+=t1[i];n1+=1.;}if(k2[i]>.5&&q2>=m2l-.004){a2+=t2[i];n2+=1.;}
+  e1+=t1[i]*k1[i];e2+=t2[i]*k2[i];
+  s1+=k1[i]*((q1-sl0>.005||scr0-cbcr(t1[i]).y>.006)?1.:0.);s2+=k2[i]*((q2-sl0>.006||scr0-cbcr(t2[i]).y>.007)?1.:0.);}
+ vec3 ring1=a1/max(n1,1.),ring2=a2/max(n2,1.);
+ // Find spots by comparing with the blurred skin (darker or redder), but skip edges and shadows: most of the
+ // skin samples around a real spot are lighter or less red. Replace the spot with the clean ring colour, not
+ // the blur (which still contains the spot and left a faint mark).
+ float dk=lum(g1)-sl0,rd=scr0-cbcr(g1).y;
+ float iso=max(step(4.5,w1)*s1/max(w1,1.),step(4.5,w2)*s2/max(w2,1.));
+ float spot=max(smoothstep(.01,.04,dk),smoothstep(.008,.03,rd)*smoothstep(-.005,.01,dk))*smoothstep(.4,.7,iso)*skin;
+ // fill colour: the average of the skin samples on the closer ring (the wider ring when the spot is large)
+ vec3 ring=w1>4.5?(dk>.05&&w2>4.5?e2/w2:e1/w1):(w2>4.5?e2/w2:g1);
  float sp=clamp(spot*blemish*1.6,0.,1.);
  float flat_=1.-smoothstep(.03,.1,abs(lum(g1)-lum(b)));
  vec3 tg=mix(l,mix(b,bl,.45*sm),sm);
  tg=mix(tg,bl,clamp(skin*wrinkles*flat_*.85,0.,1.));
- tg=mix(tg,g1,sp);
+ tg=mix(tg,ring,sp);
  tg=mix(tg,bl,clamp(ue*bags,0.,1.));
  vec3 hf=s-l;
- vec3 c=tg+hf*(1.-sp*.85);
+ vec3 c=tg+hf*(1.-sp*.9);
  c+=(fine-s)*sm*(1.-keepTex);
+ // tiny pimples at full detail: a small dark dot with lighter skin all round; pores are fainter and stay
+ if(blemish>0.){vec2 fr=px*fineR*3.;vec3 fa=vec3(0.);float fc=0.,ls=lum(s);
+  for(int i=0;i<8;i++){float an=float(i)*.7854+.39;vec3 q=texture(S,uv+vec2(cos(an),sin(an))*fr).rgb;fa+=q;fc+=step(.02,lum(q)-ls);}
+  fa/=8.;float tiny=smoothstep(.035,.075,lum(fa)-ls)*(1.-smoothstep(.12,.2,lum(fa)-ls))*step(7.5,fc)*skin*(1.-smoothstep(.03,.06,length(cbcr(fa)-cbcr(s))+0.));
+  c=mix(c,c+clamp(fa-s,-.1,.1),clamp(tiny*blemish*1.3,0.,1.));}
  // dark circles: lift the under-eye to match the cheek just below it
  vec3 ref=texture(BL,uv+downUV).rgb;
  float lift=max(0.,lum(ref)-lum(bl));
@@ -723,6 +753,10 @@ void main(){
  if(lipA>0.){float L=lum(c);float tl=mix(L,L*(.55+lum(lipC)*.9),.6);vec3 lc=setLum(lipC,tl)+(s-g1)*.35;
   c=mix(c,lc,clamp(m1.g*min(1.,lipA*1.4),0.,1.));}
  c=mix(c,setLum(mix(c,blushC,.7),lum(c)),m2.g*blushA*.55);
+ // contour (warm-brown shading) and highlight
+ vec4 m3=texture(M3,uv)*hasLm;
+ c=mix(c,c*vec3(.8,.7,.64),clamp(m3.r*contourA*.85,0.,1.));
+ c+=(1.-c)*m3.g*highA*.32;
  // hair (AI hair mask): smooth frizz, shine, brightness, colour, and flyaway strands outside the hair shape
  float hairM=hasSeg>.5?smoothstep(.3,.7,sg.a):0.;
  if(hairM>0.){
@@ -732,12 +766,25 @@ void main(){
   if(hairDye>0.){float L=lum(c);float tl=mix(L,lum(hairCol)*clamp(L/max(lum(g1),.03),.3,2.),.75);
    vec3 dyed=setLum(clamp(mix(vec3(lum(hairCol)),hairCol,1.2),0.,1.),tl);c=mix(c,dyed,hairM*hairDye*.9);}
  }
+ // Flyaways: thin strands near the hair but outside its main shape, against the background. The AI hair outline
+ // is coarse, so "near the hair" is looked up on rings up to ~25% of a face width away. Only thin strands
+ // (pixels that stand out from the smooth backdrop) are replaced, with backdrop taken from just beyond the hair.
  if(flyA>0.&&hasSeg>.5){
-  vec2 ts=2./vec2(textureSize(SEG,0));
-  vec2 gr=vec2(texture(SEG,uv+vec2(ts.x,0.)).a-texture(SEG,uv-vec2(ts.x,0.)).a,texture(SEG,uv+vec2(0.,ts.y)).a-texture(SEG,uv-vec2(0.,ts.y)).a);
-  float band=smoothstep(.02,.12,sg.a)*(1.-smoothstep(.3,.55,sg.a))*smoothstep(.15,.45,sg.b);
-  float gl=length(gr);
-  if(band>0.&&gl>1e-4){vec3 clean=texture(BL,uv-gr/gl*.03/aspN).rgb;c=mix(c,clean,clamp(band*flyA*1.3,0.,1.));}
+  vec2 rh=lfw*.3/aspN;float near=0.;vec2 toward=vec2(0.);
+  for(int i=0;i<8;i++){float an=float(i)*.7854+.39;vec2 dd=vec2(cos(an),sin(an));
+   float h1=texture(SEG,uv+dd*rh*.15).a,h2=texture(SEG,uv+dd*rh*.4).a,h3=texture(SEG,uv+dd*rh*.7).a,h4=texture(SEG,uv+dd*rh).a;
+   near=max(near,max(max(h1,h2*.95),max(h3*.85,h4*.7)));toward+=dd*(h1+h2*.7+h3*.45+h4*.25);}
+  float band=smoothstep(.3,.6,near)*(1.-smoothstep(.3,.6,sg.a))*smoothstep(.25,.6,sg.b);
+  float tl=length(toward);
+  if(band>0.&&tl>1e-3){
+   vec2 ow=-toward/tl;
+   // the clean backdrop further out, then the nearby pixel closest to it (a gap between strands)
+   vec3 bref=texture(G1,uv+ow*rh*.35).rgb,back=bref;float bd=1e9;
+   for(int i=0;i<8;i++){float an=float(i)*.7854;vec3 q=texture(L,uv+vec2(cos(an),sin(an))*rh*.05).rgb;float dq=length(q-bref);if(dq<bd){bd=dq;back=q;}}
+   back=mix(back,bref,.35);
+   float strand=smoothstep(.03,.1,length(s-back));
+   c=mix(c,back,clamp(band*flyA*strand*1.5,0.,1.));
+  }
  }
  // clothes (AI clothes mask): wrinkles, brightness, saturation, colour
  float clo=hasSeg>.5?smoothstep(.35,.65,texture(SEG2,uv).r)*(1.-feat):0.;
@@ -760,13 +807,17 @@ void main(){
   c*=1.+bgBright*.5*bg;
   c=mix(vec3(lum(c)),c,1.+bgSat*bg);
  }
+ // local masks (brush, gradients, subject/background): each adds its own adjustments where it covers
+ float eExp=0.,eCon=0.,eHi=0.,eSh=0.,eTmp=0.,eTnt=0.,eSat=0.,eClr=0.;
+ if(nM>.5){vec4 mk=texture(LMK,uv);for(int i=0;i<4;i++){if(float(i)>=nM)break;float w=mk[i];
+  eExp+=mA[i].x*w;eCon+=mA[i].y*w;eHi+=mA[i].z*w;eSh+=mA[i].w*w;eTmp+=mB[i].x*w;eTnt+=mB[i].y*w;eSat+=mB[i].z*w;eClr+=mB[i].w*w;}}
  // detail
  float L0=lum(c);float mid=1.-abs(L0*2.-1.);
- c+=vec3(lum(s)-lum(g1))*clar*.9*(.4+.6*mid);
+ c+=vec3(lum(s)-lum(g1))*(clar+eClr)*.9*(.4+.6*mid);
  c+=(s-fine)*(textr*1.6+sharp*2.2);
  // exposure and white balance in linear light
  vec3 lin=pow(max(c,0.),vec3(2.2));
- lin*=exp2(expo)*vec3(1.+.3*temp,1.-.25*tint,1.-.3*temp);
+ lin*=exp2(expo+eExp)*vec3(1.+.3*(temp+eTmp),1.-.25*(tint+eTnt),1.-.3*(temp+eTmp));
  // Creative light: up to 5 studio lights shaded with a rough 3D shape of the people (from the AI masks),
  // a scene brightness that lets the lights stand out, and a projected light pattern (gobo).
  float person=hasSeg>.5?1.-sg.b:1.;
@@ -811,15 +862,16 @@ void main(){
  // tone
  float l0=lum(c),l2=l0;
  float ws=1.-smoothstep(0.,.6,l0),wh=smoothstep(.4,1.,l0);
- l2+=shL*.28*ws+hiL*.28*wh;
+ l2+=(shL+eSh)*.28*ws+(hiL+eHi)*.28*wh;
  l2+=whi*.2*smoothstep(.55,1.,l0)+bla*.14*(1.-smoothstep(0.,.35,l0));
  l2=mix(l2,(l2-.06)/.94,max(dehaze,0.));l2=mix(l2,l2*.8+.15,max(-dehaze,0.));
  float lc=clamp(l2,0.,1.);float scv=lc*lc*(3.-2.*lc);
- l2=contr>=0.?mix(l2,scv,contr*.8):mix(l2,.5+(l2-.5)*.5,-contr);
+ float cL=clamp(contr+eCon,-1.,1.);
+ l2=cL>=0.?mix(l2,scv,cL*.8):mix(l2,.5+(l2-.5)*.5,-cL);
  c=l0>.02?c*(l2/l0):c+(l2-l0);
  // saturation and vibrance
  float Ls=lum(c);float sv=max(c.r,max(c.g,c.b))-min(c.r,min(c.g,c.b));
- c=mix(vec3(Ls),c,1.+sat+max(dehaze,0.)*.15);
+ c=mix(vec3(Ls),c,1.+sat+eSat+max(dehaze,0.)*.15);
  c=mix(vec3(Ls),c,1.+vib*clamp(1.-sv,0.,1.));
  // HSL
  vec3 hsv=rgb2hsv(clamp(c,0.,1.));vec3 ad=hslAdj(hsv.x*360.);float wg=smoothstep(0.,.15,hsv.y);
@@ -964,7 +1016,7 @@ void main(){
   };
 
   let d = null; // textures for the loaded photo
-  function freeDoc() { if (!d) return; for (const k of ['S0', 'S', 'L', 'B1', 'B', 'G1', 'T1', 'Hh', 'THh', 'BL', 'Q', 'TQ', 'G2', 'G3', 'HM0', 'HM', 'C', 'M1', 'M2', 'SEG', 'SEG2', 'D']) if (d[k] && !(k === 'S' && d.S === d.S0)) free(d[k]); d = null; }
+  function freeDoc() { if (!d) return; for (const k of ['S0', 'S', 'L', 'B1', 'B', 'G1', 'T1', 'Hh', 'THh', 'BL', 'Q', 'TQ', 'G2', 'G3', 'HM0', 'HM', 'C', 'M1', 'M2', 'M3', 'SEG', 'SEG2', 'LMK', 'D']) if (d[k] && !(k === 'S' && d.S === d.S0)) free(d[k]); d = null; }
   function statics() {
     const { L, B1, B, G1, T1, Q, TQ, G2 } = d;
     run(P.copy, L, L.w, L.h, { t: d.S }, {});
@@ -1008,7 +1060,8 @@ void main(){
       d.S = healed ? texFrom(healed, true) : d.S0;
       statics();
     },
-    setMasks(m1, m2) { if (!d) return; free(d.M1); free(d.M2); d.M1 = m1 ? texFrom(m1) : null; d.M2 = m2 ? texFrom(m2) : null; d.hmDirty = true; },
+    setMasks(m1, m2, m3) { if (!d) return; free(d.M1); free(d.M2); free(d.M3); d.M1 = m1 ? texFrom(m1) : null; d.M2 = m2 ? texFrom(m2) : null; d.M3 = m3 ? texFrom(m3) : null; d.hmDirty = true; },
+    setLocalMasks(m) { if (!d) return; free(d.LMK); d.LMK = m ? texData(m.w, m.h, m.data) : null; },
     setSeg(seg) { if (!d) return; free(d.SEG); free(d.SEG2); d.SEG = seg ? texData(seg.w, seg.h, seg.data) : null; d.SEG2 = seg && seg.data2 ? texData(seg.w, seg.h, seg.data2) : null; d.hmDirty = true; },
     setDisp(disp) { if (!d) return; free(d.D); d.D = disp ? texData(disp.w, disp.h, disp.data, true) : null; },
     setCurve(lut) { if (this.crv) free(this.crv); this.crv = texData(256, 1, lut); },
@@ -1020,7 +1073,7 @@ void main(){
       const fa = d.W / d.H, ia = this.bgiAR || 1;
       const fit = ia > fa ? [(1 - fa / ia) / 2, 0, fa / ia, 1] : [0, (1 - ia / fa) / 2, 1, ia / fa];
       run(P.main, d.C, d.W, d.H,
-        { S: d.S, L: d.L.t, B: d.B.t, BL: d.BL.t, G1: d.G1.t, G2: d.G2.t, G3: d.G3.t, M1: d.M1, M2: d.M2, SEG: d.SEG, SEG2: d.SEG2, BGI: this.bgi, CRV: this.crv, HM: d.HM.t },
+        { S: d.S, L: d.L.t, B: d.B.t, BL: d.BL.t, G1: d.G1.t, G2: d.G2.t, G3: d.G3.t, M1: d.M1, M2: d.M2, M3: d.M3, SEG: d.SEG, SEG2: d.SEG2, LMK: d.LMK, BGI: this.bgi, CRV: this.crv, HM: d.HM.t },
         Object.assign({ px: [1 / d.W, 1 / d.H], fineR: Math.max(1, Math.max(d.W, d.H) / 1600), hasSeg: d.SEG ? 1 : 0, hasLm: d.M1 ? 1 : 0, hasBgi: this.bgi ? 1 : 0, bgiFit: fit, aspN: [d.W / Math.max(d.W, d.H), d.H / Math.max(d.W, d.H)] }, u));
     },
     drawFinal(u, tgt) {
@@ -1103,7 +1156,31 @@ function drawMasks(faces, W, H) {
   layer((x, P, f, ew) => { x.filter = `blur(${ew * 0.1}px)`; poly(x, P, LM.oval); x.fill(); });
   // Packed as raw bytes (not through a canvas, which would premultiply and lose the mask values).
   const raw = (a, b, c, d) => { const o = new Uint8Array(w * h * 4); for (let i = 0; i < w * h * 4; i += 4) { o[i] = a[i + 3]; o[i + 1] = b[i + 3]; o[i + 2] = c[i + 3]; o[i + 3] = d[i + 3]; } return { w, h, data: o }; };
-  return { m1: raw(layers[0], layers[1], layers[2], layers[3]), m2: raw(layers[4], layers[5], layers[6], layers[7]) };
+  // contour (shading): under the cheekbones, along the jaw, the hairline and the sides of the nose
+  layer((x, P, f, ew) => {
+    const fw = dist(P(234), P(454)), lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    x.filter = `blur(${fw * 0.055}px)`; x.lineCap = 'round'; x.lineJoin = 'round';
+    const line = (pts, w) => { x.lineWidth = w; x.beginPath(); pts.forEach((p, i) => i ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y)); x.stroke(); };
+    for (const [side, low, mouth] of [[234, 132, 61], [454, 361, 291]]) {
+      const a = lerp(P(side), P(low), 0.35), b = lerp(a, P(mouth), 0.5);
+      line([a, lerp(b, P(side), 0.05)], fw * 0.09);
+    }
+    x.globalAlpha = 0.75; line([132, 58, 172, 136, 150, 149, 176, 148, 152, 377, 400, 378, 379, 365, 397, 288, 361].map(P), fw * 0.06);
+    x.globalAlpha = 0.6; line([127, 162, 21, 54, 103, 67, 109, 10, 338, 297, 332, 284, 251, 389, 356].map(P), fw * 0.07);
+    x.globalAlpha = 0.55; line([P(193), P(129)], fw * 0.035); line([P(417), P(358)], fw * 0.035);
+  });
+  // highlight: nose bridge, tops of the cheekbones, centre of the forehead, chin, cupid's bow
+  layer((x, P, f, ew) => {
+    const fw = dist(P(234), P(454)), fh = dist(P(10), P(152)), lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    x.filter = `blur(${fw * 0.045}px)`; x.lineCap = 'round';
+    x.lineWidth = fw * 0.04; x.beginPath(); [168, 6, 197, 195].map(P).forEach((p, i) => i ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y)); x.stroke();
+    const dot = (p, r) => { x.beginPath(); x.arc(p.x, p.y, r, 0, 7); x.fill(); };
+    dot(lerp(P(117), P(50), 0.3), fw * 0.06); dot(lerp(P(346), P(280), 0.3), fw * 0.06);
+    dot(P(151), fw * 0.08); dot(lerp(P(152), P(17), 0.45), fw * 0.05);
+    const up = { x: (P(10).x - P(152).x) / fh, y: (P(10).y - P(152).y) / fh };
+    dot({ x: P(0).x + up.x * fh * 0.015, y: P(0).y + up.y * fh * 0.015 }, fw * 0.02);
+  });
+  return { m1: raw(layers[0], layers[1], layers[2], layers[3]), m2: raw(layers[4], layers[5], layers[6], layers[7]), m3: raw(layers[8], layers[9], layers[8].map(() => 0), layers[8].map(() => 255)) };
 }
 
 // ---------------------------------------------------------------- warps (face reshape + liquify)
@@ -1173,11 +1250,13 @@ function healOne(ctx, W, H, hl) {
     const k = (j * size + i) * 4; if (!t[k + 3] || !s[k + 3]) continue;
     for (let c = 0; c < 3; c++) { mt[c] += t[k + c]; ms[c] += s[k + c]; } n++;
   }
-  const off = n ? mt.map((v, c) => (v - ms[c]) / n) : [0, 0, 0];
+  // healing matches the colour of the surroundings; cloning copies the source exactly
+  const off = n && !hl.clone ? mt.map((v, c) => (v - ms[c]) / n) : [0, 0, 0];
+  const e0 = hl.clone ? 0.55 : 0.5, e1 = hl.clone ? 0.45 : 0.6;
   for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
     const dd = Math.hypot(i - Rr, j - Rr), k = (j * size + i) * 4;
     if (!t[k + 3] || !s[k + 3]) continue;
-    const e = clamp((dd - r * 0.5) / (r * 0.6), 0, 1), w = 1 - e * e * (3 - 2 * e);
+    const e = clamp((dd - r * e0) / (r * e1), 0, 1), w = 1 - e * e * (3 - 2 * e);
     if (w <= 0) continue;
     for (let c = 0; c < 3; c++) t[k + c] = t[k + c] * (1 - w) + clamp(s[k + c] + off[c], 0, 255) * w;
   }
@@ -1272,7 +1351,7 @@ let selected = new Set();
 let tab = 'portrait', tool = 'pan', liqMode = 'push';
 let zoom = 1, panX = 0, panY = 0, split = -1, holdOrig = false;
 let clipboard = null;
-const flags = { main: true, disp: true, snap: false };
+const flags = { main: true, disp: true, snap: false, lmask: true };
 let raf = 0;
 const ui = {};               // slider elements by key
 
@@ -1286,7 +1365,7 @@ function wantSnap() { clearTimeout(snapTimer); snapTimer = setTimeout(() => { fl
 
 function bindMasksAndWarp(p) {
   if (!R.loaded) return;
-  if (p.an && p.an.faces.length) { const mk = p.masks || (p.masks = drawMasks(p.an.faces, p.w, p.h)); R.setMasks(texFromRaw(mk.m1), texFromRaw(mk.m2)); }
+  if (p.an && p.an.faces.length) { const mk = p.masks || (p.masks = drawMasks(p.an.faces, p.w, p.h)); R.setMasks(texFromRaw(mk.m1), texFromRaw(mk.m2), texFromRaw(mk.m3)); }
   else R.setMasks(null, null);
   R.setSeg(p.an ? p.an.seg : null);
 }
@@ -1314,14 +1393,19 @@ function mainUniforms(s) {
     shine: k(s.shine), even_: k(s.evenTone), sBright: k(s.skinBright), sWarm: k(s.skinWarm), body: k(s.bodySmooth),
     hairDye: k(s.hairDye), hairShine: k(s.hairShine), hairBright: k(s.hairBright), hairSmooth: k(s.hairSmooth), flyA: k(s.flyaways), hairCol: hex2rgb(s.hairColor),
     clothWr: k(s.clothWrinkle), clothA: k(s.clothColorAmt), clothBr: k(s.clothBright), clothSat: k(s.clothSat), clothCol: hex2rgb(s.clothColor),
-    eyeB: k(s.eyeBright), eyeW: k(s.eyeWhite), teeth: k(s.teeth), lipA: k(s.lipAmt), blushA: k(s.blushAmt), lipC: hex2rgb(s.lipColor), blushC: hex2rgb(s.blushColor),
+    contourA: k(s.contour), highA: k(s.highlight), eyeB: k(s.eyeBright), eyeW: k(s.eyeWhite), teeth: k(s.teeth), lipA: k(s.lipAmt), blushA: k(s.blushAmt), lipC: hex2rgb(s.lipColor), blushC: hex2rgb(s.blushColor),
     bgMode: { none: 0, blur: 1, color: 2, image: 3 }[s.bgMode] || 0, bgEdge: k(s.bgEdge), bgClean: k(s.bgClean), bgBright: k(s.bgBright), bgSat: k(s.bgSat), bgCol: hex2rgb(s.bgColor),
     expo: s.exposure, contr: k(s.contrast), hiL: k(s.highlights), shL: k(s.shadows), whi: k(s.whites), bla: k(s.blacks),
     temp: k(s.temp), tint: k(s.tint), vib: k(s.vibrance), sat: k(s.saturation), clar: k(s.clarity), textr: k(s.texture), dehaze: k(s.dehaze), sharp: k(s.sharpen), fade: k(s.fade),
     hslH: s.hslH.map(k), hslS: s.hslS.map(k), hslL: s.hslL.map(k),
     gSh: [s.gShH / 360, k(s.gShS)], gMi: [s.gMiH / 360, k(s.gMiS)], gHi: [s.gHiH / 360, k(s.gHiS)], gBal: k(s.gBal),
-    ...lightUniforms(s),
+    ...lightUniforms(s), ...maskUniforms(s),
   };
+}
+function maskUniforms(s) {
+  const ms = (s.masks || []).slice(0, 4), A = new Float32Array(16), B = new Float32Array(16);
+  ms.forEach((m, i) => { const a = m.adj; A.set([a.exposure, a.contrast / 100, a.highlights / 100, a.shadows / 100], i * 4); B.set([a.temp / 100, a.tint / 100, a.saturation / 100, a.clarity / 100], i * 4); });
+  return { nM: ms.length, mA: { v4: A }, mB: { v4: B } };
 }
 const TARGETS = { subject: 0, background: 1, all: 2 };
 const GOBOS = [['none', 'None'], ['blinds', 'Blinds'], ['window', 'Window'], ['leaves', 'Leaves'], ['water', 'Water'], ['dots', 'Dots'], ['lattice', 'Lattice'], ['beams', 'Beams']];
@@ -1381,8 +1465,9 @@ function finalUniforms(s, g) { return { M: g.M, vig: s.vignette / 100, vigMid: s
 function frame() {
   raf = 0;
   if (!cur || !R.loaded) return;
-  const s = previewS || cur.s, [W, H] = R.size;
+  const s = cur.s, [W, H] = R.size;
   if (flags.disp) { flags.disp = false; R.setDisp(buildDisp(allOps(cur, s), W, H)); }
+  if (flags.lmask) { flags.lmask = false; cur.lmask = buildLocalMasks(cur, s); cur.lmaskOv = null; R.setLocalMasks(cur.lmask); }
   if (flags.main) { flags.main = false; R.drawMain(Object.assign(mainUniforms(s), photoUniforms(cur)), bgBlurRad(s)); }
   sizes();
   const g = curGeom(), v = viewRect(g), CW = R.canvas.width, CH = R.canvas.height;
@@ -1447,6 +1532,7 @@ function drawOverlay(g, v) {
     x.lineWidth = 4 * dpr; const L = 18 * dpr;
     for (const [px, py, sx, sy] of [[rx, ry, 1, 1], [rx + rw, ry, -1, 1], [rx, ry + rh, 1, -1], [rx + rw, ry + rh, -1, -1]]) { x.beginPath(); x.moveTo(px + sx * L, py); x.lineTo(px, py); x.lineTo(px, py + sy * L); x.stroke(); }
   }
+  if (tab === 'masks') drawMaskOverlay(x, g, v, dpr);
   if (tab === 'light') {
     const [W, H] = R.size, toScr = (u, w) => { const q = ap(g.Ainv, u, w); return [v.x + q[0] * v.dw, v.y + q[1] * v.dh]; };
     x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = `bold ${10 * dpr}px system-ui`;
@@ -1473,7 +1559,16 @@ function drawOverlay(g, v) {
     x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(10 * dpr, 10 * dpr, 64 * dpr, 22 * dpr); x.fillRect(c.width - 74 * dpr, 10 * dpr, 64 * dpr, 22 * dpr);
     x.fillStyle = '#fff'; x.fillText('Before', 42 * dpr, 21 * dpr); x.fillText('After', c.width - 42 * dpr, 21 * dpr);
   }
-  if ((tool === 'heal' || tool === 'liquify') && pointer && !cropMode()) {
+  if (tool === 'clone' && cloneSrc && !cropMode()) {
+    // the source: a crosshair circle, moving with the brush while painting
+    let su = cloneSrc.u, sv = cloneSrc.v;
+    if (drag && drag.type === 'clone' && drag.last) { su = drag.last.u + drag.dx; sv = drag.last.v + drag.dy; }
+    const q = ap(g.Ainv, su, sv), sx = v.x + q[0] * v.dw, sy = v.y + q[1] * v.dh, r = +$('brushSize').value / 2 * dpr;
+    x.strokeStyle = 'rgba(37,208,230,.95)'; x.lineWidth = 1.5 * dpr; x.setLineDash([4 * dpr, 3 * dpr]);
+    x.beginPath(); x.arc(sx, sy, r, 0, 7); x.stroke(); x.setLineDash([]);
+    x.beginPath(); x.moveTo(sx - 6 * dpr, sy); x.lineTo(sx + 6 * dpr, sy); x.moveTo(sx, sy - 6 * dpr); x.lineTo(sx, sy + 6 * dpr); x.stroke();
+  }
+  if ((tool === 'heal' || tool === 'clone' || tool === 'liquify') && pointer && !cropMode()) {
     const r = +$('brushSize').value / 2 * dpr;
     x.strokeStyle = 'rgba(255,255,255,.9)'; x.lineWidth = 1.5 * dpr; x.beginPath(); x.arc(pointer[0], pointer[1], r, 0, 7); x.stroke();
     x.strokeStyle = 'rgba(0,0,0,.6)'; x.beginPath(); x.arc(pointer[0], pointer[1], r + 1.5 * dpr, 0, 7); x.stroke();
@@ -1487,10 +1582,10 @@ function toSource(dx, dy) {
   const [u, w] = ap(g.A, q[0], q[1]);
   return { u, v: w, q, g, view: v };
 }
-function brushN(v, g) {
+function brushN(v, g, sizePx) {
   // device px per output px is v.sc; output px are frame px, which are source px * z
   const [W, H] = R.size;
-  return (+$('brushSize').value / 2 * (window.devicePixelRatio || 1)) / v.sc / g.z / Math.max(W, H);
+  return ((sizePx || +$('brushSize').value) / 2 * (window.devicePixelRatio || 1)) / v.sc / g.z / Math.max(W, H);
 }
 
 // ---------------------------------------------------------------- photo loading
@@ -1572,7 +1667,7 @@ function faceStats(p) {
 }
 // Per-photo shader inputs: measured skin tone and the "down the face" direction for the under-eye fix.
 function photoUniforms(p) {
-  const u = { hasSkin: 0, skinC: [0, 0], skinT: [1, 1], downUV: [0, 0.03], nF: 0, fE: { v4: new Float32Array(24) } };
+  const u = { hasSkin: 0, skinC: [0, 0], skinT: [1, 1], downUV: [0, 0.03], nF: 0, fE: { v4: new Float32Array(24) }, fwN: faceN(p) || 0.25 };
   const st = p.stats;
   if (st) { u.hasSkin = 1; u.skinC = [st.skin.cb, st.skin.cr]; u.skinT = [Math.max(st.skin.sb * 2.5, 0.02), Math.max(st.skin.sr * 2.5, 0.02)]; }
   if (p.an && p.an.faces.length) {
@@ -1628,7 +1723,7 @@ async function bindPhoto(p) {
   bindMasksAndWarp(p);
   R.setCurve(curveLUT(p.s.curve));
   await bindBgImage(p.s.bgImage);
-  flags.main = true; flags.disp = true;
+  flags.main = true; flags.disp = true; flags.lmask = true;
 }
 let openToken = 0;
 async function open(p) {
@@ -1639,7 +1734,7 @@ async function open(p) {
   try { await bindPhoto(p); } catch (e) { console.error(e); busy('Could not open this photo.'); return; }
   if (tok !== openToken) return;
   zoom = 1; panX = panY = 0;
-  syncUI(); invalidate(); wantSnap(); scheduleLookThumbs();
+  syncUI(); invalidate(); wantSnap();
   busy('');
   if (!p.an && !p.anFail) {
     AI.chip('Finding faces…');
@@ -1667,14 +1762,15 @@ function commit() {
   if (j === cur.last) return;
   cur.undo.push(cur.last); if (cur.undo.length > 80) cur.undo.shift();
   cur.redo = []; cur.last = j;
-  saveSoon(cur); markEdited(cur); updateUndo(); wantSnap(); scheduleLookThumbs();
+  saveSoon(cur); markEdited(cur); updateUndo(); wantSnap();
 }
 function restore(json) {
   const old = cur.s; cur.s = JSON.parse(json); cur.last = json;
   if (JSON.stringify(old.heals) !== JSON.stringify(cur.s.heals)) { cur.healed = applyHeals(cur.prev, cur.s.heals); R.setHealed(cur.healed); }
   R.setCurve(curveLUT(cur.s.curve));
   if (old.bgImage !== cur.s.bgImage) bindBgImage(cur.s.bgImage).then(() => invalidate());
-  syncUI(); flags.disp = true; invalidate(); saveSoon(cur); markEdited(cur); updateUndo(); wantSnap();
+  if (!cur.s.masks) cur.s.masks = [];
+  syncUI(); flags.disp = true; flags.lmask = true; invalidate(); saveSoon(cur); markEdited(cur); updateUndo(); wantSnap();
 }
 function undo() { if (!cur || !cur.undo.length) return; commit(); if (!cur.undo.length) return; cur.redo.push(cur.last); restore(cur.undo.pop()); }
 function redo() { if (!cur || !cur.redo.length) return; cur.undo.push(cur.last); restore(cur.redo.pop()); }
@@ -1831,6 +1927,8 @@ function buildPanels() {
   b = section('portrait', 'Makeup', 'makeup', false);
   sliderRow('lipAmt', b); swatches(b, 'lipColor', ['#b8344f', '#d0475f', '#c2185b', '#a83c32', '#e57373', '#8e2440', '#d98a8a']);
   sliderRow('blushAmt', b); swatches(b, 'blushColor', ['#e2777a', '#f08a9a', '#e59a7a', '#d46a7e', '#f4a2a2']);
+  sliderRow('contour', b); sliderRow('highlight', b);
+  note(b, 'Contour shades under the cheekbones, the jaw, the hairline and the sides of the nose; highlight lifts the nose bridge, cheekbones, forehead and chin.');
   b = section('portrait', 'Hair', 'hair', false);
   note(b, 'The AI finds the hair. Remove flyaways cleans stray strands at the edge of the hair against the background.');
   ['flyaways', 'hairSmooth', 'hairShine', 'hairBright'].forEach((k) => sliderRow(k, b));
@@ -1928,6 +2026,9 @@ function buildPanels() {
   imgBox.innerHTML = '<div class="btnrow"><label class="btn">Choose image…<input type="file" id="bgFile" accept="image/*" hidden></label><span class="mut sm" id="bgImgName"></span></div>';
   h4(b, 'Clean up');
   ['bgClean', 'bgBright', 'bgSat', 'bgEdge'].forEach((k) => sliderRow(k, b));
+  // Masks
+  b = section('masks', 'Masks', null);
+  buildMasksUI(b);
   // Crop
   b = section('crop', 'Crop & rotate', 'geo');
   const ar = document.createElement('div'); ar.className = 'btnrow'; ar.id = 'aspects';
@@ -1991,6 +2092,7 @@ function drawCurve() {
 function syncUI() {
   if (!cur) return;
   for (const k in DEFS) if (ui[k]) ui[k].set(cur.s[k]);
+  ui.masks && ui.masks.set();
   for (const k of ['lipColor', 'blushColor', 'hairColor', 'clothColor', 'bgColor', 'goboColor', 'rimColor', 'goboType', 'goboFrom', 'goboTarget', 'leakStyle', 'bokehStyle', 'lights']) ui[k] && ui[k].set();
   ui.hsl.set(); drawCurve();
   document.querySelectorAll('#bgModes button').forEach((b) => b.classList.toggle('on', b.dataset.m === cur.s.bgMode));
@@ -2017,11 +2119,10 @@ function applyPresetTo(s, v, groups, amt = 1) {
   resetKeys(s, keysOf(groups));
   for (const k in v) s[k] = scalePreset(k, v[k], amt);
 }
-let lastPreset = null, previewS = null;
+let lastPreset = null;
 function presetGroups(p, groups) { return groups || p.groups || ['color']; }
 function usePreset(p, groups, el) {
   if (!cur) return;
-  previewS = null;
   if (p.auto) { lastPreset = null; $('amtBox').hidden = true; autoRetouch(); return; }
   lastPreset = { p, groups: presetGroups(p, groups) };
   applyPresetTo(cur.s, p.v, lastPreset.groups, 1);
@@ -2031,12 +2132,6 @@ function usePreset(p, groups, el) {
   $('amtBox').hidden = false; $('amtName').textContent = p.name; $('amt').value = 100; $('amtV').textContent = '100%';
   document.querySelectorAll('#left .on').forEach((x) => x.classList.remove('on')); if (el) el.classList.add('on');
 }
-function hoverPreset(p, groups) {
-  if (!cur || !R.loaded || p.auto) return;
-  previewS = clone(cur.s); applyPresetTo(previewS, p.v, presetGroups(p, groups), 1);
-  R.setCurve(curveLUT(previewS.curve)); flags.disp = true; invalidate();
-}
-function endHover() { if (!previewS || !cur) return; previewS = null; R.setCurve(curveLUT(cur.s.curve)); flags.disp = true; invalidate(); }
 $('amt').addEventListener('input', () => {
   if (!cur || !lastPreset) return;
   const a = +$('amt').value / 100; $('amtV').textContent = $('amt').value + '%';
@@ -2049,54 +2144,25 @@ function presetButton(p, groups, del, onDel) {
   const b = document.createElement('button'); b.innerHTML = `<span></span>${del ? '<span class="x" title="Delete">✕</span>' : ''}`;
   b.firstChild.textContent = p.name;
   b.addEventListener('click', (e) => { if (e.target.classList.contains('x')) { onDel(); return; } usePreset(p, groups, b); });
-  b.addEventListener('mouseenter', () => hoverPreset(p, groups)); b.addEventListener('mouseleave', endHover);
   return b;
 }
 function renderPresets() {
   const rl = $('retouchList'); rl.innerHTML = '';
   RETOUCH.forEach((p) => rl.appendChild(presetButton(p, ['portrait'])));
-  // Looks: a folder per category, each look a thumbnail of the current photo with that look
+  // Looks: a folder per category, like Lightroom's preset folders
   const ll = $('lookList'); ll.innerHTML = '';
   const cats = [...new Set(LOOKS.map((l) => l.cat))];
   cats.forEach((cat, ci) => {
     const d = document.createElement('details'); d.className = 'lcat'; d.open = ci < 2;
-    d.innerHTML = `<summary>${cat}</summary><div class="pgrid"></div>`;
-    const grid = d.querySelector('.pgrid');
-    LOOKS.filter((l) => l.cat === cat).forEach((l) => {
-      const b = document.createElement('button'); b.className = 'pth'; b.title = l.name;
-      b.innerHTML = '<img alt=""><span></span>'; b.querySelector('span').textContent = l.name;
-      l.el = b.querySelector('img');
-      b.addEventListener('click', () => usePreset(l, ['color'], b));
-      b.addEventListener('mouseenter', () => hoverPreset(l, ['color'])); b.addEventListener('mouseleave', endHover);
-      grid.appendChild(b);
-    });
-    d.addEventListener('toggle', scheduleLookThumbs);
+    d.innerHTML = `<summary>${cat}</summary><div class="plist"></div>`;
+    const list = d.querySelector('.plist');
+    LOOKS.filter((l) => l.cat === cat).forEach((l) => list.appendChild(presetButton(l, ['color'])));
     ll.appendChild(d);
   });
   const ml = $('myList'); ml.innerHTML = '';
   const mine = loadMyPresets();
   mine.forEach((p, i) => ml.appendChild(presetButton(p, null, true, () => { if (confirm(`Delete preset "${p.name}"?`)) { const l = loadMyPresets(); l.splice(i, 1); saveMyPresets(l); renderPresets(); } })));
   if (!mine.length) ml.innerHTML = '<div class="note">Set up a photo, then save its settings as a preset to reuse on other shoots.</div>';
-  scheduleLookThumbs();
-}
-// Thumbnails: the current photo (with all its other edits) rendered small with each look, one at a time so the editor stays responsive.
-let thumbTimer = 0, thumbJob = 0;
-function scheduleLookThumbs() { clearTimeout(thumbTimer); thumbTimer = setTimeout(makeLookThumbs, 900); }
-async function makeLookThumbs() {
-  if (!cur || !R.loaded || previewS || drag) { if (cur) scheduleLookThumbs(); return; }
-  const job = ++thumbJob, p = cur, [W, H] = R.size;
-  const g = geometry(p.s, W, H, false), k = 200 / Math.min(g.outW, g.outH), w = Math.max(1, Math.round(g.outW * k)), h = Math.max(1, Math.round(g.outH * k));
-  const visible = LOOKS.filter((l) => l.el && l.el.closest('details').open);
-  for (const l of visible) {
-    if (job !== thumbJob || cur !== p || previewS || drag) return;
-    const s2 = clone(p.s); applyPresetTo(s2, l.v, ['color'], 1);
-    R.setCurve(curveLUT(s2.curve));
-    R.drawMain(Object.assign(mainUniforms(s2), photoUniforms(p)), bgBlurRad(s2));
-    l.el.src = R.exportCanvas(finalUniforms(s2, g), w, h).toDataURL('image/jpeg', 0.8);
-    R.setCurve(curveLUT(p.s.curve)); flags.main = true;    // the next screen frame redraws the real edit
-    await new Promise((r) => setTimeout(r, 20));
-  }
-  invalidate();
 }
 
 // ---------------------------------------------------------------- strip
@@ -2294,6 +2360,7 @@ viewEl.addEventListener('pointerdown', (e) => {
   if (split >= 0 && Math.abs(p[0] - split * R.canvas.width) < 30 * (window.devicePixelRatio || 1)) { drag = { type: 'split' }; return; }
   if (cropMode()) { drag = cropHit(p); return; }
   if (tab === 'light') { const h = lightHit(p); if (h != null) { drag = { type: 'lightdrag', h }; if (h !== 'sun') { selLight = h; ui.lights.set(); } invalidate('view'); return; } }
+  if (tab === 'masks' && e.button !== 1 && !spaceDown && maskPointer('down', p)) return;
   if (e.button === 1 || spaceDown || tool === 'pan') { drag = { type: 'pan', x: p[0], y: p[1], px: panX, py: panY }; return; }
   const src = toSource(p[0], p[1]);
   if (tool === 'wb') {
@@ -2304,18 +2371,27 @@ viewEl.addEventListener('pointerdown', (e) => {
     setTool('pan'); return;
   }
   if (tool === 'heal') { drag = { type: 'heal', last: null }; healAt(src); return; }
+  if (tool === 'clone') {
+    if (e.altKey || pickingSource || !cloneSrc) {
+      if (!cloneSrc && !e.altKey && !pickingSource) { busy('Clone: first Option/Alt-click (or tap ⊕ Set source) where to copy from.'); setTimeout(() => busy(''), 2500); return; }
+      cloneSrc = { u: src.u, v: src.v }; pickingSource = false; $('cloneSrcBtn').classList.remove('on'); invalidate('view'); return;
+    }
+    // aligned: the offset from the first dab stays for the whole stroke, and the source moves on with it
+    drag = { type: 'clone', last: null, start: src, dx: cloneSrc.u - src.u, dy: cloneSrc.v - src.v }; cloneAt(src); return;
+  }
   if (tool === 'liquify') { drag = { type: 'liq', last: src }; if (liqMode !== 'push') liqTick(); return; }
 });
 viewEl.addEventListener('pointermove', (e) => {
   const p = devPos(e);
   if (pts.has(e.pointerId)) pts.set(e.pointerId, p);
   pointer = p;
-  if (!drag) { if (tool === 'heal' || tool === 'liquify') invalidate('view'); return; }
+  if (!drag) { if (tool === 'heal' || tool === 'clone' || tool === 'liquify' || tab === 'masks') invalidate('view'); return; }
   if (drag.type === 'pinch' && pts.size === 2) {
     const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
     zoomAt(drag.mid, clamp(drag.z0 * d / drag.d0, 0.2, 16), drag); return;
   }
   if (drag.type === 'pan') { panX = drag.px + p[0] - drag.x; panY = drag.py + p[1] - drag.y; invalidate('view'); return; }
+  if (drag.type === 'mask') { maskPointer('move', p); return; }
   if (drag.type === 'lightdrag') {
     const s2 = toSource(p[0], p[1]), u = clamp(s2.u, 0, 1), w = clamp(s2.v, 0, 1);
     if (drag.h === 'sun') { cur.s.sunX = u; cur.s.sunY = w; } else { cur.s.lights[drag.h].x = u; cur.s.lights[drag.h].y = w; }
@@ -2324,6 +2400,7 @@ viewEl.addEventListener('pointermove', (e) => {
   if (drag.type === 'split') { split = clamp(p[0] / R.canvas.width, 0, 1); invalidate('view'); return; }
   if (drag.type && drag.type.startsWith('crop')) { cropMove(p); return; }
   if (drag.type === 'heal') { healAt(toSource(p[0], p[1])); return; }
+  if (drag.type === 'clone') { cloneAt(toSource(p[0], p[1])); return; }
   if (drag.type === 'liq' && liqMode === 'push') {
     const s2 = toSource(p[0], p[1]), [W, H] = R.size, m = Math.max(W, H), r = brushN(s2.view, s2.g);
     const a = drag.last, k = +$('brushStr').value / 100;
@@ -2343,8 +2420,9 @@ function lightHit(p) {
 function endPointer(e) {
   pts.delete(e.pointerId);
   if (!drag) return;
-  const t = drag.type; drag = null;
-  if (t === 'heal' || t === 'liq' || t === 'lightdrag' || (t && t.startsWith('crop'))) commit();
+  const t = drag.type, d0 = drag; drag = null;
+  if (t === 'clone' && d0.last) cloneSrc = { u: d0.last.u + d0.dx, v: d0.last.v + d0.dy };
+  if (t === 'heal' || t === 'clone' || t === 'liq' || t === 'lightdrag' || t === 'mask' || (t && t.startsWith('crop'))) commit();
 }
 viewEl.addEventListener('pointerup', endPointer);
 viewEl.addEventListener('pointercancel', endPointer);
@@ -2355,6 +2433,18 @@ function liqTick() {
   cur.s.liq.push(['scale', src.u * W / m, src.v * H / m, (liqMode === 'bloat' ? 1 : -1) * 0.035 * k, r]);
   invalidate('disp');
   setTimeout(liqTick, 50);
+}
+let cloneSrc = null, pickingSource = false;
+function cloneAt(src) {
+  if (src.u < 0 || src.v < 0 || src.u > 1 || src.v > 1) return;
+  const r = brushN(src.view, src.g), [W, H] = R.size, m = Math.max(W, H);
+  if (drag.last && Math.hypot((src.u - drag.last.u) * W, (src.v - drag.last.v) * H) / m < r * 0.25) return;
+  drag.last = src;
+  const h = { x: src.u, y: src.v, r, dx: drag.dx, dy: drag.dy, clone: 1 };
+  cur.s.heals.push(h);
+  if (cur.healed === cur.prev) cur.healed = applyHeals(cur.prev, cur.s.heals);
+  else healOne(cur.healed.getContext('2d', { willReadFrequently: true }), cur.healed.width, cur.healed.height, h);
+  R.setHealed(cur.healed); invalidate('main');
 }
 function healAt(src) {
   if (src.u < 0 || src.v < 0 || src.u > 1 || src.v > 1) return;
@@ -2436,11 +2526,202 @@ function setAspect(a) {
   syncUI(); invalidate('view'); commit();
 }
 
+// ---------------------------------------------------------------- masks (local adjustments, like Lightroom's Masking)
+// Up to 4 masks per photo. Each is drawn as a grey image (1024 px on the long edge) and packed into one texture,
+// one mask per colour channel; the shader adds each mask's adjustments where it covers.
+const MASK_TYPES = { brush: 'Brush', linear: 'Linear gradient', radial: 'Radial gradient', subject: 'Subject', background: 'Background' };
+const MASK_ADJ = [['exposure', 'Exposure', -4, 4, 0.05], ['contrast', 'Contrast', -100, 100, 1], ['highlights', 'Highlights', -100, 100, 1], ['shadows', 'Shadows', -100, 100, 1],
+  ['temp', 'Temperature', -100, 100, 1], ['tint', 'Tint', -100, 100, 1], ['saturation', 'Saturation', -100, 100, 1], ['clarity', 'Clarity', -100, 100, 1]];
+let selMaskId = null, maskErase = false, maskShow = true;
+const selMask = () => cur && (cur.s.masks || []).find((m) => m.id === selMaskId) || null;
+function newMask(type) {
+  const m = { id: uid(), type, v: 1, invert: false, feather: 50, strokes: [], lin: null, rad: null, adj: {} };
+  MASK_ADJ.forEach(([k]) => m.adj[k] = 0);
+  const F = faceFrame(cur);
+  if (type === 'linear') m.lin = { x0: 0.5, y0: 0, x1: 0.5, y1: 0.45 };
+  if (type === 'radial') m.rad = { cx: F.cx / F.ax, cy: F.cy / F.ay, rx: F.fw * 1.6 / F.ax, ry: F.fw * 2 / F.ay };
+  return m;
+}
+function drawStroke(x, st, from, w, h) {
+  const M = Math.max(w, h), r = Math.max(0.5, st.r * M);
+  x.save(); x.globalCompositeOperation = st.erase ? 'destination-out' : 'source-over';
+  x.strokeStyle = x.fillStyle = '#fff'; x.lineCap = x.lineJoin = 'round'; x.lineWidth = r * 2 * (1 - st.f * 0.5);
+  if (st.f > 0) x.filter = `blur(${r * st.f * 0.6}px)`;
+  const pts = st.pts;
+  if (pts.length === 1) { x.beginPath(); x.arc(pts[0][0] * w, pts[0][1] * h, x.lineWidth / 2, 0, 7); x.fill(); }
+  else { const a = Math.max(0, from - 1); x.beginPath(); x.moveTo(pts[a][0] * w, pts[a][1] * h); for (let i = a + 1; i < pts.length; i++) x.lineTo(pts[i][0] * w, pts[i][1] * h); x.stroke(); }
+  x.restore();
+}
+function drawMaskShape(x, p, m, w, h) {
+  if (m.type === 'brush') m.strokes.forEach((st) => drawStroke(x, st, 0, w, h));
+  else if (m.type === 'linear' && m.lin) {
+    const L = m.lin, g = x.createLinearGradient(L.x0 * w, L.y0 * h, L.x1 * w, L.y1 * h);
+    g.addColorStop(0, '#fff'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+  } else if (m.type === 'radial' && m.rad) {
+    const R0 = m.rad, f = clamp(m.feather / 100, 0.02, 1);
+    x.save(); x.translate(R0.cx * w, R0.cy * h); x.scale(Math.max(1e-3, R0.rx * w), Math.max(1e-3, R0.ry * h));
+    const g = x.createRadialGradient(0, 0, 0, 0, 0, 1); g.addColorStop(0, '#fff'); g.addColorStop(1 - f, '#fff'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g; x.beginPath(); x.arc(0, 0, 1, 0, 7); x.fill(); x.restore();
+  } else if ((m.type === 'subject' || m.type === 'background') && p.an && p.an.seg) {
+    const sg = p.an.seg, c2 = document.createElement('canvas'); c2.width = sg.w; c2.height = sg.h;
+    const id = c2.getContext('2d').createImageData(sg.w, sg.h);
+    for (let i = 0; i < sg.w * sg.h; i++) { const bgv = sg.data[i * 4 + 2]; id.data[i * 4] = id.data[i * 4 + 1] = id.data[i * 4 + 2] = 255; id.data[i * 4 + 3] = m.type === 'subject' ? 255 - bgv : bgv; }
+    c2.getContext('2d').putImageData(id, 0, 0); x.imageSmoothingQuality = 'high'; x.drawImage(c2, 0, 0, w, h);
+  }
+}
+function maskCanvas(p, m, w, h) {
+  p.mcache = p.mcache || {};
+  const key = m.id + ':' + m.v + ':' + w, ck = p.mcache[m.id];
+  if (ck && ck.key === key) return ck.c;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  drawMaskShape(c.getContext('2d', { willReadFrequently: true }), p, m, w, h);
+  p.mcache[m.id] = { key, c }; return c;
+}
+const maskSize = (p) => { const W = p.w || 1, H = p.h || 1, k = 1024 / Math.max(W, H); return [Math.max(2, Math.round(W * k)), Math.max(2, Math.round(H * k))]; };
+function buildLocalMasks(p, s) {
+  const ms = (s.masks || []).slice(0, 4); if (!ms.length) return null;
+  const [w, h] = maskSize(p), out = new Uint8Array(w * h * 4);
+  ms.forEach((m, ci) => {
+    const d = maskCanvas(p, m, w, h).getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+    for (let i = 0, j = ci; i < w * h; i++, j += 4) out[j] = m.invert ? 255 - d[i * 4 + 3] : d[i * 4 + 3];
+  });
+  return { w, h, data: out };
+}
+function maskChanged(m, incremental) { if (!incremental) m.v = (m.v || 0) + 1; flags.lmask = true; invalidate('main'); }
+// Editing the selected mask on the photo: paint (brush), drag a gradient (linear), drag out or move an ellipse (radial).
+function maskPointer(kind, p) {
+  const m = selMask(); if (!m || !['brush', 'linear', 'radial'].includes(m.type)) return false;
+  const src = toSource(p[0], p[1]), u = clamp(src.u, 0, 1), v = clamp(src.v, 0, 1);
+  if (kind === 'down') {
+    if (m.type === 'brush') {
+      const st = { erase: maskErase ? 1 : 0, r: brushN(src.view, src.g, +$('maskSize').value), f: m.feather / 100, pts: [[u, v]] };
+      m.strokes.push(st); m.v++; strokeTo(m, st, 0); drag = { type: 'mask' }; return true;
+    }
+    if (m.type === 'linear') { m.lin = { x0: u, y0: v, x1: u, y1: v + 0.001 }; drag = { type: 'mask', lin: true }; maskChanged(m); return true; }
+    const R0 = m.rad;
+    if (R0 && Math.hypot((u - R0.cx) / R0.rx, (v - R0.cy) / R0.ry) < 0.4) drag = { type: 'mask', move: [u - R0.cx, v - R0.cy] };
+    else { m.rad = { cx: u, cy: v, rx: 0.01, ry: 0.01 }; drag = { type: 'mask', rad: true }; }
+    maskChanged(m); return true;
+  }
+  if (m.type === 'brush') {
+    const st = m.strokes[m.strokes.length - 1], last = st.pts[st.pts.length - 1], M = Math.max(cur.w, cur.h);
+    if (Math.hypot((u - last[0]) * cur.w, (v - last[1]) * cur.h) / M < st.r * 0.25) return true;
+    st.pts.push([u, v]); m.v++; strokeTo(m, st, st.pts.length - 1);
+  } else if (drag.lin) { m.lin.x1 = u; m.lin.y1 = v; maskChanged(m); }
+  else if (drag.rad) { m.rad.rx = Math.max(0.01, Math.abs(u - m.rad.cx)); m.rad.ry = Math.max(0.01, Math.abs(v - m.rad.cy)); maskChanged(m); }
+  else if (drag.move) { m.rad.cx = u - drag.move[0]; m.rad.cy = v - drag.move[1]; maskChanged(m); }
+  return true;
+}
+// a brush stroke is added onto the cached mask image instead of redrawing every stroke
+function strokeTo(m, st, from) {
+  const ck = cur.mcache && cur.mcache[m.id], [w, h] = maskSize(cur);
+  if (ck && ck.c.width === w) { drawStroke(ck.c.getContext('2d', { willReadFrequently: true }), st, from, w, h); ck.key = m.id + ':' + m.v + ':' + w; }
+  maskChanged(m, true);
+}
+function drawMaskOverlay(x, g, v, dpr) {
+  const m = selMask(); if (!m || !cur.lmask) return;
+  const i = cur.s.masks.indexOf(m); if (i < 0 || i > 3) return;
+  const A = g.Ainv, toS = (u, w) => { const q = ap(A, u, w); return [v.x + q[0] * v.dw, v.y + q[1] * v.dh]; };
+  if (maskShow) {
+    if (!cur.lmaskOv || cur.lmaskOv.i !== i) {
+      const L = cur.lmask, c = document.createElement('canvas'); c.width = L.w; c.height = L.h;
+      const ctx = c.getContext('2d'), id = ctx.createImageData(L.w, L.h);
+      for (let k = 0; k < L.w * L.h; k++) { id.data[k * 4] = 255; id.data[k * 4 + 1] = 40; id.data[k * 4 + 2] = 70; id.data[k * 4 + 3] = L.data[k * 4 + i] * 0.5; }
+      ctx.putImageData(id, 0, 0); cur.lmaskOv = { i, c };
+    }
+    const c = cur.lmaskOv.c;
+    x.save(); x.beginPath(); x.rect(v.x, v.y, v.dw, v.dh); x.clip();
+    x.setTransform(v.dw * A[0] / c.width, v.dh * A[3] / c.width, v.dw * A[1] / c.height, v.dh * A[4] / c.height, v.x + v.dw * A[2], v.y + v.dh * A[5]);
+    x.drawImage(c, 0, 0); x.restore();
+  }
+  x.strokeStyle = '#fff'; x.lineWidth = 1.5 * dpr;
+  if (m.type === 'linear' && m.lin) {
+    const a = toS(m.lin.x0, m.lin.y0), b = toS(m.lin.x1, m.lin.y1), dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l * 2000, ny = dx / l * 2000;
+    for (const [p, dash] of [[a, []], [b, [6 * dpr, 5 * dpr]]]) { x.setLineDash(dash); x.beginPath(); x.moveTo(p[0] - nx, p[1] - ny); x.lineTo(p[0] + nx, p[1] + ny); x.stroke(); }
+    x.setLineDash([]); x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.stroke();
+  }
+  if (m.type === 'radial' && m.rad) {
+    const R0 = m.rad; x.beginPath();
+    for (let k = 0; k <= 64; k++) { const t = k / 64 * Math.PI * 2, q = toS(R0.cx + Math.cos(t) * R0.rx, R0.cy + Math.sin(t) * R0.ry); k ? x.lineTo(q[0], q[1]) : x.moveTo(q[0], q[1]); }
+    x.stroke(); const c0 = toS(R0.cx, R0.cy); x.beginPath(); x.arc(c0[0], c0[1], 5 * dpr, 0, 7); x.stroke();
+  }
+  if (m.type === 'brush' && pointer) {
+    const r = +$('maskSize').value / 2 * dpr; x.setLineDash(maskErase ? [4 * dpr, 4 * dpr] : []);
+    x.beginPath(); x.arc(pointer[0], pointer[1], r, 0, 7); x.stroke(); x.setLineDash([]);
+  }
+}
+function buildMasksUI(b) {
+  note(b, 'Adjust just part of the photo. Add a mask, shape it on the photo, then set its sliders. Up to 4 masks per photo.');
+  const add = document.createElement('div'); add.className = 'btnrow';
+  add.innerHTML = Object.entries(MASK_TYPES).map(([k, n]) => `<button data-mt="${k}">＋ ${n}</button>`).join('');
+  b.appendChild(add);
+  const list = document.createElement('div'); list.className = 'plist'; b.appendChild(list);
+  const props = document.createElement('div'); b.appendChild(props);
+  props.innerHTML = `<div class="btnrow"><label class="ck sm" style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="mInvert"> Invert</label>
+    <label class="ck sm" style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="mShow" checked> Show mask (red)</label></div>
+    <div id="mBrush"><div class="seg" id="mMode" style="margin:6px 0"><button data-e="0" class="on">Paint</button><button data-e="1">Erase</button></div>
+      <div class="row"><label>Brush size</label><span class="val" id="maskSizeV"></span><input type="range" id="maskSize" min="6" max="400" value="80"></div></div>
+    <div class="row" id="mFeatherRow"><label>Feather</label><span class="val" id="mFeatherV"></span><input type="range" id="mFeather" min="0" max="100"></div>
+    <div class="note" id="mHint"></div><div class="h4">Adjustments</div><div id="mAdj"></div>
+    <div class="btnrow"><button id="mReset">Reset sliders</button><button id="mDel" style="color:#f19a9a">Delete mask</button></div>`;
+  const adj = props.querySelector('#mAdj');
+  const rows = MASK_ADJ.map(([k, lab, mn, mx, st]) => {
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = `<label title="Double-click to reset">${lab}</label><span class="val"></span><input type="range" min="${mn}" max="${mx}" step="${st}">`;
+    const inp = row.querySelector('input'), val = row.querySelector('.val');
+    const show = (x) => { val.textContent = k === 'exposure' ? (x > 0 ? '+' : '') + (+x).toFixed(2) : Math.round(x); row.classList.toggle('changed', +x !== 0); };
+    inp.addEventListener('input', () => { const m = selMask(); if (!m) return; m.adj[k] = +inp.value; show(inp.value); invalidate('main'); });
+    inp.addEventListener('change', commit);
+    row.querySelector('label').addEventListener('dblclick', () => { const m = selMask(); if (!m) return; m.adj[k] = 0; inp.value = 0; show(0); invalidate('main'); commit(); });
+    adj.appendChild(row); return { k, inp, show };
+  });
+  const hints = { brush: 'Paint on the photo where the adjustments should go. Erase takes them away. Hold Space to move around.', linear: 'Drag on the photo: full effect where you start, fading out to where you let go (e.g. darken a sky from the top).', radial: 'Drag out an ellipse on the photo. Drag its centre to move it. Feather softens the edge.', subject: 'The people, found by AI.', background: 'Everything except the people, found by AI.' };
+  function refresh() {
+    const ms = cur ? cur.s.masks || [] : [];
+    if (!ms.find((m) => m.id === selMaskId)) selMaskId = ms.length ? ms[ms.length - 1].id : null;
+    list.innerHTML = '';
+    ms.forEach((m, i) => {
+      const bt = document.createElement('button'); bt.className = m.id === selMaskId ? 'on' : '';
+      const used = MASK_ADJ.filter(([k]) => m.adj[k]).length;
+      bt.innerHTML = `<span>${i + 1} · ${MASK_TYPES[m.type]}${m.invert ? ' (inverted)' : ''}</span><span class="mut sm">${used ? used + ' adj.' : ''}</span>`;
+      bt.addEventListener('click', () => { selMaskId = m.id; cur.lmaskOv = null; refresh(); invalidate('view'); });
+      list.appendChild(bt);
+    });
+    add.querySelectorAll('button').forEach((x) => x.disabled = !cur || ms.length >= 4);
+    const m = selMask(); props.hidden = !m; if (!m) return;
+    props.querySelector('#mInvert').checked = m.invert;
+    props.querySelector('#mBrush').hidden = m.type !== 'brush';
+    props.querySelector('#mFeatherRow').hidden = !['brush', 'radial'].includes(m.type);
+    props.querySelector('#mFeather').value = m.feather; props.querySelector('#mFeatherV').textContent = m.feather;
+    props.querySelector('#maskSizeV').textContent = props.querySelector('#maskSize').value;
+    props.querySelector('#mHint').textContent = hints[m.type];
+    rows.forEach((r) => { r.inp.value = m.adj[r.k]; r.show(m.adj[r.k]); });
+  }
+  add.addEventListener('click', (e) => {
+    const t = e.target.dataset.mt; if (!t || !cur) return;
+    if (!cur.s.masks) cur.s.masks = [];
+    if ((t === 'subject' || t === 'background') && !(cur.an && cur.an.seg)) { busy('The AI has not finished finding the people yet.'); setTimeout(() => busy(''), 2000); return; }
+    const m = newMask(t); cur.s.masks.push(m); selMaskId = m.id; maskShow = true; props.querySelector('#mShow').checked = true;
+    setTool('pan'); refresh(); maskChanged(m); commit();
+  });
+  props.querySelector('#mInvert').addEventListener('change', (e) => { const m = selMask(); if (!m) return; m.invert = e.target.checked; cur.lmaskOv = null; maskChanged(m); refresh(); commit(); });
+  props.querySelector('#mShow').addEventListener('change', (e) => { maskShow = e.target.checked; invalidate('view'); });
+  props.querySelector('#mMode').addEventListener('click', (e) => { const x = e.target.dataset.e; if (x == null) return; maskErase = x === '1'; props.querySelectorAll('#mMode button').forEach((q) => q.classList.toggle('on', q === e.target)); });
+  props.querySelector('#maskSize').addEventListener('input', () => { props.querySelector('#maskSizeV').textContent = props.querySelector('#maskSize').value; invalidate('view'); });
+  props.querySelector('#mFeather').addEventListener('input', (e) => { const m = selMask(); if (!m) return; m.feather = +e.target.value; props.querySelector('#mFeatherV').textContent = m.feather; if (m.type === 'radial') maskChanged(m); });
+  props.querySelector('#mFeather').addEventListener('change', commit);
+  props.querySelector('#mReset').addEventListener('click', () => { const m = selMask(); if (!m) return; MASK_ADJ.forEach(([k]) => m.adj[k] = 0); refresh(); invalidate('main'); commit(); });
+  props.querySelector('#mDel').addEventListener('click', () => { const m = selMask(); if (!m) return; cur.s.masks = cur.s.masks.filter((x) => x !== m); selMaskId = null; refresh(); flags.lmask = true; invalidate('main'); commit(); });
+  ui.masks = { set: refresh };
+  refresh();
+}
+
 // ---------------------------------------------------------------- tools
 function setTool(t) {
   tool = t;
   document.querySelectorAll('[data-tool]').forEach((b) => b.classList.toggle('on', b.dataset.tool === t));
-  $('brushOpts').classList.toggle('show', t === 'heal' || t === 'liquify');
+  $('brushOpts').classList.toggle('show', t === 'heal' || t === 'clone' || t === 'liquify');
+  $('cloneSrcBtn').style.display = t === 'clone' ? '' : 'none'; pickingSource = false; $('cloneSrcBtn').classList.remove('on');
   $('liqModes').style.display = t === 'liquify' ? '' : 'none';
   $('strLbl').style.display = $('brushStr').style.display = t === 'liquify' ? '' : 'none';
   viewEl.style.cursor = t === 'pan' ? 'grab' : t === 'wb' ? 'crosshair' : 'none';
@@ -2448,10 +2729,11 @@ function setTool(t) {
   invalidate('view');
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-tool]'); if (b) setTool(b.dataset.tool === tool && tool !== 'pan' ? 'pan' : b.dataset.tool); });
+$('cloneSrcBtn').addEventListener('click', () => { pickingSource = !pickingSource; $('cloneSrcBtn').classList.toggle('on', pickingSource); });
 $('liqModes').addEventListener('click', (e) => { const m = e.target.dataset.lm; if (!m) return; liqMode = m; $('liqModes').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === e.target)); });
 $('clearBrush').addEventListener('click', () => {
   if (!cur) return;
-  if (tool === 'heal') { cur.s.heals = []; cur.healed = cur.prev; R.setHealed(cur.prev); invalidate('main'); }
+  if (tool === 'heal' || tool === 'clone') { cur.s.heals = []; cur.healed = cur.prev; R.setHealed(cur.prev); invalidate('main'); }
   if (tool === 'liquify') { cur.s.liq = []; invalidate('disp'); }
   commit();
 });
@@ -2488,6 +2770,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target.matches('input[type=range]')) return;
   if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const i = photos.indexOf(cur) + (e.key === 'ArrowRight' ? 1 : -1); if (photos[i]) { commit(); open(photos[i]); } }
   if (e.key === 'h' || e.key === 'H') setTool(tool === 'heal' ? 'pan' : 'heal');
+  if (e.key === 's' || e.key === 'S') setTool(tool === 'clone' ? 'pan' : 'clone');
   if (e.key === 'l' || e.key === 'L') setTool(tool === 'liquify' ? 'pan' : 'liquify');
   if (e.key === 'Escape') setTool('pan');
   if (e.key === '=' || e.key === '+') $('zoomIn').click();
@@ -2684,6 +2967,7 @@ async function renderFull(p, longEdge, fmt, q, wm) {
   R.load(raw, healed, faceN(p));
   bindMasksAndWarp(p);
   R.setDisp(buildDisp(allOps(p), W, H));
+  R.setLocalMasks(buildLocalMasks(p, p.s));
   R.setCurve(curveLUT(p.s.curve));
   await bindBgImage(p.s.bgImage);
   R.drawMain(Object.assign(mainUniforms(p.s), photoUniforms(p)), bgBlurRad(p.s));
