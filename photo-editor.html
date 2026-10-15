@@ -183,12 +183,14 @@ dialog .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
     <nav id="tabs">
       <button data-tab="portrait" class="on">Portrait</button>
       <button data-tab="adjust">Adjust</button>
+      <button data-tab="light">Light</button>
       <button data-tab="bg">Background</button>
       <button data-tab="crop">Crop</button>
     </nav>
     <div id="panes">
       <section data-pane="portrait"></section>
       <section data-pane="adjust" hidden></section>
+      <section data-pane="light" hidden></section>
       <section data-pane="bg" hidden></section>
       <section data-pane="crop" hidden></section>
     </div>
@@ -210,6 +212,7 @@ dialog .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
   <div class="note" id="syncNote"></div>
   <label class="ck"><input type="checkbox" data-g="portrait" checked> Portrait retouch (skin, face shape, eyes, teeth, makeup)</label>
   <label class="ck"><input type="checkbox" data-g="color" checked> Light &amp; colour (including curves, HSL, grading, effects)</label>
+  <label class="ck"><input type="checkbox" data-g="creative" checked> Creative light (studio lights, patterns, glow, rays)</label>
   <label class="ck"><input type="checkbox" data-g="bg" checked> Background</label>
   <label class="ck"><input type="checkbox" data-g="geo"> Crop &amp; rotate</label>
   <div class="f" id="presetNameRow"><span>Preset name</span><input type="text" id="presetName" maxlength="40" placeholder="e.g. Graduation clean"></div>
@@ -260,6 +263,13 @@ const DEFS = {
   gHiH: S('Hue', 0, 360, 45), gHiS: S('Amount', 0, 100), gBal: S('Balance', -100, 100),
   bgBlur: S('Blur amount', 0, 100, 50), bgClean: S('Clean backdrop (wrinkles, seams)', 0, 100), bgBright: S('Background brightness', -100, 100),
   bgSat: S('Background saturation', -100, 100), bgEdge: S('Edge softness', 0, 100, 30),
+  ambient: S('Scene brightness', -100, 100), shape3d: S('3D shaping', 0, 100, 60),
+  goboAmt: S('Strength', 0, 100, 50), goboScale: S('Size', 0, 100, 50), goboAngle: S('Angle', -90, 90, -20, 1, (v) => v + '°'), goboSoft: S('Softness', 0, 100, 30),
+  glow: S('Glow', 0, 100), orton: S('Dreamy (Orton)', 0, 100), halation: S('Halation', 0, 100),
+  sunAmt: S('Sun rays', 0, 100), sunLen: S('Ray length', 0, 100, 60), sunWarm: S('Warmth', 0, 100, 60), flare: S('Lens flare', 0, 100),
+  rimAmt: S('Rim light', 0, 100), rimWidth: S('Width', 0, 100, 40), rimAngle: S('Comes from', -180, 180, 0, 1, (v) => v + '°'),
+  leakAmt: S('Strength', 0, 100, 50), leakAngle: S('Direction', -180, 180, 180, 1, (v) => v + '°'),
+  bokehAmt: S('Bokeh lights', 0, 100), bokehSize: S('Size', 0, 100, 50),
   straighten: S('Straighten', -45, 45, 0, 0.1, (v) => v.toFixed(1) + '°'),
 };
 const HSL_NAMES = ['Red', 'Orange', 'Yellow', 'Green', 'Aqua', 'Blue', 'Purple', 'Magenta'];
@@ -272,6 +282,7 @@ function defaults() {
     lipColor: '#b8344f', blushColor: '#e2777a', hslH: Array(8).fill(0), hslS: Array(8).fill(0), hslL: Array(8).fill(0),
     curve: { rgb: flatCurve(), r: flatCurve(), g: flatCurve(), b: flatCurve() },
     bgMode: 'none', bgColor: '#ffffff', bgImage: null,
+    lights: [], goboType: 'none', goboColor: '#ffe6bd', goboTarget: 'all', sunX: 0.85, sunY: 0.12, rimColor: '#ffffff', leakStyle: 'none', bokehStyle: 'warm',
     crop: { x: 0, y: 0, w: 1, h: 1 }, rot90: 0, flipH: false, aspect: 'free',
     heals: [], liq: [],
   });
@@ -289,11 +300,16 @@ const GROUP_KEYS = {
   grade: ['gShH', 'gShS', 'gMiH', 'gMiS', 'gHiH', 'gHiS', 'gBal'],
   detail: ['clarity', 'texture', 'dehaze', 'sharpen'],
   effects: ['vignette', 'vigMid', 'grain', 'fade'],
+  relight: ['lights', 'ambient', 'shape3d'],
+  gobo: ['goboType', 'goboAmt', 'goboScale', 'goboAngle', 'goboSoft', 'goboColor', 'goboTarget'],
+  glowfx: ['glow', 'orton', 'halation'], sunfx: ['sunAmt', 'sunX', 'sunY', 'sunLen', 'sunWarm', 'flare'], rimfx: ['rimAmt', 'rimWidth', 'rimAngle', 'rimColor'],
+  leakfx: ['leakStyle', 'leakAmt', 'leakAngle'], bokehfx: ['bokehAmt', 'bokehSize', 'bokehStyle'],
   bg: ['bgMode', 'bgBlur', 'bgClean', 'bgBright', 'bgSat', 'bgEdge', 'bgColor', 'bgImage'],
   geo: ['crop', 'rot90', 'flipH', 'straighten', 'aspect'],
 };
 const SYNC_GROUPS = {
   portrait: ['skin', 'shape', 'features', 'makeup'],
+  creative: ['relight', 'gobo', 'glowfx', 'sunfx', 'rimfx', 'leakfx', 'bokehfx'],
   color: ['light', 'color', 'hsl', 'curve', 'grade', 'detail', 'effects'],
   bg: ['bg'], geo: ['geo'],
 };
@@ -432,9 +448,15 @@ vec3 rgb2hsv(vec3 c){vec4 K=vec4(0.,-1./3.,2./3.,-1.);vec4 p=mix(vec4(c.bg,K.wz)
  return vec3(abs(q.z+(q.w-q.y)/(6.*d+e)),d/(q.x+e),q.x);}
 vec3 hsv2rgb(vec3 c){vec3 p=abs(fract(c.xxx+vec3(1.,2./3.,1./3.))*6.-3.);return c.z*mix(vec3(1.),clamp(p-1.,0.,1.),c.y);}
 vec3 hue(float h){return clamp(abs(mod(h*6.+vec3(0.,4.,2.),6.)-3.)-1.,0.,1.);}
+float h21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+float vnz(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1.,0.)),f.x),mix(h21(i+vec2(0.,1.)),h21(i+vec2(1.,1.)),f.x),f.y);}
+float fbm(vec2 p){float a=.5,v=0.;for(int i=0;i<5;i++){v+=a*vnz(p);p=p*2.03+vec2(1.7,9.2);a*=.5;}return v;}
+vec3 scr(vec3 a,vec3 b){return 1.-(1.-a)*(1.-clamp(b,0.,1.));}
 `;
   const P = {
     copy: mk('uniform sampler2D t;void main(){o=texture(t,uv);}'),
+    // r: rough height of the people (body + faces) for light shading, g: person mask (blurred later)
+    hmap: mk('uniform sampler2D SEG,M2;uniform float hasSeg,hasLm;void main(){float p=hasSeg>.5?1.-texture(SEG,uv).b:0.;o=vec4(clamp(p*.75+texture(M2,uv).a*.5*hasLm,0.,1.),p,0.,1.);}'),
     blur: mk(`uniform sampler2D t;uniform vec2 dir;void main(){vec4 a=vec4(0.);float ws=0.;
       for(int i=-12;i<=12;i++){float x=float(i)/12.;float w=exp(-x*x*4.);a+=texture(t,uv+dir*float(i))*w;ws+=w;}o=a/ws;}`),
     bil: mk(`uniform sampler2D t;uniform vec2 px;uniform float rad,sig;void main(){vec3 c0=texture(t,uv).rgb;vec3 a=vec3(0.);float ws=0.;
@@ -443,6 +465,18 @@ vec3 hue(float h){return clamp(abs(mod(h*6.+vec3(0.,4.,2.),6.)-3.)-1.,0.,1.);}
     main: mk(LIB + `
 uniform sampler2D S,L,B,BL,G1,G2,G3,M1,M2,SEG,BGI,CRV;
 uniform float hasSkin;uniform vec2 skinC,skinT,downUV;
+uniform sampler2D HM;uniform vec2 aspN;
+uniform float nL,amb,shp,nF;uniform vec4 lP[5],lC[5],lQ[5],fE[6];
+uniform float gType,gAmt,gScale,gAng,gSoft,gTgt;uniform vec3 gCol;
+uniform float glowA,ortonA,halA,sunA,sunLen,sunWarm,flareA,rimA,rimW,rimAng,leakS,leakA,leakAng,bokA,bokSz,bokS;uniform vec2 sunP;uniform vec3 rimCol;
+float gobo(vec2 q,float t,float w){
+ if(t<1.5)return smoothstep(-w,w,sin(q.y*30.)+.25);
+ if(t<2.5){vec2 f=abs(fract(q*vec2(2.2,1.6))-.5);return 1.-smoothstep(.43-w*.4,.43+w*.4,max(f.x,f.y));}
+ if(t<3.5)return smoothstep(.47-w*.4,.53+w*.4,fbm(q*5.));
+ if(t<4.5){float n=fbm(q*3.+fbm(q*3.)*1.5);return smoothstep(.55-w*.5,1.,1.-abs(sin(n*16.)));}
+ if(t<5.5)return 1.-smoothstep(.22-w*.3,.22+w*.3,length(fract(q*5.)-.5));
+ if(t<6.5){float a=abs(sin((q.x+q.y)*16.)),b=abs(sin((q.x-q.y)*16.));return smoothstep(.25-w*.5,.25+w*.5,min(a,b));}
+ return smoothstep(.15-w*.3,.85+w*.1,.5+.5*sin(q.x*5.+sin(q.y*1.7)*1.2));}
 uniform vec2 px;uniform float fineR;
 uniform float smooth_,keepTex,blemish,wrinkles,darkC,bags,shine,even_,sBright,sWarm,body;
 uniform float eyeB,eyeW,teeth,lipA,blushA;uniform vec3 lipC,blushC;
@@ -532,7 +566,34 @@ void main(){
  // exposure and white balance in linear light
  vec3 lin=pow(max(c,0.),vec3(2.2));
  lin*=exp2(expo)*vec3(1.+.3*temp,1.-.25*tint,1.-.3*temp);
- c=pow(lin,vec3(1./2.2));
+ // Creative light: up to 5 studio lights shaded with a rough 3D shape of the people (from the AI masks),
+ // a scene brightness that lets the lights stand out, and a projected light pattern (gobo).
+ float person=hasSeg>.5?1.-sg.b:1.;
+ vec2 pN=uv*aspN;
+ vec4 hmv=texture(HM,uv);vec2 hs=2./vec2(textureSize(HM,0));
+ float hx=texture(HM,uv+vec2(hs.x,0.)).r-texture(HM,uv-vec2(hs.x,0.)).r,hy=texture(HM,uv+vec2(0.,hs.y)).r-texture(HM,uv-vec2(0.,hs.y)).r;
+ vec3 nrm=normalize(vec3(-hx*9.,-hy*9.,1.));
+ // Faces are shaded as rounded shapes fitted to the landmarks, so each side catches its own light.
+ for(int i=0;i<6;i++){if(float(i)>=nF)break;vec2 q=(pN-fE[i].xy)/fE[i].zw;float r2=dot(q,q);if(r2>1.4)continue;
+  vec3 nf=normalize(vec3(q*.95,max(sqrt(max(1.-r2,0.)),.2)));nrm=normalize(mix(nrm,nf,1.-smoothstep(.75,1.4,r2)));}
+ if(nL>.5||amb!=0.){
+  vec3 base=lin;lin*=exp2(amb*2.);vec3 acc=vec3(0.);
+  for(int i=0;i<5;i++){if(float(i)>=nL)break;
+   vec2 dv=lP[i].xy*aspN-pN;float dd=length(dv)/lP[i].w;
+   float att=exp(-dd*dd*mix(5.,1.2,lQ[i].x));
+   vec3 Ld=normalize(vec3(dv,lP[i].z));
+   float sh=mix(1.,max(dot(nrm,Ld),0.)*1.4,shp*(.35+.65*hmv.r));
+   float tg=lQ[i].y<.5?person:lQ[i].y<1.5?1.-person:1.;
+   acc+=lC[i].rgb*lC[i].a*att*sh*tg;}
+  lin+=base*acc*1.8+acc*.02;
+ }
+ if(gType>.5){
+  vec2 q=pN-.5*aspN;float ca=cos(gAng),sa=sin(gAng);q=mat2(ca,-sa,sa,ca)*q/(.15+gScale*.6);
+  float pat=gobo(q,gType,.02+gSoft*.35);
+  float tg=gTgt<.5?person:gTgt<1.5?1.-person:1.;
+  lin*=mix(vec3(1.),mix(vec3(1.-gAmt*.7),(1.+gAmt*1.3)*gCol,pat),tg);
+ }
+ c=pow(max(lin,0.),vec3(1./2.2));
  // tone
  float l0=lum(c),l2=l0;
  float ws=1.-smoothstep(0.,.6,l0),wh=smoothstep(.4,1.,l0);
@@ -559,6 +620,51 @@ void main(){
  c=clamp(c,0.,1.)*.99609+.00195;
  c=vec3(texture(CRV,vec2(c.r,.5)).r,texture(CRV,vec2(c.g,.5)).g,texture(CRV,vec2(c.b,.5)).b);
  c=c*(1.-fade*.18)+fade*.1;
+ // Creative light effects (screen-blended light on top of the finished colour)
+ if(glowA>0.){vec3 g=texture(G1,uv).rgb;c=scr(c,g*smoothstep(.45,.95,lum(g))*glowA*1.2);}
+ if(ortonA>0.){vec3 g=texture(G1,uv).rgb;c=mix(c,scr(c,g),ortonA*.5);c=mix(c,c*c*(3.-2.*c),ortonA*.3);}
+ if(halA>0.){c=scr(c,vec3(1.,.35,.12)*smoothstep(.6,1.,lum(texture(G2,uv).rgb))*halA);}
+ if(sunA>0.){
+  vec2 dvec=sunP-uv;vec2 stp=dvec*(.25+sunLen*.75)/24.;vec2 q=uv;float ac=0.,dec=1.;
+  for(int i=0;i<24;i++){q+=stp;float bb=max(smoothstep(.55,.95,lum(texture(L,q).rgb)),.3);if(hasSeg>.5)bb*=texture(SEG,q).b;ac+=bb*dec;dec*=.92;}
+  float ang=atan(dvec.y*aspN.y,dvec.x*aspN.x);float st=vnz(vec2(ang*12.,3.))*.65+vnz(vec2(ang*31.,7.))*.35;
+  float ds=length((uv-sunP)*aspN);vec3 scol=mix(vec3(1.,.97,.9),vec3(1.,.68,.32),sunWarm);
+  float rays=ac/3.5*(.2+.8*st*st)*exp(-ds*(2.8-sunLen*2.));
+  c=scr(c,scol*(rays+exp(-ds*ds*80.)*.7)*sunA);
+ }
+ if(flareA>0.){
+  vec2 axis=vec2(.5)-sunP;vec3 fl=vec3(0.);
+  for(int i=1;i<6;i++){float t=float(i)*.38;vec2 gp=sunP+axis*t*1.5;float r=.012+.018*float(i%3);float dd=length((uv-gp)*aspN);fl+=hue(fract(t*.6))*.3*(1.-smoothstep(r*.55,r,dd));}
+  float dy=(uv.y-sunP.y)*aspN.y;fl+=vec3(.45,.65,1.)*exp(-dy*dy*6000.)*exp(-abs((uv.x-sunP.x)*aspN.x)*2.5)*.8;
+  float ds=length((uv-sunP)*aspN);fl+=vec3(1.,.9,.75)*exp(-ds*ds*300.);
+  c=scr(c,fl*flareA);
+ }
+ if(rimA>0.&&hasSeg>.5){
+  float m=1.-sg.b;float band=smoothstep(.4,.7,m)*(1.-smoothstep(.5,.72+rimW*.26,hmv.g));
+  vec2 gr=vec2(texture(HM,uv+vec2(hs.x,0.)).g-texture(HM,uv-vec2(hs.x,0.)).g,texture(HM,uv+vec2(0.,hs.y)).g-texture(HM,uv-vec2(0.,hs.y)).g);
+  vec2 dir=vec2(cos(rimAng),-sin(rimAng));float face=smoothstep(-.3,.7,dot(normalize(-gr+1e-6),dir));
+  c=scr(c,rimCol*band*face*rimA*1.4);
+ }
+ if(leakA>0.){
+  vec2 dir=vec2(cos(leakAng),-sin(leakAng));vec2 q=(uv-.5)*aspN/max(aspN.x,aspN.y);vec2 pp=vec2(-dir.y,dir.x);
+  float t=dot(q,dir);float e=smoothstep(.0,.62,t);e*=e;
+  vec3 c1=vec3(1.,.45,.1),c2=vec3(1.,.75,.3),c3=vec3(1.,.2,.1);
+  if(leakS>1.5&&leakS<2.5){c1=vec3(1.,.2,.3);c2=vec3(1.,.85,.2);c3=vec3(.3,.6,1.);}
+  else if(leakS>2.5&&leakS<3.5){c1=vec3(1.,.3,.65);c2=vec3(.65,.3,1.);c3=vec3(1.,.6,.75);}
+  else if(leakS>3.5&&leakS<4.5){c1=vec3(1.,.82,.45);c2=vec3(1.,.62,.22);c3=vec3(1.,.92,.65);}
+  else if(leakS>4.5){c1=vec3(1.,.25,.05);c2=vec3(1.,.5,.1);c3=vec3(1.,.95,.7);e=pow(e,.7);}
+  float w1=.5+.5*sin(dot(q,pp)*4.+1.),w2=.5+.5*sin(dot(q,pp)*7.+3.);
+  c=scr(c,(c1*w1+c2*w2*.7+c3*(1.-w1)*.6)*e*leakA);
+ }
+ if(bokA>0.){
+  float sz=.045+bokSz*.14;vec2 g=pN/sz;vec3 bk=vec3(0.);
+  for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){vec2 cl=floor(g)+vec2(float(i),float(j));if(h21(cl)<.5)continue;
+   vec2 ct=cl+vec2(h21(cl+3.1),h21(cl+7.7));float r=.22+.3*h21(cl+1.3);float dd=length(g-ct);
+   float disk=(1.-smoothstep(r*.85,r,dd))*(.7+.3*smoothstep(r*.4,r,dd));
+   vec3 col=bokS<.5?mix(vec3(1.,.72,.38),vec3(1.,.9,.6),h21(cl+5.)):bokS<1.5?mix(hue(h21(cl+9.)),vec3(1.),.25):vec3(1.);
+   bk+=col*disk*(.35+.65*h21(cl+2.));}
+  c=scr(c,bk*bokA*.65*(hasSeg>.5?sg.b:1.));
+ }
  o=vec4(clamp(c,0.,1.),1.);
 }`),
     final: mk(LIB + `
@@ -632,6 +738,7 @@ void main(){
       else if (v.length === 3) gl.uniform3fv(loc, v);
       else if (v.length === 4) gl.uniform4fv(loc, v);
       else if (v.length === 9) gl.uniformMatrix3fv(loc, false, v);
+      else if (v.v4) gl.uniform4fv(loc, v.v4);
       else gl.uniform1fv(loc, v);
     }
     gl.bindVertexArray(vao);
@@ -643,7 +750,7 @@ void main(){
   };
 
   let d = null; // textures for the loaded photo
-  function freeDoc() { if (!d) return; for (const k of ['S0', 'S', 'L', 'B1', 'B', 'G1', 'T1', 'Hh', 'THh', 'BL', 'Q', 'TQ', 'G2', 'G3', 'C', 'M1', 'M2', 'SEG', 'D']) if (d[k] && !(k === 'S' && d.S === d.S0)) free(d[k]); d = null; }
+  function freeDoc() { if (!d) return; for (const k of ['S0', 'S', 'L', 'B1', 'B', 'G1', 'T1', 'Hh', 'THh', 'BL', 'Q', 'TQ', 'G2', 'G3', 'HM0', 'HM', 'C', 'M1', 'M2', 'SEG', 'D']) if (d[k] && !(k === 'S' && d.S === d.S0)) free(d[k]); d = null; }
   function statics() {
     const { L, B1, B, G1, T1, Q, TQ, G2 } = d;
     run(P.copy, L, L.w, L.h, { t: d.S }, {});
@@ -677,7 +784,7 @@ void main(){
       d.L = target(aw, ah, true); d.B1 = target(aw, ah, true); d.B = target(aw, ah, true); d.G1 = target(aw, ah, true); d.T1 = target(aw, ah, true);
       const hw = Math.max(2, Math.round(aw / 2)), hh = Math.max(2, Math.round(ah / 2));
       d.Hh = target(hw, hh, true); d.THh = target(hw, hh, true); d.BL = target(hw, hh, true);
-      d.Q = target(qw, qh, true); d.TQ = target(qw, qh, true); d.G2 = target(qw, qh, true); d.G3 = target(qw, qh, true);
+      d.Q = target(qw, qh, true); d.TQ = target(qw, qh, true); d.G2 = target(qw, qh, true); d.G3 = target(qw, qh, true); d.HM0 = target(qw, qh, true); d.HM = target(qw, qh, true); d.hmDirty = true;
       d.C = target(W, H, false);
       statics();
     },
@@ -687,19 +794,20 @@ void main(){
       d.S = healed ? texFrom(healed, true) : d.S0;
       statics();
     },
-    setMasks(m1, m2) { if (!d) return; free(d.M1); free(d.M2); d.M1 = m1 ? texFrom(m1) : null; d.M2 = m2 ? texFrom(m2) : null; },
-    setSeg(seg) { if (!d) return; free(d.SEG); d.SEG = seg ? texData(seg.w, seg.h, seg.data) : null; },
+    setMasks(m1, m2) { if (!d) return; free(d.M1); free(d.M2); d.M1 = m1 ? texFrom(m1) : null; d.M2 = m2 ? texFrom(m2) : null; d.hmDirty = true; },
+    setSeg(seg) { if (!d) return; free(d.SEG); d.SEG = seg ? texData(seg.w, seg.h, seg.data) : null; d.hmDirty = true; },
     setDisp(disp) { if (!d) return; free(d.D); d.D = disp ? texData(disp.w, disp.h, disp.data, true) : null; },
     setCurve(lut) { if (this.crv) free(this.crv); this.crv = texData(256, 1, lut); },
     setBgImage(img) { if (this.bgi) free(this.bgi); this.bgi = img ? texFrom(img) : null; this.bgiAR = img ? img.width / img.height : 1; },
     drawMain(u, bgBlurRad) {
       if (!d) return;
+      if (d.hmDirty) { d.hmDirty = false; run(P.hmap, d.HM0, d.HM0.w, d.HM0.h, { SEG: d.SEG, M2: d.M2 }, { hasSeg: d.SEG ? 1 : 0, hasLm: d.M1 ? 1 : 0 }); const fq = d.fwL * d.Q.w / d.L.w, hr = clamp(fq * 0.3, 3, 24); blur2(d.HM0, d.TQ, d.HM, hr); blur2(d.HM, d.TQ, d.HM, hr * 0.7); }
       if (u.bgMode === 1 && d.g3r !== bgBlurRad) { blur2(d.Q, d.TQ, d.G3, bgBlurRad); if (bgBlurRad > 24) blur2(d.G3, d.TQ, d.G3, bgBlurRad); d.g3r = bgBlurRad; }
       const fa = d.W / d.H, ia = this.bgiAR || 1;
       const fit = ia > fa ? [(1 - fa / ia) / 2, 0, fa / ia, 1] : [0, (1 - ia / fa) / 2, 1, ia / fa];
       run(P.main, d.C, d.W, d.H,
-        { S: d.S, L: d.L.t, B: d.B.t, BL: d.BL.t, G1: d.G1.t, G2: d.G2.t, G3: d.G3.t, M1: d.M1, M2: d.M2, SEG: d.SEG, BGI: this.bgi, CRV: this.crv },
-        Object.assign({ px: [1 / d.W, 1 / d.H], fineR: Math.max(1, Math.max(d.W, d.H) / 1600), hasSeg: d.SEG ? 1 : 0, hasLm: d.M1 ? 1 : 0, hasBgi: this.bgi ? 1 : 0, bgiFit: fit }, u));
+        { S: d.S, L: d.L.t, B: d.B.t, BL: d.BL.t, G1: d.G1.t, G2: d.G2.t, G3: d.G3.t, M1: d.M1, M2: d.M2, SEG: d.SEG, BGI: this.bgi, CRV: this.crv, HM: d.HM.t },
+        Object.assign({ px: [1 / d.W, 1 / d.H], fineR: Math.max(1, Math.max(d.W, d.H) / 1600), hasSeg: d.SEG ? 1 : 0, hasLm: d.M1 ? 1 : 0, hasBgi: this.bgi ? 1 : 0, bgiFit: fit, aspN: [d.W / Math.max(d.W, d.H), d.H / Math.max(d.W, d.H)] }, u));
     },
     drawFinal(u, tgt) {
       if (!d) return;
@@ -994,8 +1102,60 @@ function mainUniforms(s) {
     temp: k(s.temp), tint: k(s.tint), vib: k(s.vibrance), sat: k(s.saturation), clar: k(s.clarity), textr: k(s.texture), dehaze: k(s.dehaze), sharp: k(s.sharpen), fade: k(s.fade),
     hslH: s.hslH.map(k), hslS: s.hslS.map(k), hslL: s.hslL.map(k),
     gSh: [s.gShH / 360, k(s.gShS)], gMi: [s.gMiH / 360, k(s.gMiS)], gHi: [s.gHiH / 360, k(s.gHiS)], gBal: k(s.gBal),
+    ...lightUniforms(s),
   };
 }
+const TARGETS = { subject: 0, background: 1, all: 2 };
+const GOBOS = [['none', 'None'], ['blinds', 'Blinds'], ['window', 'Window'], ['leaves', 'Leaves'], ['water', 'Water'], ['dots', 'Dots'], ['lattice', 'Lattice'], ['beams', 'Beams']];
+const LEAKS = [['none', 'None'], ['warm', 'Warm'], ['rainbow', 'Rainbow'], ['pink', 'Pink'], ['golden', 'Golden'], ['burn', 'Film burn']];
+const lightRadius = (l) => 0.06 + l.size / 100 * 1.1;
+function lightUniforms(s) {
+  const k = (v) => v / 100, P = new Float32Array(20), C = new Float32Array(20), Q = new Float32Array(20);
+  const on = s.lights.filter((l) => l.on !== false).slice(0, 5);
+  on.forEach((l, i) => {
+    const r = lightRadius(l), col = hex2rgb(l.color);
+    P.set([l.x, l.y, 0.005 + l.height / 100 * r * 0.9, r], i * 4);
+    C.set([col[0], col[1], col[2], l.power / 100 * 2.4], i * 4);
+    Q.set([l.soft / 100, TARGETS[l.target] ?? 2, 0, 0], i * 4);
+  });
+  return {
+    nL: on.length, amb: k(s.ambient), shp: k(s.shape3d), lP: { v4: P }, lC: { v4: C }, lQ: { v4: Q },
+    gType: GOBOS.findIndex((g) => g[0] === s.goboType), gAmt: k(s.goboAmt), gScale: k(s.goboScale), gAng: s.goboAngle * Math.PI / 180, gSoft: k(s.goboSoft), gTgt: TARGETS[s.goboTarget] ?? 2, gCol: hex2rgb(s.goboColor),
+    glowA: k(s.glow), ortonA: k(s.orton), halA: k(s.halation), sunA: k(s.sunAmt), sunLen: k(s.sunLen), sunWarm: k(s.sunWarm), flareA: k(s.flare), sunP: [s.sunX, s.sunY],
+    rimA: k(s.rimAmt), rimW: k(s.rimWidth), rimAng: s.rimAngle * Math.PI / 180, rimCol: hex2rgb(s.rimColor),
+    leakS: Math.max(0, LEAKS.findIndex((g) => g[0] === s.leakStyle)), leakA: s.leakStyle === 'none' ? 0 : k(s.leakAmt), leakAng: s.leakAngle * Math.PI / 180,
+    bokA: k(s.bokehAmt), bokSz: k(s.bokehSize), bokS: { warm: 0, colour: 1, white: 2 }[s.bokehStyle] ?? 0,
+  };
+}
+// Lighting setups place lights around the main face, sized to it, so they suit close-ups and full-length shots.
+function faceFrame(p) {
+  const m = Math.max(p.w || 1, p.h || 1), ax = (p.w || 1) / m, ay = (p.h || 1) / m;
+  let f = null, best = 0;
+  if (p.an) for (const ff of p.an.faces) { const w = Math.hypot((ff[454].x - ff[234].x) * ax, (ff[454].y - ff[234].y) * ay); if (w > best) { best = w; f = ff; } }
+  if (!f) return { cx: 0.5 * ax, cy: 0.4 * ay, fw: 0.25, ax, ay };
+  return { cx: (f[10].x + f[152].x) / 2 * ax, cy: (f[10].y + f[152].y) / 2 * ay, fw: best, ax, ay };
+}
+function mkLight(F, dx, dy, color, power, radiusFaces, soft, height, target = 'all') {
+  const r = radiusFaces * F.fw;
+  return { x: clamp((F.cx + dx * F.fw) / F.ax, 0, 1), y: clamp((F.cy + dy * F.fw) / F.ay, 0, 1), color, power, size: clamp(Math.round((r - 0.06) / 1.1 * 100), 0, 100), soft, height, target, on: true };
+}
+const SETUPS = [
+  ['Rembrandt', (F) => ({ ambient: -55, shape3d: 75, lights: [mkLight(F, -1.3, -0.9, '#fff4e6', 80, 2.1, 55, 40)] })],
+  ['Split', (F) => ({ ambient: -60, shape3d: 85, lights: [mkLight(F, -1.7, 0, '#ffffff', 85, 2.2, 45, 15)] })],
+  ['Butterfly', (F) => ({ ambient: -35, shape3d: 60, lights: [mkLight(F, 0, -1.4, '#fff8f0', 60, 3, 70, 80)] })],
+  ['Clamshell', (F) => ({ ambient: -30, shape3d: 50, lights: [mkLight(F, 0, -1.3, '#ffffff', 55, 3, 80, 70), mkLight(F, 0, 1.5, '#ffffff', 30, 2.5, 90, 40)] })],
+  ['Rim light', (F) => ({ ambient: -55, shape3d: 90, rimAmt: 45, lights: [mkLight(F, -1.9, -0.4, '#ffffff', 90, 2, 40, 6, 'subject'), mkLight(F, 1.9, -0.4, '#ffffff', 90, 2, 40, 6, 'subject')] })],
+  ['Spotlight', (F) => ({ ambient: -75, shape3d: 50, lights: [mkLight(F, 0, -0.3, '#fffaf0', 70, 2.4, 70, 90)] })],
+  ['Neon split', (F) => ({ ambient: -60, shape3d: 80, lights: [mkLight(F, -1.2, -0.2, '#ff2bd6', 95, 2.2, 55, 20), mkLight(F, 1.2, -0.2, '#21d4fd', 95, 2.2, 55, 20)] })],
+  ['Golden window', (F) => ({ ambient: -40, shape3d: 70, goboType: 'window', goboAmt: 55, goboAngle: -15, goboColor: '#ffc77a', lights: [mkLight(F, 1.5, -0.8, '#ffb45e', 85, 4, 70, 45)] })],
+  ['Blinds noir', (F) => ({ ambient: -50, shape3d: 70, goboType: 'blinds', goboAmt: 70, goboAngle: -18, goboColor: '#ffffff', lights: [mkLight(F, -1.4, -0.6, '#ffffff', 70, 4, 60, 50)] })],
+  ['Forest dapple', (F) => ({ ambient: -30, goboType: 'leaves', goboAmt: 60, goboScale: 45, goboColor: '#fff1b8', lights: [mkLight(F, -0.8, -1.2, '#fff3c4', 70, 4, 70, 60)] })],
+  ['Underwater', (F) => ({ ambient: -35, goboType: 'water', goboAmt: 55, goboColor: '#a8f0ff', lights: [mkLight(F, 0, -1.5, '#7fe3ff', 70, 4.5, 80, 70)] })],
+  ['Sunset', (F) => ({ ambient: -15, sunAmt: 55, sunWarm: 85, sunX: clamp((F.cx + 2 * F.fw) / F.ax, 0.05, 0.95), sunY: clamp((F.cy - 1.8 * F.fw) / F.ay, 0.03, 0.95), leakStyle: 'warm', leakAmt: 35, leakAngle: 0, glow: 20, lights: [mkLight(F, 1.4, -1, '#ff9a3c', 70, 4, 80, 40)] })],
+  ['Party', (F) => ({ ambient: -50, bokehAmt: 60, bokehStyle: 'colour', bokehSize: 45, lights: [mkLight(F, -1.2, -0.5, '#ff3cac', 85, 2.4, 60, 25), mkLight(F, 1.2, -0.5, '#2b86ff', 85, 2.4, 60, 25)] })],
+  ['Dreamy', (F) => ({ glow: 35, orton: 40, halation: 15, ambient: 5, lights: [mkLight(F, 0, -1.2, '#fff1e0', 40, 4, 90, 70)] })],
+  ['Golden glow', (F) => ({ ambient: -20, glow: 25, rimAmt: 40, rimColor: '#ffc46b', rimAngle: 45, lights: [mkLight(F, 1.6, -1.2, '#ffcf87', 60, 3.5, 75, 30)] })],
+];
 const bgBlurRad = (s) => 1 + s.bgBlur * 0.4;
 function finalUniforms(s, g) { return { M: g.M, vig: s.vignette / 100, vigMid: s.vigMid / 100, outAR: g.outW / g.outH, grain: s.grain / 100 }; }
 
@@ -1060,6 +1220,24 @@ function drawOverlay(g, v) {
     x.strokeStyle = '#fff'; x.lineWidth = 1.5 * dpr; x.strokeRect(rx, ry, rw, rh);
     x.lineWidth = 4 * dpr; const L = 18 * dpr;
     for (const [px, py, sx, sy] of [[rx, ry, 1, 1], [rx + rw, ry, -1, 1], [rx, ry + rh, 1, -1], [rx + rw, ry + rh, -1, -1]]) { x.beginPath(); x.moveTo(px + sx * L, py); x.lineTo(px, py); x.lineTo(px, py + sy * L); x.stroke(); }
+  }
+  if (tab === 'light') {
+    const [W, H] = R.size, toScr = (u, w) => { const q = ap(g.Ainv, u, w); return [v.x + q[0] * v.dw, v.y + q[1] * v.dh]; };
+    x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = `bold ${10 * dpr}px system-ui`;
+    cur.s.lights.forEach((l, i) => {
+      const [sx, sy] = toScr(l.x, l.y);
+      if (i === selLight) { x.setLineDash([6 * dpr, 6 * dpr]); x.strokeStyle = 'rgba(255,255,255,.55)'; x.lineWidth = dpr; x.beginPath(); x.arc(sx, sy, lightRadius(l) * Math.max(W, H) * g.z * v.sc, 0, 7); x.stroke(); x.setLineDash([]); }
+      x.globalAlpha = l.on === false ? 0.45 : 1;
+      x.fillStyle = l.color; x.strokeStyle = i === selLight ? '#fff' : '#000'; x.lineWidth = (i === selLight ? 3 : 2) * dpr;
+      x.beginPath(); x.arc(sx, sy, 11 * dpr, 0, 7); x.fill(); x.stroke();
+      x.fillStyle = '#000'; x.fillText(String(i + 1), sx, sy); x.globalAlpha = 1;
+    });
+    if (cur.s.sunAmt > 0 || cur.s.flare > 0) {
+      const [sx, sy] = toScr(cur.s.sunX, cur.s.sunY);
+      x.strokeStyle = '#ffd34d'; x.lineWidth = 2 * dpr;
+      for (let a = 0; a < 8; a++) { const t = a * Math.PI / 4; x.beginPath(); x.moveTo(sx + Math.cos(t) * 14 * dpr, sy + Math.sin(t) * 14 * dpr); x.lineTo(sx + Math.cos(t) * 20 * dpr, sy + Math.sin(t) * 20 * dpr); x.stroke(); }
+      x.fillStyle = '#ffd34d'; x.beginPath(); x.arc(sx, sy, 10 * dpr, 0, 7); x.fill(); x.strokeStyle = '#000'; x.lineWidth = 1.5 * dpr; x.stroke();
+    }
   }
   if (split >= 0 && split <= 1 && !holdOrig) {
     const sx = split * c.width;
@@ -1162,12 +1340,18 @@ function faceStats(p) {
 }
 // Per-photo shader inputs: measured skin tone and the "down the face" direction for the under-eye fix.
 function photoUniforms(p) {
-  const u = { hasSkin: 0, skinC: [0, 0], skinT: [1, 1], downUV: [0, 0.03] };
+  const u = { hasSkin: 0, skinC: [0, 0], skinT: [1, 1], downUV: [0, 0.03], nF: 0, fE: { v4: new Float32Array(24) } };
   const st = p.stats;
   if (st) { u.hasSkin = 1; u.skinC = [st.skin.cb, st.skin.cr]; u.skinT = [Math.max(st.skin.sb * 2.5, 0.02), Math.max(st.skin.sr * 2.5, 0.02)]; }
   if (p.an && p.an.faces.length) {
     let x = 0, y = 0; for (const f of p.an.faces) { x += f[152].x - f[10].x; y += f[152].y - f[10].y; }
     const n = p.an.faces.length; u.downUV = [x / n * 0.11, y / n * 0.11];
+    const m = Math.max(p.w, p.h), ax = p.w / m, ay = p.h / m, E = new Float32Array(24);
+    p.an.faces.slice(0, 6).forEach((f, i) => {
+      const fw = Math.hypot((f[454].x - f[234].x) * ax, (f[454].y - f[234].y) * ay), fh = Math.hypot((f[152].x - f[10].x) * ax, (f[152].y - f[10].y) * ay);
+      E.set([(f[10].x + f[152].x) / 2 * ax, (f[10].y + f[152].y) / 2 * ay, fw * 0.55, fh * 0.58], i * 4);
+    });
+    u.fE = { v4: E }; u.nF = Math.min(6, n);
   }
   return u;
 }
@@ -1320,6 +1504,75 @@ function swatches(parent, key, colors) {
 function note(parent, t) { const n = document.createElement('div'); n.className = 'note'; n.textContent = t; parent.appendChild(n); return n; }
 function h4(parent, t) { const n = document.createElement('div'); n.className = 'h4'; n.textContent = t; parent.appendChild(n); }
 
+function choices(parent, key, opts) {
+  const w = document.createElement('div'); w.className = 'btnrow';
+  w.innerHTML = opts.map(([v, l]) => `<button data-v="${v}">${l}</button>`).join('');
+  const refresh = () => w.querySelectorAll('button').forEach((b) => b.classList.toggle('on', !!cur && b.dataset.v === cur.s[key]));
+  w.addEventListener('click', (e) => { const v = e.target.dataset.v; if (v == null || !cur) return; cur.s[key] = v; changed(key); commit(); refresh(); });
+  ui[key] = { set: refresh }; parent.appendChild(w);
+}
+let selLight = 0;
+function buildLightUI(b) {
+  const list = document.createElement('div'); list.className = 'btnrow'; b.appendChild(list);
+  const props = document.createElement('div'); b.appendChild(props);
+  const L = () => cur && cur.s.lights[selLight];
+  const sw = document.createElement('div'); sw.className = 'sw';
+  sw.innerHTML = ['#ffffff', '#fff1dc', '#ffd08a', '#ff9a3c', '#ff3b3b', '#ff2bd6', '#9b5cff', '#2b86ff', '#21d4fd', '#3dff9a'].map((c) => `<i style="background:${c}" data-c="${c}"></i>`).join('') + '<input type="color">';
+  props.appendChild(sw);
+  const pick = sw.querySelector('input');
+  sw.addEventListener('click', (e) => { const c = e.target.dataset.c; if (!c || !L()) return; L().color = c; refresh(); invalidate(); commit(); });
+  pick.addEventListener('input', () => { if (!L()) return; L().color = pick.value; refresh(); invalidate(); });
+  pick.addEventListener('change', commit);
+  const rows = [['power', 'Power'], ['size', 'Size'], ['soft', 'Softness'], ['height', 'Height (low = raking light)']].map(([k, lab]) => {
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = `<label>${lab}</label><span class="val"></span><input type="range" min="0" max="100" step="1">`;
+    const inp = row.querySelector('input'), val = row.querySelector('.val');
+    inp.addEventListener('input', () => { if (!L()) return; L()[k] = +inp.value; val.textContent = inp.value; invalidate(); });
+    inp.addEventListener('change', commit);
+    props.appendChild(row); return { k, inp, val };
+  });
+  const tg = document.createElement('div'); tg.className = 'seg';
+  tg.innerHTML = '<button data-t="subject">Subject</button><button data-t="background">Background</button><button data-t="all">All</button>';
+  props.appendChild(tg);
+  tg.addEventListener('click', (e) => { const t = e.target.dataset.t; if (!t || !L()) return; L().target = t; refresh(); invalidate(); commit(); });
+  const acts = document.createElement('div'); acts.className = 'btnrow';
+  acts.innerHTML = '<button data-a="on">Hide</button><button data-a="del">Remove light</button>';
+  props.appendChild(acts);
+  acts.addEventListener('click', (e) => {
+    const a = e.target.dataset.a; if (!a || !L()) return;
+    if (a === 'del') { cur.s.lights.splice(selLight, 1); selLight = Math.max(0, selLight - 1); }
+    else L().on = L().on === false;
+    refresh(); invalidate(); commit();
+  });
+  function refresh() {
+    const ls = cur ? cur.s.lights : [];
+    if (selLight >= ls.length) selLight = Math.max(0, ls.length - 1);
+    list.innerHTML = ls.map((l, i) => `<button data-i="${i}" class="${i === selLight ? 'on' : ''}" style="${l.on === false ? 'opacity:.5' : ''}"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${l.color};border:1px solid #000"></span>Light ${i + 1}</button>`).join('')
+      + (ls.length < 5 ? '<button data-add="1">＋ Add light</button>' : '');
+    props.hidden = !ls.length;
+    const l = ls[selLight]; if (!l) return;
+    sw.querySelectorAll('i').forEach((i) => i.classList.toggle('on', i.dataset.c === l.color)); pick.value = l.color;
+    rows.forEach((r) => { r.inp.value = l[r.k]; r.val.textContent = l[r.k]; });
+    tg.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x.dataset.t === l.target));
+    acts.querySelector('[data-a=on]').textContent = l.on === false ? 'Show' : 'Hide';
+  }
+  list.addEventListener('click', (e) => {
+    const bt = e.target.closest('button'); if (!bt || !cur) return;
+    if (bt.dataset.add) {
+      const F = faceFrame(cur), n = cur.s.lights.length;
+      cur.s.lights.push(mkLight(F, n % 2 ? 1.4 : -1.4, -0.8, '#ffffff', 70, 3, 60, 50));
+      selLight = n; refresh(); invalidate(); commit(); return;
+    }
+    selLight = +bt.dataset.i; refresh(); invalidate('view');
+  });
+  ui.lights = { set: refresh };
+}
+function applyLightSetup(i) {
+  if (!cur) return;
+  resetKeys(cur.s, keysOf(['creative']));
+  if (i !== 'off') Object.assign(cur.s, SETUPS[+i][1](faceFrame(cur)));
+  selLight = 0; syncUI(); invalidate(); commit();
+}
 function changed(key) {
   if (!cur) return;
   if (SHAPE_KEYS.has(key)) { flags.disp = true; invalidate('disp'); return; }
@@ -1384,6 +1637,38 @@ function buildPanels() {
   GROUP_KEYS.detail.forEach((k) => sliderRow(k, b));
   b = section('adjust', 'Effects', 'effects', false);
   GROUP_KEYS.effects.forEach((k) => sliderRow(k, b));
+  // Light
+  b = section('light', 'Lighting setups', null);
+  note(b, 'One click places lights around the face, sized to it. Then fine-tune below.');
+  const su = document.createElement('div'); su.className = 'btnrow';
+  su.innerHTML = SETUPS.map(([n], i) => `<button data-su="${i}">${n}</button>`).join('') + '<button data-su="off">✕ No light</button>';
+  b.appendChild(su);
+  su.addEventListener('click', (e) => { const i = e.target.dataset.su; if (i != null) applyLightSetup(i); });
+  b = section('light', 'Studio lights', 'relight');
+  note(b, 'Up to 5 lights. Drag the coloured dots on the photo to move them.');
+  buildLightUI(b);
+  sliderRow('ambient', b); sliderRow('shape3d', b);
+  note(b, 'Lower the scene brightness to make the lights stand out. 3D shaping lights the side of the face and body that faces each light.');
+  b = section('light', 'Light pattern (gobo)', 'gobo', false);
+  choices(b, 'goboType', GOBOS);
+  ['goboAmt', 'goboScale', 'goboAngle', 'goboSoft'].forEach((k) => sliderRow(k, b));
+  swatches(b, 'goboColor', ['#ffffff', '#ffe6bd', '#ffc77a', '#ff9a3c', '#a8f0ff', '#ff8fd8', '#b6ff9e']);
+  choices(b, 'goboTarget', [['subject', 'Subject'], ['background', 'Background'], ['all', 'All']]);
+  b = section('light', 'Glow', 'glowfx', false);
+  GROUP_KEYS.glowfx.forEach((k) => sliderRow(k, b));
+  b = section('light', 'Sun rays & lens flare', 'sunfx', false);
+  ['sunAmt', 'sunLen', 'sunWarm', 'flare'].forEach((k) => sliderRow(k, b));
+  note(b, 'Drag the ☀ on the photo to move the sun. People block the rays.');
+  b = section('light', 'Rim light', 'rimfx', false);
+  ['rimAmt', 'rimWidth', 'rimAngle'].forEach((k) => sliderRow(k, b));
+  swatches(b, 'rimColor', ['#ffffff', '#ffe2b0', '#ffc46b', '#ff6b6b', '#ff2bd6', '#21d4fd', '#7cff6b']);
+  b = section('light', 'Light leaks', 'leakfx', false);
+  choices(b, 'leakStyle', LEAKS);
+  ['leakAmt', 'leakAngle'].forEach((k) => sliderRow(k, b));
+  b = section('light', 'Bokeh lights', 'bokehfx', false);
+  ['bokehAmt', 'bokehSize'].forEach((k) => sliderRow(k, b));
+  choices(b, 'bokehStyle', [['warm', 'Warm'], ['colour', 'Colour'], ['white', 'White']]);
+  note(b, 'Out-of-focus lights in the background, behind the people.');
   // Background
   b = section('bg', 'Background', 'bg');
   note(b, 'The AI separates people from the background. Works best on portraits and groups.');
@@ -1458,7 +1743,7 @@ function drawCurve() {
 function syncUI() {
   if (!cur) return;
   for (const k in DEFS) if (ui[k]) ui[k].set(cur.s[k]);
-  for (const k of ['lipColor', 'blushColor', 'bgColor']) ui[k] && ui[k].set();
+  for (const k of ['lipColor', 'blushColor', 'bgColor', 'goboColor', 'rimColor', 'goboType', 'goboTarget', 'leakStyle', 'bokehStyle', 'lights']) ui[k] && ui[k].set();
   ui.hsl.set(); drawCurve();
   document.querySelectorAll('#bgModes button').forEach((b) => b.classList.toggle('on', b.dataset.m === cur.s.bgMode));
   $('bgBlurBox').hidden = cur.s.bgMode !== 'blur'; $('bgColBox').hidden = cur.s.bgMode !== 'color'; $('bgImgBox').hidden = cur.s.bgMode !== 'image';
@@ -1689,6 +1974,7 @@ viewEl.addEventListener('pointerdown', (e) => {
   if (pts.size === 2) { const [a, b] = [...pts.values()]; drag = { type: 'pinch', d0: Math.hypot(a[0] - b[0], a[1] - b[1]), z0: zoom, mid: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], px: panX, py: panY }; return; }
   if (split >= 0 && Math.abs(p[0] - split * R.canvas.width) < 30 * (window.devicePixelRatio || 1)) { drag = { type: 'split' }; return; }
   if (cropMode()) { drag = cropHit(p); return; }
+  if (tab === 'light') { const h = lightHit(p); if (h != null) { drag = { type: 'lightdrag', h }; if (h !== 'sun') { selLight = h; ui.lights.set(); } invalidate('view'); return; } }
   if (e.button === 1 || spaceDown || tool === 'pan') { drag = { type: 'pan', x: p[0], y: p[1], px: panX, py: panY }; return; }
   const src = toSource(p[0], p[1]);
   if (tool === 'wb') {
@@ -1711,6 +1997,11 @@ viewEl.addEventListener('pointermove', (e) => {
     zoomAt(drag.mid, clamp(drag.z0 * d / drag.d0, 0.2, 16), drag); return;
   }
   if (drag.type === 'pan') { panX = drag.px + p[0] - drag.x; panY = drag.py + p[1] - drag.y; invalidate('view'); return; }
+  if (drag.type === 'lightdrag') {
+    const s2 = toSource(p[0], p[1]), u = clamp(s2.u, 0, 1), w = clamp(s2.v, 0, 1);
+    if (drag.h === 'sun') { cur.s.sunX = u; cur.s.sunY = w; } else { cur.s.lights[drag.h].x = u; cur.s.lights[drag.h].y = w; }
+    invalidate('main'); return;
+  }
   if (drag.type === 'split') { split = clamp(p[0] / R.canvas.width, 0, 1); invalidate('view'); return; }
   if (drag.type && drag.type.startsWith('crop')) { cropMove(p); return; }
   if (drag.type === 'heal') { healAt(toSource(p[0], p[1])); return; }
@@ -1723,11 +2014,18 @@ viewEl.addEventListener('pointermove', (e) => {
   }
   if (drag.type === 'liq') drag.last = toSource(p[0], p[1]);
 });
+function lightHit(p) {
+  const g = curGeom(), v = viewRect(g), r = 18 * (window.devicePixelRatio || 1);
+  const at = (u, w) => { const q = ap(g.Ainv, u, w); return Math.hypot(v.x + q[0] * v.dw - p[0], v.y + q[1] * v.dh - p[1]) < r; };
+  if ((cur.s.sunAmt > 0 || cur.s.flare > 0) && at(cur.s.sunX, cur.s.sunY)) return 'sun';
+  for (let i = cur.s.lights.length - 1; i >= 0; i--) if (at(cur.s.lights[i].x, cur.s.lights[i].y)) return i;
+  return null;
+}
 function endPointer(e) {
   pts.delete(e.pointerId);
   if (!drag) return;
   const t = drag.type; drag = null;
-  if (t === 'heal' || t === 'liq' || (t && t.startsWith('crop'))) commit();
+  if (t === 'heal' || t === 'liq' || t === 'lightdrag' || (t && t.startsWith('crop'))) commit();
 }
 viewEl.addEventListener('pointerup', endPointer);
 viewEl.addEventListener('pointercancel', endPointer);
