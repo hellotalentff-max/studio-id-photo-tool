@@ -1,0 +1,1843 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ClickRetouch Photo Editor</title>
+<style>
+:root{--bg:#0f0f10;--panel:#18181b;--panel2:#222226;--line:#2c2c31;--txt:#e7e7ea;--mut:#8b8b94;--acc:#25d0e6;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font:13px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+body{display:grid;grid-template-rows:48px minmax(0,1fr) 118px;height:100vh}
+button,select,input,textarea{font:inherit;color:inherit}
+button,.btn{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:6px 10px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+button:hover,.btn:hover{border-color:#4a4a52}
+button.primary,.btn.primary{background:var(--acc);color:#001a1f;border-color:transparent;font-weight:650}
+button:disabled{opacity:.4;cursor:default}
+button.on{background:var(--acc);color:#001a1f;border-color:transparent}
+select,input[type=number],input[type=text]{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:5px 7px;min-width:0}
+input[type=color]{width:34px;height:26px;padding:0 2px;background:var(--panel2);border:1px solid var(--line);border-radius:6px}
+input[type=range]{width:100%;accent-color:var(--acc);margin:0}
+.mut{color:var(--mut)}.sm{font-size:11.5px}
+header{display:flex;align-items:center;gap:8px;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{font-weight:750;font-size:15px;letter-spacing:.01em;margin-right:8px}.brand b{color:var(--acc)}
+header .sp{flex:1}
+.back{color:var(--mut);text-decoration:none;font-size:12px;margin-right:4px}.back:hover{color:var(--txt)}
+.chip{white-space:nowrap;font-size:11.5px;color:var(--mut);background:var(--panel2);border:1px solid var(--line);border-radius:99px;padding:3px 9px}
+.chip.ok{color:#9be7b0}.chip.warn{color:#f0c27a}
+#work{display:grid;grid-template-columns:210px minmax(0,1fr) 320px;min-height:0}
+aside{background:var(--panel);min-height:0;overflow:auto}
+#left{border-right:1px solid var(--line);padding:10px}
+#right{border-left:1px solid var(--line);display:flex;flex-direction:column}
+#stage{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;min-width:0}
+#tools{display:flex;gap:6px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:nowrap;overflow-x:auto;min-height:47px}
+#tools .grp{display:flex;gap:6px;align-items:center}
+#tools .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+#brushOpts{display:none;gap:8px;align-items:center}#brushOpts.show{display:flex}
+#brushOpts input[type=range]{width:80px}
+#tools button{flex:0 0 auto}
+#view{position:relative;min-height:0;overflow:hidden;background:#0a0a0b;touch-action:none}
+#gl,#ov{position:absolute;inset:0;width:100%;height:100%;display:block}
+#ov{pointer-events:none}
+#empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--mut);text-align:center;padding:20px}
+#empty .big{font-size:18px;color:var(--txt);font-weight:650}
+#busy{position:absolute;left:50%;top:14px;transform:translateX(-50%);background:rgba(20,20,22,.92);border:1px solid var(--line);border-radius:99px;padding:6px 14px;font-size:12px;display:none}
+#view.drop{outline:2px dashed var(--acc);outline-offset:-8px}
+.sec{border-bottom:1px solid var(--line)}
+.sec>summary{list-style:none;cursor:pointer;padding:10px 12px;font-weight:650;display:flex;align-items:center;gap:8px;user-select:none}
+.sec>summary::-webkit-details-marker{display:none}
+.sec>summary::before{content:'▸';color:var(--mut);font-size:10px;transition:transform .15s}
+.sec[open]>summary::before{transform:rotate(90deg)}
+.sec>summary .rs{margin-left:auto;font-size:11px;padding:2px 7px;color:var(--mut);background:none}
+.sec .body{padding:0 12px 12px}
+.row{display:grid;grid-template-columns:1fr 46px;gap:2px 8px;align-items:center;margin:7px 0}
+.row label{font-size:12px;color:#c9c9cf;cursor:default;user-select:none}
+.row .val{font-size:11.5px;color:var(--mut);text-align:right;font-variant-numeric:tabular-nums}
+.row input[type=range]{grid-column:1/3}
+.row.changed label{color:var(--acc)}
+#tabs{display:flex;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2}
+#tabs button{flex:1;border:0;border-radius:0;background:none;padding:10px 4px;color:var(--mut);border-bottom:2px solid transparent}
+#tabs button.on{color:var(--txt);border-bottom-color:var(--acc);background:none}
+#panes{overflow:auto;flex:1;min-height:0}
+#histWrap{padding:8px 12px;border-bottom:1px solid var(--line)}
+#hist{width:100%;height:64px;display:block;background:#111114;border-radius:6px}
+.btnrow{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.seg{display:flex;gap:0;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{border:0;border-radius:0;flex:1;padding:6px 6px}
+.sw{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.sw i{width:22px;height:22px;border-radius:50%;border:2px solid #333;cursor:pointer;display:block}
+.sw i.on{border-color:#fff}
+.note{font-size:11.5px;color:var(--mut);margin:6px 0}
+.h4{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin:12px 0 4px}
+#left h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin:12px 2px 6px}
+#left h3:first-child{margin-top:2px}
+.plist{display:flex;flex-direction:column;gap:3px}
+.plist button{justify-content:space-between;background:none;border-color:transparent;padding:6px 8px;text-align:left}
+.plist button:hover{background:var(--panel2)}
+.plist button .x{color:var(--mut);font-size:11px;padding:0 3px}
+.plist button .x:hover{color:#f77}
+.hsl-r input[type=range]{height:6px;-webkit-appearance:none;appearance:none;border-radius:4px;background:var(--trk,#444)}
+.hsl-r input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;border:1px solid #000}
+.hsl-r input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:1px solid #000}
+#curve{width:100%;aspect-ratio:1;display:block;background:#111114;border-radius:6px;touch-action:none;cursor:crosshair}
+footer{background:var(--panel);border-top:1px solid var(--line);display:grid;grid-template-columns:auto minmax(0,1fr);min-height:0}
+#stripBtns{display:flex;flex-direction:column;gap:5px;padding:8px;border-right:1px solid var(--line);justify-content:center}
+#stripBtns button,#stripBtns .btn{font-size:12px;padding:4px 8px;justify-content:center}
+#strip{display:flex;gap:6px;overflow-x:auto;padding:8px;align-items:center}
+.th{position:relative;flex:0 0 auto;height:96px;border-radius:6px;overflow:hidden;border:2px solid transparent;cursor:pointer;background:#000}
+.th img{height:100%;display:block}
+.th.sel{border-color:#5b6b70}.th.cur{border-color:var(--acc)}
+.th .nm{position:absolute;left:0;right:0;bottom:0;font-size:10px;padding:2px 4px;background:linear-gradient(transparent,rgba(0,0,0,.8));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.th .ed{position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--acc);display:none}
+.th.edited .ed{display:block}
+dialog{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:18px;max-width:min(440px,94vw);width:100%}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h2{margin:0 0 10px;font-size:16px}
+dialog label.ck{display:flex;gap:8px;align-items:center;margin:7px 0}
+dialog .f{display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:center;margin:8px 0}
+dialog .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+#prog{height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:12px;display:none}
+#prog i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
+@media(max-width:1000px){
+  html,body{overflow:auto}
+  body{display:block;height:auto}
+  header{position:sticky;top:0;z-index:5;height:48px;overflow-x:auto}
+  #work{display:flex;flex-direction:column}
+  #stage{height:62vh;order:1}
+  #right{order:2;border:0}
+  #panes{overflow:visible}
+  #left{order:3;border:0}
+  footer{position:sticky;bottom:0;height:110px;z-index:5}
+}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html" title="Back to the studio tools">‹ Tools</a>
+  <div class="brand">Click<b>Retouch</b></div>
+  <label class="btn">＋ Add photos<input type="file" id="fileIn" multiple accept="image/*" hidden></label>
+  <span id="aiChip" class="chip">AI off</span>
+  <span class="sp"></span>
+  <button id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
+  <button id="redoBtn" title="Redo (Ctrl+Shift+Z)">↷</button>
+  <button id="cmpBtn" title="Before / after split. Hold \ to see the original.">◐ Compare</button>
+  <button id="exportBtn" class="primary">Export</button>
+</header>
+
+<div id="work">
+  <aside id="left">
+    <h3>Retouch presets</h3>
+    <div class="plist" id="retouchList"></div>
+    <h3>Looks</h3>
+    <div class="plist" id="lookList"></div>
+    <h3>My presets</h3>
+    <div class="plist" id="myList"></div>
+    <div class="btnrow">
+      <button id="savePreset">＋ Save preset</button>
+    </div>
+    <div class="btnrow">
+      <button id="expPresets" class="sm">Export</button>
+      <label class="btn sm">Import<input type="file" id="impPresets" accept=".json,application/json" hidden></label>
+    </div>
+  </aside>
+
+  <main id="stage">
+    <div id="tools">
+      <div class="grp">
+        <button data-tool="pan" class="on" title="Move and zoom (scroll or pinch to zoom)">✋</button>
+        <button data-tool="heal" title="Healing brush: paint over spots, stray hairs, marks (H)">🩹 Heal</button>
+        <button data-tool="liquify" title="Liquify brush: push, bloat, pinch (L)">〰 Liquify</button>
+        <button data-tool="wb" title="White balance picker: click something that should be grey or white">💧 WB</button>
+      </div>
+      <div id="brushOpts">
+        <span class="sep"></span>
+        <div class="seg" id="liqModes" style="display:none">
+          <button data-lm="push" class="on">Push</button><button data-lm="bloat">Bloat</button><button data-lm="pinch">Pinch</button>
+        </div>
+        <span class="mut sm">Size</span><input type="range" id="brushSize" min="6" max="300" value="28">
+        <span class="mut sm" id="strLbl">Strength</span><input type="range" id="brushStr" min="5" max="100" value="50">
+        <button id="clearBrush" class="sm">Clear</button>
+      </div>
+      <span class="sp" style="flex:1"></span>
+      <div class="grp">
+        <button id="zoomOut" title="Zoom out (-)">−</button>
+        <button id="zoomFit" title="Fit (0)">Fit</button>
+        <button id="zoomIn" title="Zoom in (+)">＋</button>
+      </div>
+    </div>
+    <div id="view">
+      <canvas id="gl"></canvas>
+      <canvas id="ov"></canvas>
+      <div id="empty">
+        <div class="big">Drop photos here</div>
+        <div>JPEG, PNG, WebP or HEIC (Safari). Add one, or a whole shoot.</div>
+        <label class="btn primary">＋ Add photos<input type="file" id="fileIn2" multiple accept="image/*" hidden></label>
+        <div class="sm">Everything runs on this device. Photos are not uploaded.</div>
+      </div>
+      <div id="busy"></div>
+    </div>
+  </main>
+
+  <aside id="right">
+    <div id="histWrap"><canvas id="hist" width="300" height="64"></canvas></div>
+    <nav id="tabs">
+      <button data-tab="portrait" class="on">Portrait</button>
+      <button data-tab="adjust">Adjust</button>
+      <button data-tab="bg">Background</button>
+      <button data-tab="crop">Crop</button>
+    </nav>
+    <div id="panes">
+      <section data-pane="portrait"></section>
+      <section data-pane="adjust" hidden></section>
+      <section data-pane="bg" hidden></section>
+      <section data-pane="crop" hidden></section>
+    </div>
+  </aside>
+</div>
+
+<footer>
+  <div id="stripBtns">
+    <label class="btn">＋ Add<input type="file" id="fileIn3" multiple accept="image/*" hidden></label>
+    <button id="selAll" title="Select all (Ctrl+A)">Select all</button>
+    <button id="syncBtn" title="Copy this photo's settings to the selected photos">Sync…</button>
+    <button id="removeBtn" title="Remove selected photos from the editor">Remove</button>
+  </div>
+  <div id="strip"></div>
+</footer>
+
+<dialog id="syncDlg">
+  <h2 id="syncTitle">Sync settings</h2>
+  <div class="note" id="syncNote"></div>
+  <label class="ck"><input type="checkbox" data-g="portrait" checked> Portrait retouch (skin, face shape, eyes, teeth, makeup)</label>
+  <label class="ck"><input type="checkbox" data-g="color" checked> Light &amp; colour (including curves, HSL, grading, effects)</label>
+  <label class="ck"><input type="checkbox" data-g="bg" checked> Background</label>
+  <label class="ck"><input type="checkbox" data-g="geo"> Crop &amp; rotate</label>
+  <div class="f" id="presetNameRow"><span>Preset name</span><input type="text" id="presetName" maxlength="40" placeholder="e.g. Graduation clean"></div>
+  <div class="acts"><button value="cancel" id="syncCancel">Cancel</button><button class="primary" id="syncOk">Sync</button></div>
+</dialog>
+
+<dialog id="expDlg">
+  <h2>Export</h2>
+  <div class="f"><span>Photos</span><select id="exScope"></select></div>
+  <div class="f"><span>Format</span><select id="exFmt"><option value="image/jpeg">JPEG</option><option value="image/png">PNG</option><option value="image/webp">WebP</option></select></div>
+  <div class="f"><span>Quality</span><input type="range" id="exQ" min="60" max="100" value="92"></div>
+  <div class="f"><span>Long edge</span><select id="exSize"><option value="0">Original size</option><option value="4000">4000 px</option><option value="3000">3000 px</option><option value="2048">2048 px</option><option value="1080">1080 px (social)</option></select></div>
+  <div class="f"><span>File name</span><input type="text" id="exSuffix" value="_retouched"></div>
+  <label class="ck"><input type="checkbox" id="exZip" checked> Put several photos in one ZIP file</label>
+  <div id="prog"><i></i></div>
+  <div class="note" id="exNote"></div>
+  <div class="acts"><button id="exCancel">Close</button><button class="primary" id="exGo">Export</button></div>
+</dialog>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const hex2rgb = (h) => [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255];
+const isTouch = navigator.maxTouchPoints > 1;
+const PREV_MAX = isTouch ? 1800 : 2400;         // working size for the on-screen preview
+const EXPORT_MAX_PX = isTouch ? 16e6 : 36e6;    // big canvases fail on phones and tablets
+
+// ---------------------------------------------------------------- settings
+const S = (label, min, max, def = 0, step = 1, fmt) => ({ label, min, max, def, step, fmt });
+const DEFS = {
+  smooth: S('Smoothing', 0, 100), smoothTex: S('Keep skin texture', 0, 100, 60), blemish: S('Blemishes & acne', 0, 100),
+  wrinkles: S('Wrinkles & lines', 0, 100), darkCircles: S('Dark circles', 0, 100), eyeBags: S('Eye bags', 0, 100),
+  shine: S('Oil & shine', 0, 100), evenTone: S('Even skin tone', 0, 100), skinBright: S('Skin brightness', -100, 100),
+  skinWarm: S('Skin warmth', -100, 100), bodySmooth: S('Body skin (arms, neck)', 0, 100),
+  faceSlim: S('Slim face', -100, 100), jaw: S('V-line jaw', -100, 100), cheekbones: S('Cheekbones', -100, 100),
+  chin: S('Chin length', -100, 100), forehead: S('Forehead height', -100, 100), headSize: S('Head size', -100, 100),
+  eyeSize: S('Eye size', -100, 100), noseSlim: S('Slim nose', -100, 100), mouthSize: S('Mouth size', -100, 100), smile: S('Smile', -100, 100),
+  eyeBright: S('Brighten eyes', 0, 100), eyeWhite: S('Whiten eyes', 0, 100), teeth: S('Whiten teeth', 0, 100),
+  lipAmt: S('Lip colour', 0, 100), blushAmt: S('Blush', 0, 100),
+  exposure: S('Exposure', -4, 4, 0, 0.05, (v) => (v > 0 ? '+' : '') + v.toFixed(2)), contrast: S('Contrast', -100, 100),
+  highlights: S('Highlights', -100, 100), shadows: S('Shadows', -100, 100), whites: S('Whites', -100, 100), blacks: S('Blacks', -100, 100),
+  temp: S('Temperature', -100, 100), tint: S('Tint', -100, 100), vibrance: S('Vibrance', -100, 100), saturation: S('Saturation', -100, 100),
+  clarity: S('Clarity', -100, 100), texture: S('Texture', -100, 100), dehaze: S('Dehaze', -100, 100), sharpen: S('Sharpen', 0, 100),
+  vignette: S('Vignette', -100, 100), vigMid: S('Vignette size', 0, 100, 50), grain: S('Grain', 0, 100), fade: S('Fade', 0, 100),
+  gShH: S('Hue', 0, 360, 220), gShS: S('Amount', 0, 100), gMiH: S('Hue', 0, 360, 30), gMiS: S('Amount', 0, 100),
+  gHiH: S('Hue', 0, 360, 45), gHiS: S('Amount', 0, 100), gBal: S('Balance', -100, 100),
+  bgBlur: S('Blur amount', 0, 100, 50), bgClean: S('Clean backdrop (wrinkles, seams)', 0, 100), bgBright: S('Background brightness', -100, 100),
+  bgSat: S('Background saturation', -100, 100), bgEdge: S('Edge softness', 0, 100, 30),
+  straighten: S('Straighten', -45, 45, 0, 0.1, (v) => v.toFixed(1) + '°'),
+};
+const HSL_NAMES = ['Red', 'Orange', 'Yellow', 'Green', 'Aqua', 'Blue', 'Purple', 'Magenta'];
+const HSL_HUES = [0, 30, 60, 120, 180, 240, 270, 300];
+const flatCurve = () => [[0, 0], [1, 1]];
+function defaults() {
+  const s = {};
+  for (const k in DEFS) s[k] = DEFS[k].def;
+  Object.assign(s, {
+    lipColor: '#b8344f', blushColor: '#e2777a', hslH: Array(8).fill(0), hslS: Array(8).fill(0), hslL: Array(8).fill(0),
+    curve: { rgb: flatCurve(), r: flatCurve(), g: flatCurve(), b: flatCurve() },
+    bgMode: 'none', bgColor: '#ffffff', bgImage: null,
+    crop: { x: 0, y: 0, w: 1, h: 1 }, rot90: 0, flipH: false, aspect: 'free',
+    heals: [], liq: [],
+  });
+  return s;
+}
+const GROUP_KEYS = {
+  skin: ['smooth', 'smoothTex', 'blemish', 'wrinkles', 'darkCircles', 'eyeBags', 'shine', 'evenTone', 'skinBright', 'skinWarm', 'bodySmooth'],
+  shape: ['faceSlim', 'jaw', 'cheekbones', 'chin', 'forehead', 'headSize', 'eyeSize', 'noseSlim', 'mouthSize', 'smile'],
+  features: ['eyeBright', 'eyeWhite', 'teeth'],
+  makeup: ['lipAmt', 'lipColor', 'blushAmt', 'blushColor'],
+  light: ['exposure', 'contrast', 'highlights', 'shadows', 'whites', 'blacks'],
+  color: ['temp', 'tint', 'vibrance', 'saturation'],
+  hsl: ['hslH', 'hslS', 'hslL'],
+  curve: ['curve'],
+  grade: ['gShH', 'gShS', 'gMiH', 'gMiS', 'gHiH', 'gHiS', 'gBal'],
+  detail: ['clarity', 'texture', 'dehaze', 'sharpen'],
+  effects: ['vignette', 'vigMid', 'grain', 'fade'],
+  bg: ['bgMode', 'bgBlur', 'bgClean', 'bgBright', 'bgSat', 'bgEdge', 'bgColor', 'bgImage'],
+  geo: ['crop', 'rot90', 'flipH', 'straighten', 'aspect'],
+};
+const SYNC_GROUPS = {
+  portrait: ['skin', 'shape', 'features', 'makeup'],
+  color: ['light', 'color', 'hsl', 'curve', 'grade', 'detail', 'effects'],
+  bg: ['bg'], geo: ['geo'],
+};
+const keysOf = (groups) => groups.flatMap((g) => SYNC_GROUPS[g] ? SYNC_GROUPS[g].flatMap((x) => GROUP_KEYS[x]) : GROUP_KEYS[g]);
+const clone = (v) => JSON.parse(JSON.stringify(v));
+function resetKeys(s, keys) { const d = defaults(); for (const k of keys) s[k] = clone(d[k]); }
+const SHAPE_KEYS = new Set(GROUP_KEYS.shape);
+const isEdited = (s) => JSON.stringify(s) !== JSON.stringify(defaults());
+
+// ---------------------------------------------------------------- presets
+const RETOUCH = [
+  { name: 'None', v: {} },
+  { name: 'Natural', v: { smooth: 30, smoothTex: 75, blemish: 60, darkCircles: 30, eyeBags: 25, shine: 30, eyeBright: 20, teeth: 25 } },
+  { name: 'Studio clean', v: { smooth: 50, smoothTex: 60, blemish: 80, wrinkles: 30, darkCircles: 50, eyeBags: 45, shine: 50, evenTone: 30, eyeBright: 35, eyeWhite: 25, teeth: 40, faceSlim: 15, eyeSize: 8 } },
+  { name: 'Glam', v: { smooth: 70, smoothTex: 45, blemish: 90, wrinkles: 50, darkCircles: 60, eyeBags: 60, shine: 60, evenTone: 45, skinBright: 10, eyeBright: 45, eyeWhite: 35, teeth: 50, faceSlim: 25, jaw: 20, eyeSize: 15, noseSlim: 15, lipAmt: 20, blushAmt: 20 } },
+  { name: 'Men natural', v: { smooth: 20, smoothTex: 85, blemish: 60, darkCircles: 30, eyeBags: 30, shine: 55, eyeBright: 15, teeth: 20 } },
+  { name: 'Kids', v: { smooth: 15, smoothTex: 85, blemish: 50, darkCircles: 25, shine: 30, eyeBright: 20 } },
+  { name: 'Graduation / ID', v: { smooth: 40, smoothTex: 65, blemish: 80, darkCircles: 45, eyeBags: 40, shine: 60, evenTone: 35, eyeBright: 25, teeth: 30 } },
+];
+const LOOKS = [
+  { name: 'Original', v: {} },
+  { name: 'Clean studio', v: { exposure: 0.15, contrast: 10, highlights: -20, shadows: 15, whites: 10, vibrance: 15, clarity: 5 } },
+  { name: 'Bright & airy', v: { exposure: 0.35, contrast: -10, highlights: -30, shadows: 35, whites: 15, blacks: 10, temp: -5, vibrance: 10, saturation: -10, fade: 15 } },
+  { name: 'Warm portrait', v: { temp: 18, tint: 4, contrast: 8, shadows: 10, vibrance: 12, gHiH: 40, gHiS: 15 } },
+  { name: 'Soft pastel', v: { exposure: 0.2, contrast: -20, highlights: -25, shadows: 30, saturation: -15, fade: 25, gShH: 200, gShS: 12, gHiH: 30, gHiS: 12 } },
+  { name: 'Cinematic', v: { contrast: 20, highlights: -25, shadows: -5, temp: -6, saturation: -10, gShH: 190, gShS: 30, gHiH: 35, gHiS: 25, vignette: -20 } },
+  { name: 'Moody', v: { exposure: -0.2, contrast: 25, highlights: -40, shadows: -10, blacks: -15, saturation: -25, clarity: 15, vignette: -35, fade: 10 } },
+  { name: 'Film matte', v: { contrast: -5, fade: 25, saturation: -10, temp: 8, grain: 25, gShH: 210, gShS: 10, curve: { rgb: [[0, 0.07], [0.25, 0.24], [0.75, 0.79], [1, 0.95]], r: flatCurve(), g: flatCurve(), b: flatCurve() } } },
+  { name: 'Golden hour', v: { temp: 30, tint: 8, exposure: 0.1, vibrance: 20, gHiH: 35, gHiS: 30, gShH: 15, gShS: 10 } },
+  { name: 'Cool clean', v: { temp: -15, contrast: 12, clarity: 10, vibrance: 8 } },
+  { name: 'Vivid', v: { contrast: 20, vibrance: 35, saturation: 10, clarity: 15, dehaze: 10 } },
+  { name: 'B&W classic', v: { saturation: -100, contrast: 25, clarity: 15, grain: 10 } },
+  { name: 'B&W soft', v: { saturation: -100, contrast: -10, fade: 20, shadows: 20 } },
+  { name: 'Vintage', v: { fade: 30, temp: 20, tint: -5, saturation: -20, grain: 30, vignette: -25, gShH: 180, gShS: 15 } },
+];
+const PRESET_KEY = 'clickretouch-presets';
+function loadMyPresets() { try { return JSON.parse(localStorage.getItem(PRESET_KEY)) || []; } catch (e) { return []; } }
+function saveMyPresets(list) { try { localStorage.setItem(PRESET_KEY, JSON.stringify(list)); } catch (e) {} }
+
+// ---------------------------------------------------------------- storage (IndexedDB)
+const DB = (() => {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    const r = indexedDB.open('clickretouch', 1);
+    r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('meta', { keyPath: 'id' }); d.createObjectStore('blobs', { keyPath: 'id' }); d.createObjectStore('files', { keyPath: 'id' }); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+  async function tx(store, mode, fn) {
+    const d = await open();
+    return new Promise((res, rej) => { const t = d.transaction(store, mode); const q = fn(t.objectStore(store)); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); });
+  }
+  const safe = (p) => p.catch((e) => { console.warn('storage', e); return null; });
+  return {
+    put: (s, v) => safe(tx(s, 'readwrite', (st) => st.put(v))),
+    get: (s, k) => safe(tx(s, 'readonly', (st) => st.get(k))),
+    all: (s) => safe(tx(s, 'readonly', (st) => st.getAll())),
+    del: (s, k) => safe(tx(s, 'readwrite', (st) => st.delete(k))),
+  };
+})();
+
+// ---------------------------------------------------------------- AI (MediaPipe, Apache-2.0, runs in the browser)
+const AI = (() => {
+  const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+  const FACE = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+  const SEG = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite';
+  let lm = null, sg = null, loading = null, failed = false;
+  const chip = (t, cls) => { const e = $('aiChip'); e.textContent = t; e.className = 'chip ' + (cls || ''); };
+  function load() {
+    if (loading) return loading;
+    failed = false; chip('Loading AI…');
+    loading = (async () => {
+      const { FilesetResolver, FaceLandmarker, ImageSegmenter } = await import(MP + '/vision_bundle.mjs');
+      const files = await FilesetResolver.forVisionTasks(MP + '/wasm');
+      const mkL = (d) => FaceLandmarker.createFromOptions(files, { baseOptions: { modelAssetPath: FACE, delegate: d }, runningMode: 'IMAGE', numFaces: 12, minFaceDetectionConfidence: 0.4 });
+      const mkS = (d) => ImageSegmenter.createFromOptions(files, { baseOptions: { modelAssetPath: SEG, delegate: d }, runningMode: 'IMAGE', outputConfidenceMasks: true, outputCategoryMask: false });
+      try { lm = await mkL('GPU'); } catch (e) { lm = await mkL('CPU'); }
+      try { sg = await mkS('GPU'); } catch (e) { sg = await mkS('CPU'); }
+      chip('AI ready', 'ok');
+    })().catch((e) => { console.error(e); failed = true; loading = null; chip('AI unavailable (offline?)', 'warn'); throw e; });
+    return loading;
+  }
+  function scaled(src, max) {
+    const k = Math.min(1, max / Math.max(src.width, src.height));
+    const c = document.createElement('canvas'); c.width = Math.round(src.width * k); c.height = Math.round(src.height * k);
+    c.getContext('2d').drawImage(src, 0, 0, c.width, c.height); return c;
+  }
+  // Faces: 478 landmarks each, in 0..1 image coordinates. Seg: soft masks packed as R face skin, G body skin, B background, A hair.
+  async function analyze(canvas) {
+    await load();
+    const r = lm.detect(scaled(canvas, 1280));
+    const faces = (r.faceLandmarks || []).map((f) => f.map((p) => ({ x: p.x, y: p.y })));
+    let seg = null;
+    const res = sg.segment(scaled(canvas, 768));
+    const ms = res && res.confidenceMasks;
+    if (ms && ms.length >= 4) {
+      const w = ms[0].width, h = ms[0].height, A = ms.map((m) => m.getAsFloat32Array()), data = new Uint8Array(w * h * 4);
+      for (let i = 0; i < w * h; i++) { data[i * 4] = A[3][i] * 255; data[i * 4 + 1] = A[2][i] * 255; data[i * 4 + 2] = A[0][i] * 255; data[i * 4 + 3] = A[1][i] * 255; }
+      seg = { w, h, data };
+      ms.forEach((m) => m.close());
+    }
+    return { faces, seg };
+  }
+  return { load, analyze, failed: () => failed, chip };
+})();
+
+// ---------------------------------------------------------------- WebGL renderer
+const R = (() => {
+  const cv = $('gl');
+  const gl = cv.getContext('webgl2', { antialias: false, premultipliedAlpha: false, alpha: false, preserveDrawingBuffer: false });
+  if (!gl) return null;
+  const hasF = !!gl.getExtension('EXT_color_buffer_float');
+  gl.getExtension('OES_texture_float_linear');
+  const MAXT = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+  const vao = gl.createVertexArray();
+  const VS = '#version 300 es\nout vec2 uv;void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));uv=p;gl_Position=vec4(p*2.-1.,0.,1.);}';
+  function mk(src) {
+    const p = gl.createProgram();
+    for (const [t, s] of [[gl.VERTEX_SHADER, VS], [gl.FRAGMENT_SHADER, '#version 300 es\nprecision highp float;\nin vec2 uv;out vec4 o;\n' + src]]) {
+      const sh = gl.createShader(t); gl.shaderSource(sh, s); gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+      gl.attachShader(p, sh);
+    }
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i); u[a.name.replace(/\[0\]$/, '')] = gl.getUniformLocation(p, a.name); }
+    return { p, u };
+  }
+  const LIB = `
+float lum(vec3 c){return dot(c,vec3(.2126,.7152,.0722));}
+vec3 setLum(vec3 c,float l){c+=l-lum(c);float L=lum(c);float n=min(c.r,min(c.g,c.b)),x=max(c.r,max(c.g,c.b));
+ if(n<0.)c=L+(c-L)*L/max(L-n,1e-5);if(x>1.)c=L+(c-L)*(1.-L)/max(x-L,1e-5);return c;}
+vec3 rgb2hsv(vec3 c){vec4 K=vec4(0.,-1./3.,2./3.,-1.);vec4 p=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g));
+ vec4 q=mix(vec4(p.xyw,c.r),vec4(c.r,p.yzx),step(p.x,c.r));float d=q.x-min(q.w,q.y);float e=1e-10;
+ return vec3(abs(q.z+(q.w-q.y)/(6.*d+e)),d/(q.x+e),q.x);}
+vec3 hsv2rgb(vec3 c){vec3 p=abs(fract(c.xxx+vec3(1.,2./3.,1./3.))*6.-3.);return c.z*mix(vec3(1.),clamp(p-1.,0.,1.),c.y);}
+vec3 hue(float h){return clamp(abs(mod(h*6.+vec3(0.,4.,2.),6.)-3.)-1.,0.,1.);}
+`;
+  const P = {
+    copy: mk('uniform sampler2D t;void main(){o=texture(t,uv);}'),
+    blur: mk(`uniform sampler2D t;uniform vec2 dir;void main(){vec4 a=vec4(0.);float ws=0.;
+      for(int i=-12;i<=12;i++){float x=float(i)/12.;float w=exp(-x*x*4.);a+=texture(t,uv+dir*float(i))*w;ws+=w;}o=a/ws;}`),
+    bil: mk(`uniform sampler2D t;uniform vec2 px;uniform float rad,sig;void main(){vec3 c0=texture(t,uv).rgb;vec3 a=vec3(0.);float ws=0.;
+      for(int j=-5;j<=5;j++)for(int i=-5;i<=5;i++){vec2 q=vec2(float(i),float(j));float r2=dot(q,q);if(r2>30.)continue;
+      vec3 c=texture(t,uv+q*px*rad/5.).rgb;vec3 dc=c-c0;float w=exp(-r2/12.5-dot(dc,dc)/(2.*sig*sig));a+=c*w;ws+=w;}o=vec4(a/ws,1.);}`),
+    main: mk(LIB + `
+uniform sampler2D S,L,B,G1,G2,G3,M1,M2,SEG,BGI,CRV;
+uniform vec2 px;uniform float fineR;
+uniform float smooth_,keepTex,blemish,wrinkles,darkC,bags,shine,even_,sBright,sWarm,body;
+uniform float eyeB,eyeW,teeth,lipA,blushA;uniform vec3 lipC,blushC;
+uniform float bgMode,bgEdge,bgClean,bgBright,bgSat,hasSeg,hasLm,hasBgi;uniform vec3 bgCol;uniform vec4 bgiFit;
+uniform float expo,contr,hiL,shL,whi,bla,temp,tint,vib,sat,clar,textr,dehaze,sharp,fade;
+uniform float hslH[8],hslS[8],hslL[8];
+uniform vec2 gSh,gMi,gHi;uniform float gBal;
+float skinLike(vec3 c){float y=lum(c);float cb=(c.b-y)*.564,cr=(c.r-y)*.713;
+ return smoothstep(.0,.03,cr)*(1.-smoothstep(.13,.2,cr))*(1.-smoothstep(.0,.06,cb));}
+float cen(int i){return i==0?0.:i==1?30.:i==2?60.:i==3?120.:i==4?180.:i==5?240.:i==6?270.:300.;}
+vec3 hslAdj(float h){for(int i=0;i<8;i++){float a=cen(i);float b=i==7?360.:cen(i+1);if(h>=a&&h<b){
+ float t=smoothstep(0.,1.,(h-a)/(b-a));int j=i==7?0:i+1;return vec3(mix(hslH[i],hslH[j],t),mix(hslS[i],hslS[j],t),mix(hslL[i],hslL[j],t));}}
+ return vec3(hslH[0],hslS[0],hslL[0]);}
+void main(){
+ vec3 s=texture(S,uv).rgb,l=texture(L,uv).rgb,b=texture(B,uv).rgb,g1=texture(G1,uv).rgb,g2=texture(G2,uv).rgb;
+ vec4 m1=texture(M1,uv)*hasLm,m2=texture(M2,uv)*hasLm,sg=texture(SEG,uv);
+ vec2 d=px*fineR;vec2 e=d*.7071;
+ vec3 fine=(texture(S,uv+vec2(d.x,0.)).rgb+texture(S,uv-vec2(d.x,0.)).rgb+texture(S,uv+vec2(0.,d.y)).rgb+texture(S,uv-vec2(0.,d.y)).rgb
+  +texture(S,uv+e).rgb+texture(S,uv-e).rgb+texture(S,uv+vec2(e.x,-e.y)).rgb+texture(S,uv+vec2(-e.x,e.y)).rgb)*.125;
+ float feat=m1.a;
+ float face=hasSeg>.5?sg.r:m2.a*skinLike(s);
+ float skin=clamp(face,0.,1.)*(1.-feat);
+ float bodyS=hasSeg>.5?sg.g*(1.-feat):0.;
+ // The skin fixes all pull the low-frequency layer toward a cleaner version of itself, then the photo's own
+ // fine detail goes back on top. Mixing toward one target (not adding fixes) keeps them from overshooting.
+ float ue=m1.b*(1.-m2.r);
+ float sm=skin*smooth_+bodyS*body;
+ float spot=smoothstep(.008,.04,lum(g1)-lum(l))*skin;
+ float flat_=1.-smoothstep(.03,.1,abs(lum(g1)-lum(b)));
+ vec3 tg=mix(l,b,clamp(sm,0.,1.));
+ tg=mix(tg,g1,clamp(skin*wrinkles*flat_*.8,0.,1.));
+ tg=mix(tg,g1,clamp(spot*blemish*1.5,0.,1.));
+ tg=mix(tg,g1,clamp(ue*bags*.9,0.,1.));
+ vec3 c=s+(tg-l);
+ c+=(fine-s)*clamp(sm,0.,1.)*(1.-keepTex);
+ float lift=max(0.,lum(g2)-lum(g1));
+ c+=vec3(lift*1.3+.015)*ue*darkC;
+ c=mix(c,setLum(g2,lum(c)),ue*darkC*.45);
+ // shine
+ float sk=clamp(skin+bodyS*.6,0.,1.);
+ float hl=max(0.,lum(s)-lum(g2));
+ float sh=smoothstep(.02,.12,hl)*smoothstep(.4,.7,lum(s))*sk;
+ c-=vec3(hl*.85)*sh*shine;
+ c=mix(c,setLum(g2,lum(c)),sh*shine*.5);
+ // even tone
+ c=mix(c,setLum(g2,lum(c)),skin*even_*.6);
+ c+=vec3(lum(g2)-lum(g1))*skin*even_*.5;
+ c*=1.+sBright*.22*sk;
+ c+=vec3(.04,.01,-.04)*sWarm*sk;
+ // eyes, teeth, makeup
+ float ey=m2.r;
+ c+=(s-g1)*ey*eyeB*.9;
+ c=mix(c,c*1.12+.015,ey*eyeB*.7);
+ float scl=ey*(1.-m2.b)*smoothstep(.25,.5,lum(s));
+ c=mix(c,vec3(lum(c))*1.1+.02,scl*eyeW*.75);
+ float tt=m1.r*smoothstep(.15,.4,lum(s));
+ c=mix(c,vec3(lum(c))*vec3(.99,1.,1.03)+.05,tt*teeth*.85);
+ c=mix(c,setLum(lipC,lum(c)*.97),m1.g*lipA*.8);
+ c=mix(c,setLum(mix(c,blushC,.7),lum(c)),m2.g*blushA*.55);
+ // background
+ if(hasSeg>.5){
+  float w=.02+bgEdge*.45;
+  float bg=smoothstep(.5-w,.5+w,sg.b);
+  c=mix(c,c+(g2-l)+(fine-s)*.6,bg*bgClean);
+  if(bgMode>.5&&bgMode<1.5)c=mix(c,texture(G3,uv).rgb,bg);
+  else if(bgMode>1.5&&bgMode<2.5)c=mix(c,bgCol,bg);
+  else if(bgMode>2.5&&hasBgi>.5)c=mix(c,texture(BGI,bgiFit.xy+uv*bgiFit.zw).rgb,bg);
+  c*=1.+bgBright*.5*bg;
+  c=mix(vec3(lum(c)),c,1.+bgSat*bg);
+ }
+ // detail
+ float L0=lum(c);float mid=1.-abs(L0*2.-1.);
+ c+=vec3(lum(s)-lum(g1))*clar*.9*(.4+.6*mid);
+ c+=(s-fine)*(textr*1.6+sharp*2.2);
+ // exposure and white balance in linear light
+ vec3 lin=pow(max(c,0.),vec3(2.2));
+ lin*=exp2(expo)*vec3(1.+.3*temp,1.-.25*tint,1.-.3*temp);
+ c=pow(lin,vec3(1./2.2));
+ // tone
+ float l0=lum(c),l2=l0;
+ float ws=1.-smoothstep(0.,.6,l0),wh=smoothstep(.4,1.,l0);
+ l2+=shL*.28*ws+hiL*.28*wh;
+ l2+=whi*.2*smoothstep(.55,1.,l0)+bla*.14*(1.-smoothstep(0.,.35,l0));
+ l2=mix(l2,(l2-.06)/.94,max(dehaze,0.));l2=mix(l2,l2*.8+.15,max(-dehaze,0.));
+ float lc=clamp(l2,0.,1.);float scv=lc*lc*(3.-2.*lc);
+ l2=contr>=0.?mix(l2,scv,contr*.8):mix(l2,.5+(l2-.5)*.5,-contr);
+ c=l0>.02?c*(l2/l0):c+(l2-l0);
+ // saturation and vibrance
+ float Ls=lum(c);float sv=max(c.r,max(c.g,c.b))-min(c.r,min(c.g,c.b));
+ c=mix(vec3(Ls),c,1.+sat+max(dehaze,0.)*.15);
+ c=mix(vec3(Ls),c,1.+vib*clamp(1.-sv,0.,1.));
+ // HSL
+ vec3 hsv=rgb2hsv(clamp(c,0.,1.));vec3 ad=hslAdj(hsv.x*360.);float wg=smoothstep(0.,.15,hsv.y);
+ hsv.x=fract(hsv.x+ad.x*(30./360.)*wg);hsv.y=clamp(hsv.y*(1.+ad.y*wg),0.,1.);
+ c=hsv2rgb(hsv);c=setLum(c,lum(c)*(1.+ad.z*.5*wg*hsv.y));
+ // colour grading
+ float lg=lum(c);float bal=gBal*.3;
+ float wS=1.-smoothstep(0.,.5+bal,lg),wH=smoothstep(.5+bal,1.,lg),wM=max(1.-wS-wH,0.);
+ vec3 tc=(hue(gSh.x)-.5)*gSh.y*wS+(hue(gMi.x)-.5)*gMi.y*wM+(hue(gHi.x)-.5)*gHi.y*wH;
+ c=setLum(c+tc*.35,lg);
+ // curves
+ c=clamp(c,0.,1.)*.99609+.00195;
+ c=vec3(texture(CRV,vec2(c.r,.5)).r,texture(CRV,vec2(c.g,.5)).g,texture(CRV,vec2(c.b,.5)).b);
+ c=c*(1.-fade*.18)+fade*.1;
+ o=vec4(clamp(c,0.,1.),1.);
+}`),
+    final: mk(LIB + `
+uniform sampler2D C,S0,D;uniform mat3 M;uniform vec4 view,bgc;uniform float flip,hasD,vig,vigMid,outAR,grain,split;uniform vec2 srcN;
+float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
+void main(){
+ vec2 sc=vec2(uv.x,flip>.5?1.-uv.y:uv.y);
+ vec2 q=(sc-view.xy)/view.zw;
+ if(q.x<0.||q.y<0.||q.x>1.||q.y>1.){o=bgc;return;}
+ vec2 su=(M*vec3(q,1.)).xy;
+ bool orig=sc.x<split;
+ if(!orig&&hasD>.5)su+=texture(D,su).xy;
+ if(su.x<0.||su.y<0.||su.x>1.||su.y>1.){o=vec4(0.,0.,0.,1.);return;}
+ vec3 c=orig?texture(S0,su).rgb:texture(C,su).rgb;
+ if(!orig){
+  vec2 v=(q-.5)*2.;v.x*=mix(1.,outAR,.5);float dd=length(v)/1.6;
+  float f=smoothstep(.15+vigMid*.7,1.2+vigMid*.3,dd);
+  c=vig<0.?c*(1.+vig*f):mix(c,vec3(1.),vig*f);
+  if(grain>0.){vec2 gp=su*srcN*700.;float n=vn(gp)*.6+vn(gp*2.1+7.)*.4;c+=(n-.5)*grain*.22*(1.-abs(lum(c)*2.-1.)*.5);}
+ }
+ o=vec4(clamp(c,0.,1.),1.);
+}`),
+  };
+
+  function setParams(mip) {
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mip ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  }
+  function texFrom(src, mip) {
+    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    setParams(mip); if (mip) gl.generateMipmap(gl.TEXTURE_2D);
+    return t;
+  }
+  function texData(w, h, data, float) {
+    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    if (float) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.FLOAT, data);
+    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    setParams(false); return t;
+  }
+  function target(w, h, half) {
+    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    const hf = half && hasF;
+    gl.texImage2D(gl.TEXTURE_2D, 0, hf ? gl.RGBA16F : gl.RGBA8, w, h, 0, gl.RGBA, hf ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, null);
+    setParams(false);
+    const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+    return { t, f, w, h };
+  }
+  const free = (x) => { if (!x) return; if (x.f) { gl.deleteFramebuffer(x.f); gl.deleteTexture(x.t); } else gl.deleteTexture(x); };
+  const black = texData(1, 1, new Uint8Array([0, 0, 0, 0]));
+  function run(prog, tgt, w, h, tex, uni) {
+    gl.useProgram(prog.p);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tgt ? tgt.f : null);
+    gl.viewport(0, 0, w, h);
+    let unit = 0;
+    for (const k in tex) {
+      const loc = prog.u[k]; if (loc == null) continue;
+      gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, tex[k] || black); gl.uniform1i(loc, unit++);
+    }
+    for (const k in uni) {
+      const loc = prog.u[k]; if (loc == null) continue;
+      const v = uni[k];
+      if (typeof v === 'number') gl.uniform1f(loc, v);
+      else if (v.length === 2) gl.uniform2fv(loc, v);
+      else if (v.length === 3) gl.uniform3fv(loc, v);
+      else if (v.length === 4) gl.uniform4fv(loc, v);
+      else if (v.length === 9) gl.uniformMatrix3fv(loc, false, v);
+      else gl.uniform1fv(loc, v);
+    }
+    gl.bindVertexArray(vao);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+  const blur2 = (src, tmp, dst, rad) => {
+    run(P.blur, tmp, tmp.w, tmp.h, { t: src.t || src }, { dir: [rad / 12 / tmp.w, 0] });
+    run(P.blur, dst, dst.w, dst.h, { t: tmp.t }, { dir: [0, rad / 12 / dst.h] });
+  };
+
+  let d = null; // textures for the loaded photo
+  function freeDoc() { if (!d) return; for (const k of ['S0', 'S', 'L', 'B1', 'B', 'G1', 'T1', 'Q', 'TQ', 'G2', 'G3', 'C', 'M1', 'M2', 'SEG', 'D']) if (d[k] && !(k === 'S' && d.S === d.S0)) free(d[k]); d = null; }
+  function statics() {
+    const { L, B1, B, G1, T1, Q, TQ, G2 } = d;
+    run(P.copy, L, L.w, L.h, { t: d.S }, {});
+    const px = [1 / L.w, 1 / L.h], k = L.w / 1024 > L.h / 1024 ? L.w / 1024 : L.h / 1024;
+    run(P.bil, B1, L.w, L.h, { t: L.t }, { px, rad: 7 * k, sig: 0.09 });
+    run(P.bil, B, L.w, L.h, { t: B1.t }, { px, rad: 7 * k, sig: 0.08 });
+    blur2(L, T1, G1, 10 * k);
+    run(P.copy, Q, Q.w, Q.h, { t: d.S }, {});
+    blur2(Q, TQ, G2, 12 * Math.max(Q.w, Q.h) / 256);
+    d.g3r = -1;
+  }
+  return {
+    gl, MAXT, canvas: cv,
+    get loaded() { return !!d; },
+    get size() { return d ? [d.W, d.H] : [0, 0]; },
+    load(raw, healed) {
+      freeDoc();
+      const W = raw.width, H = raw.height, m = Math.max(W, H);
+      const ak = Math.min(1, 1024 / m), aw = Math.max(2, Math.round(W * ak)), ah = Math.max(2, Math.round(H * ak));
+      const qk = 256 / m, qw = Math.max(2, Math.round(W * qk)), qh = Math.max(2, Math.round(H * qk));
+      d = { W, H };
+      d.S0 = texFrom(raw, true);
+      d.S = healed && healed !== raw ? texFrom(healed, true) : d.S0;
+      d.L = target(aw, ah, true); d.B1 = target(aw, ah, true); d.B = target(aw, ah, true); d.G1 = target(aw, ah, true); d.T1 = target(aw, ah, true);
+      d.Q = target(qw, qh, true); d.TQ = target(qw, qh, true); d.G2 = target(qw, qh, true); d.G3 = target(qw, qh, true);
+      d.C = target(W, H, false);
+      statics();
+    },
+    setHealed(healed) {
+      if (!d) return;
+      if (d.S !== d.S0) free(d.S);
+      d.S = healed ? texFrom(healed, true) : d.S0;
+      statics();
+    },
+    setMasks(m1, m2) { if (!d) return; free(d.M1); free(d.M2); d.M1 = m1 ? texFrom(m1) : null; d.M2 = m2 ? texFrom(m2) : null; },
+    setSeg(seg) { if (!d) return; free(d.SEG); d.SEG = seg ? texData(seg.w, seg.h, seg.data) : null; },
+    setDisp(disp) { if (!d) return; free(d.D); d.D = disp ? texData(disp.w, disp.h, disp.data, true) : null; },
+    setCurve(lut) { if (this.crv) free(this.crv); this.crv = texData(256, 1, lut); },
+    setBgImage(img) { if (this.bgi) free(this.bgi); this.bgi = img ? texFrom(img) : null; this.bgiAR = img ? img.width / img.height : 1; },
+    drawMain(u, bgBlurRad) {
+      if (!d) return;
+      if (u.bgMode === 1 && d.g3r !== bgBlurRad) { blur2(d.Q, d.TQ, d.G3, bgBlurRad); if (bgBlurRad > 24) blur2(d.G3, d.TQ, d.G3, bgBlurRad); d.g3r = bgBlurRad; }
+      const fa = d.W / d.H, ia = this.bgiAR || 1;
+      const fit = ia > fa ? [(1 - fa / ia) / 2, 0, fa / ia, 1] : [0, (1 - ia / fa) / 2, 1, ia / fa];
+      run(P.main, d.C, d.W, d.H,
+        { S: d.S, L: d.L.t, B: d.B.t, G1: d.G1.t, G2: d.G2.t, G3: d.G3.t, M1: d.M1, M2: d.M2, SEG: d.SEG, BGI: this.bgi, CRV: this.crv },
+        Object.assign({ px: [1 / d.W, 1 / d.H], fineR: Math.max(1, Math.max(d.W, d.H) / 1600), hasSeg: d.SEG ? 1 : 0, hasLm: d.M1 ? 1 : 0, hasBgi: this.bgi ? 1 : 0, bgiFit: fit }, u));
+    },
+    drawFinal(u, tgt) {
+      if (!d) return;
+      const w = tgt ? tgt.w : cv.width, h = tgt ? tgt.h : cv.height;
+      run(P.final, tgt || null, w, h, { C: d.C.t, S0: d.S0, D: d.D }, Object.assign({ hasD: d.D ? 1 : 0, srcN: [d.W / Math.max(d.W, d.H), d.H / Math.max(d.W, d.H)] }, u));
+    },
+    // Renders the output at w x h and returns it as a 2D canvas.
+    exportCanvas(u, w, h) {
+      const t = target(w, h, false);
+      this.drawFinal(Object.assign({}, u, { flip: 0, view: [0, 0, 1, 1], split: -1, bgc: [0, 0, 0, 1] }), t);
+      const img = new ImageData(w, h);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, t.f);
+      gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(img.data.buffer));
+      free(t);
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').putImageData(img, 0, 0);
+      return c;
+    },
+    unload: freeDoc,
+  };
+})();
+
+// ---------------------------------------------------------------- landmark masks
+const LM = {
+  oval: [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109],
+  eyeR: [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246],
+  eyeL: [263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466],
+  lowR: [33, 7, 163, 144, 145, 153, 154, 155, 133], lowL: [263, 249, 390, 373, 374, 380, 381, 382, 362],
+  browR: [70, 63, 105, 66, 107, 55, 65, 52, 53, 46], browL: [300, 293, 334, 296, 336, 285, 295, 282, 283, 276],
+  lipsOut: [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185],
+  lipsIn: [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191],
+};
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+function drawMasks(faces, W, H) {
+  const m = Math.max(W, H), k = Math.min(1, 1024 / m), w = Math.round(W * k), h = Math.round(H * k);
+  const layers = [];
+  const layer = (draw) => {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d', { willReadFrequently: true }); x.fillStyle = '#fff'; x.strokeStyle = '#fff'; x.lineJoin = 'round';
+    for (const f of faces) {
+      const P = (i) => ({ x: f[i].x * w, y: f[i].y * h });
+      const ew = dist(P(33), P(133));
+      x.save(); draw(x, P, f, ew); x.restore();
+    }
+    layers.push(x.getImageData(0, 0, w, h).data);
+  };
+  const poly = (x, P, idx) => { x.beginPath(); idx.forEach((i, n) => { const p = P(i); n ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y); }); x.closePath(); };
+  // m1: teeth, lips, under-eye, features
+  layer((x, P, f, ew) => { x.filter = `blur(${ew * 0.04}px)`; poly(x, P, LM.lipsIn); x.fill(); });
+  layer((x, P, f, ew) => { x.filter = `blur(${ew * 0.05}px)`; poly(x, P, LM.lipsOut); x.fill(); x.globalCompositeOperation = 'destination-out'; poly(x, P, LM.lipsIn); x.fill(); });
+  layer((x, P, f, ew) => {
+    x.filter = `blur(${ew * 0.14}px)`;
+    const down = { x: P(152).x - P(10).x, y: P(152).y - P(10).y }, dl = Math.hypot(down.x, down.y); down.x /= dl; down.y /= dl;
+    for (const idx of [LM.lowR, LM.lowL]) {
+      const pts = idx.map(P), n = pts.length - 1;
+      x.beginPath(); pts.forEach((p, i) => i ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y));
+      for (let i = n; i >= 0; i--) { const s = ew * (0.12 + 0.42 * Math.sin(Math.PI * i / n)); x.lineTo(pts[i].x + down.x * s, pts[i].y + down.y * s); }
+      x.closePath(); x.fill();
+    }
+  });
+  layer((x, P, f, ew) => {
+    x.filter = `blur(${ew * 0.08}px)`; x.lineWidth = ew * 0.22;
+    for (const idx of [LM.eyeR, LM.eyeL, LM.browR, LM.browL, LM.lipsOut]) { poly(x, P, idx); x.fill(); x.stroke(); }
+    for (const i of [98, 327]) { const p = P(i); x.beginPath(); x.arc(p.x, p.y, ew * 0.18, 0, 7); x.fill(); }
+  });
+  // m2: eyes, cheeks, iris, face oval
+  layer((x, P, f, ew) => { x.filter = `blur(${ew * 0.03}px)`; poly(x, P, LM.eyeR); x.fill(); poly(x, P, LM.eyeL); x.fill(); });
+  layer((x, P, f, ew) => {
+    const fw = dist(P(234), P(454));
+    for (const i of [50, 280]) { const p = P(i), r = fw * 0.16, g = x.createRadialGradient(p.x, p.y, 0, p.x, p.y, r); g.addColorStop(0, '#fff'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.beginPath(); x.ellipse(p.x, p.y, r, r * 0.8, 0, 0, 7); x.fill(); }
+  });
+  layer((x, P, f, ew) => {
+    if (f.length < 478) return; x.filter = `blur(${ew * 0.03}px)`;
+    for (const [c, a] of [[468, 469], [473, 474]]) { const p = P(c), r = dist(p, P(a)) * 1.05; x.beginPath(); x.arc(p.x, p.y, r, 0, 7); x.fill(); }
+  });
+  layer((x, P, f, ew) => { x.filter = `blur(${ew * 0.1}px)`; poly(x, P, LM.oval); x.fill(); });
+  // Packed as raw bytes (not through a canvas, which would premultiply and lose the mask values).
+  const raw = (a, b, c, d) => { const o = new Uint8Array(w * h * 4); for (let i = 0; i < w * h * 4; i += 4) { o[i] = a[i + 3]; o[i + 1] = b[i + 3]; o[i + 2] = c[i + 3]; o[i + 3] = d[i + 3]; } return { w, h, data: o }; };
+  return { m1: raw(layers[0], layers[1], layers[2], layers[3]), m2: raw(layers[4], layers[5], layers[6], layers[7]) };
+}
+
+// ---------------------------------------------------------------- warps (face reshape + liquify)
+// Ops live in "N space": x and y in pixels divided by the long edge, so circles stay round.
+function faceOps(faces, s, sx, sy) {
+  const ops = [];
+  const any = GROUP_KEYS.shape.some((k) => s[k]);
+  if (!any) return ops;
+  const push = (q, v, r) => ops.push(['push', q.x, q.y, v.x, v.y, r]);
+  const scale = (q, a, r) => ops.push(['scale', q.x, q.y, a, r]);
+  const nrm = (v) => { const l = Math.hypot(v.x, v.y) || 1; return { x: v.x / l, y: v.y / l }; };
+  for (const f of faces) {
+    const P = (i) => ({ x: f[i].x * sx, y: f[i].y * sy });
+    const top = P(10), chin = P(152), axis = nrm({ x: chin.x - top.x, y: chin.y - top.y });
+    const faceH = dist(top, chin), faceW = dist(P(234), P(454));
+    const inward = (q) => { const t = (q.x - top.x) * axis.x + (q.y - top.y) * axis.y; return nrm({ x: top.x + axis.x * t - q.x, y: top.y + axis.y * t - q.y }); };
+    const k = (v) => v / 100;
+    if (s.faceSlim) for (const i of [234, 93, 132, 58, 172, 136, 150, 454, 323, 361, 288, 397, 365, 379]) { const q = P(i), d = inward(q), a = k(s.faceSlim) * faceW * 0.03; push(q, { x: d.x * a, y: d.y * a }, faceW * 0.28); }
+    if (s.jaw) for (const i of [172, 136, 150, 149, 176, 397, 365, 379, 378, 400]) { const q = P(i), d = inward(q), a = k(s.jaw) * faceW * 0.03; push(q, { x: (d.x * 0.85 - axis.x * 0.35) * a, y: (d.y * 0.85 - axis.y * 0.35) * a }, faceW * 0.18); }
+    if (s.cheekbones) for (const i of [116, 123, 147, 345, 352, 376]) { const q = P(i), d = inward(q), a = k(s.cheekbones) * faceW * 0.025; push(q, { x: d.x * a, y: d.y * a }, faceW * 0.16); }
+    if (s.chin) for (const i of [148, 152, 377]) { const a = k(s.chin) * faceH * 0.035; push(P(i), { x: axis.x * a, y: axis.y * a }, faceW * 0.22); }
+    if (s.forehead) for (const i of [10, 109, 338, 67, 297]) { const a = k(s.forehead) * faceH * 0.035; push(P(i), { x: -axis.x * a, y: -axis.y * a }, faceW * 0.3); }
+    if (s.headSize) scale({ x: (top.x + chin.x) / 2, y: (top.y + chin.y) / 2 }, k(s.headSize) * 0.12, faceH * 0.9);
+    if (s.eyeSize) for (const [c, a1, a2] of [[468, 33, 133], [473, 263, 362]]) {
+      const ew = dist(P(a1), P(a2)); const ctr = f.length >= 478 ? P(c) : { x: (P(a1).x + P(a2).x) / 2, y: (P(a1).y + P(a2).y) / 2 };
+      scale(ctr, k(s.eyeSize) * 0.2, ew * 1.05);
+    }
+    if (s.noseSlim) { const nw = dist(P(129), P(358)); for (const i of [129, 358, 98, 327]) { const q = P(i), d = inward(q), a = k(s.noseSlim) * nw * 0.1; push(q, { x: d.x * a, y: d.y * a }, nw * 0.4); } }
+    if (s.mouthSize) { const mw = dist(P(61), P(291)); scale({ x: (P(13).x + P(14).x) / 2, y: (P(13).y + P(14).y) / 2 }, k(s.mouthSize) * 0.15, mw * 0.75); }
+    if (s.smile) { const mw = dist(P(61), P(291)); for (const i of [61, 291]) { const a = k(s.smile) * mw * 0.06; push(P(i), { x: -axis.x * a, y: -axis.y * a }, mw * 0.3); } }
+  }
+  return ops;
+}
+function buildDisp(ops, W, H) {
+  if (!ops.length) return null;
+  const m = Math.max(W, H), sx = W / m, sy = H / m;
+  const gw = sx >= sy ? 256 : Math.max(8, Math.round(256 * sx / sy)), gh = sy >= sx ? 256 : Math.max(8, Math.round(256 * sy / sx));
+  const dx = new Float32Array(gw * gh), dy = new Float32Array(gw * gh);
+  const fx = sx / (gw - 1), fy = sy / (gh - 1);
+  for (const op of ops) {
+    const [t, cx, cy] = op, r = t === 'push' ? op[5] : op[4];
+    if (!(r > 0)) continue;
+    const i0 = Math.max(0, Math.floor((cx - r) / fx)), i1 = Math.min(gw - 1, Math.ceil((cx + r) / fx));
+    const j0 = Math.max(0, Math.floor((cy - r) / fy)), j1 = Math.min(gh - 1, Math.ceil((cy + r) / fy));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const px = i * fx, py = j * fy, ddx = px - cx, ddy = py - cy, tt = (ddx * ddx + ddy * ddy) / (r * r);
+      if (tt >= 1) continue;
+      const fall = (1 - tt) * (1 - tt), n = j * gw + i;
+      if (t === 'push') { dx[n] -= op[3] * fall; dy[n] -= op[4] * fall; }
+      else { const a = clamp(op[3] * fall, -0.9, 0.9); dx[n] -= ddx * a; dy[n] -= ddy * a; }
+    }
+  }
+  const data = new Float32Array(gw * gh * 4);
+  for (let n = 0; n < gw * gh; n++) { data[n * 4] = dx[n] / sx; data[n * 4 + 1] = dy[n] / sy; }
+  return { w: gw, h: gh, data };
+}
+
+// ---------------------------------------------------------------- healing brush
+// A heal is { x, y (0..1 of the photo), r (radius / long edge), dx, dy (offset to the source patch, 0..1) }.
+function healOne(ctx, W, H, hl) {
+  const m = Math.max(W, H), r = Math.max(2, hl.r * m), Rr = Math.ceil(r * 1.3), size = Rr * 2 + 1;
+  const tx = Math.round(hl.x * W) - Rr, ty = Math.round(hl.y * H) - Rr, sx = Math.round((hl.x + hl.dx) * W) - Rr, sy = Math.round((hl.y + hl.dy) * H) - Rr;
+  const T = ctx.getImageData(tx, ty, size, size), Sd = ctx.getImageData(sx, sy, size, size), t = T.data, s = Sd.data;
+  const mt = [0, 0, 0], ms = [0, 0, 0]; let n = 0;
+  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+    const dd = Math.hypot(i - Rr, j - Rr); if (dd < r * 0.95 || dd > r * 1.25) continue;
+    const k = (j * size + i) * 4; if (!t[k + 3] || !s[k + 3]) continue;
+    for (let c = 0; c < 3; c++) { mt[c] += t[k + c]; ms[c] += s[k + c]; } n++;
+  }
+  const off = n ? mt.map((v, c) => (v - ms[c]) / n) : [0, 0, 0];
+  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+    const dd = Math.hypot(i - Rr, j - Rr), k = (j * size + i) * 4;
+    if (!t[k + 3] || !s[k + 3]) continue;
+    const e = clamp((dd - r * 0.5) / (r * 0.6), 0, 1), w = 1 - e * e * (3 - 2 * e);
+    if (w <= 0) continue;
+    for (let c = 0; c < 3; c++) t[k + c] = t[k + c] * (1 - w) + clamp(s[k + c] + off[c], 0, 255) * w;
+  }
+  ctx.putImageData(T, tx, ty);
+}
+function applyHeals(base, heals) {
+  if (!heals || !heals.length) return base;
+  const c = document.createElement('canvas'); c.width = base.width; c.height = base.height;
+  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(base, 0, 0);
+  for (const h of heals) healOne(x, c.width, c.height, h);
+  return c;
+}
+// Picks a nearby patch that matches the edge of the spot and is itself smooth.
+function pickHealSource(canvas, x, y, rN) {
+  const W = canvas.width, H = canvas.height, m = Math.max(W, H), r = Math.max(2, rN * m);
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const reach = Math.ceil(r * 4.6), size = reach * 2 + 1, ox = Math.round(x * W) - reach, oy = Math.round(y * H) - reach;
+  const D = ctx.getImageData(ox, oy, size, size).data;
+  const at = (i, j) => { const k = (j * size + i) * 4; return D[k + 3] ? [D[k], D[k + 1], D[k + 2]] : null; };
+  const ring = [], inner = [];
+  for (let a = 0; a < 24; a++) { const t = a / 24 * Math.PI * 2; ring.push([Math.cos(t) * r * 1.1, Math.sin(t) * r * 1.1]); }
+  for (let a = 0; a < 12; a++) { const t = a / 12 * Math.PI * 2; inner.push([Math.cos(t) * r * 0.5, Math.sin(t) * r * 0.5]); } inner.push([0, 0]);
+  const base = ring.map(([u, v]) => at(Math.round(reach + u), Math.round(reach + v)));
+  let best = null, bestScore = Infinity;
+  for (const dist of [2.2, 3.2]) for (let a = 0; a < 12; a++) {
+    const t = a / 12 * Math.PI * 2, cx = reach + Math.cos(t) * r * dist, cy = reach + Math.sin(t) * r * dist;
+    let sc = 0, n = 0, ok = true;
+    ring.forEach(([u, v], i) => { const p = at(Math.round(cx + u), Math.round(cy + v)), q = base[i]; if (!p || !q) { ok = false; return; } sc += (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 + (p[2] - q[2]) ** 2; n++; });
+    if (!ok || !n) continue;
+    const vals = inner.map(([u, v]) => at(Math.round(cx + u), Math.round(cy + v))); if (vals.some((v) => !v)) continue;
+    const mean = vals.reduce((a, v) => a + v[0] + v[1] + v[2], 0) / vals.length;
+    const varr = vals.reduce((a, v) => a + (v[0] + v[1] + v[2] - mean) ** 2, 0) / vals.length;
+    const score = sc / n + varr * 0.15 + dist * 30;
+    if (score < bestScore) { bestScore = score; best = [Math.cos(t) * r * dist / W, Math.sin(t) * r * dist / H]; }
+  }
+  return best || [r * 2.2 / W, 0];
+}
+
+// ---------------------------------------------------------------- curves
+function monotone(pts) {
+  const p = pts.slice().sort((a, b) => a[0] - b[0]), n = p.length;
+  const lut = new Float32Array(256);
+  if (n < 2) { for (let i = 0; i < 256; i++) lut[i] = i / 255; return lut; }
+  const dx = [], dy = [], ms = [];
+  for (let i = 0; i < n - 1; i++) { dx.push(Math.max(1e-6, p[i + 1][0] - p[i][0])); dy.push(p[i + 1][1] - p[i][1]); ms.push(dy[i] / dx[i]); }
+  const c1 = [ms[0]];
+  for (let i = 0; i < ms.length - 1; i++) { const a = ms[i], b = ms[i + 1]; if (a * b <= 0) c1.push(0); else { const cm = dx[i] + dx[i + 1]; c1.push(3 * cm / ((cm + dx[i + 1]) / a + (cm + dx[i]) / b)); } }
+  c1.push(ms[ms.length - 1]);
+  for (let k = 0; k < 256; k++) {
+    const x = k / 255; let y;
+    if (x <= p[0][0]) y = p[0][1]; else if (x >= p[n - 1][0]) y = p[n - 1][1];
+    else {
+      let i = 0; while (i < n - 2 && x > p[i + 1][0]) i++;
+      const h = dx[i], t = (x - p[i][0]) / h, t2 = t * t, t3 = t2 * t;
+      y = (2 * t3 - 3 * t2 + 1) * p[i][1] + (t3 - 2 * t2 + t) * h * c1[i] + (-2 * t3 + 3 * t2) * p[i + 1][1] + (t3 - t2) * h * c1[i + 1];
+    }
+    lut[k] = clamp(y, 0, 1);
+  }
+  return lut;
+}
+function curveLUT(cu) {
+  const M = monotone(cu.rgb), ch = [monotone(cu.r), monotone(cu.g), monotone(cu.b)], out = new Uint8Array(256 * 4);
+  for (let i = 0; i < 256; i++) { for (let c = 0; c < 3; c++) out[i * 4 + c] = Math.round(ch[c][Math.round(M[i] * 255)] * 255); out[i * 4 + 3] = 255; }
+  return out;
+}
+
+// ---------------------------------------------------------------- geometry
+// Affine [a,b,c,d,e,f]: x' = a x + b y + c, y' = d x + e y + f
+const mul = (A, B) => [A[0] * B[0] + A[1] * B[3], A[0] * B[1] + A[1] * B[4], A[0] * B[2] + A[1] * B[5] + A[2], A[3] * B[0] + A[4] * B[3], A[3] * B[1] + A[4] * B[4], A[3] * B[2] + A[4] * B[5] + A[5]];
+const inv = (A) => { const det = A[0] * A[4] - A[1] * A[3]; return [A[4] / det, -A[1] / det, (A[1] * A[5] - A[4] * A[2]) / det, -A[3] / det, A[0] / det, (A[3] * A[2] - A[0] * A[5]) / det]; };
+const ap = (A, x, y) => [A[0] * x + A[1] * y + A[2], A[3] * x + A[4] * y + A[5]];
+function geometry(s, W, H, fullFrame) {
+  const r = s.rot90 & 3, OW = r % 2 ? H : W, OH = r % 2 ? W : H;
+  let F = s.flipH ? [-1, 0, W, 0, 1, 0] : [1, 0, 0, 0, 1, 0];
+  let ch = H, cw = W;
+  for (let i = 0; i < r; i++) { F = mul([0, -1, ch, 1, 0, 0], F); [cw, ch] = [ch, cw]; }
+  const th = s.straighten * Math.PI / 180, co = Math.cos(th), si = Math.sin(th);
+  const z = Math.max((OW * Math.abs(co) + OH * Math.abs(si)) / OW, (OW * Math.abs(si) + OH * Math.abs(co)) / OH);
+  const cx = OW / 2, cy = OH / 2;
+  const Rf = [z * co, -z * si, cx - z * (co * cx - si * cy), z * si, z * co, cy - z * (si * cx + co * cy)];
+  const fwd = mul(Rf, F);                         // source px -> frame px
+  const crop = fullFrame ? { x: 0, y: 0, w: 1, h: 1 } : s.crop;
+  const O = [crop.w * OW, 0, crop.x * OW, 0, crop.h * OH, crop.y * OH]; // output uv -> frame px
+  const A = mul([1 / W, 0, 0, 0, 1 / H, 0], mul(inv(fwd), O)); // output uv -> source uv
+  return { OW, OH, z, outW: crop.w * OW, outH: crop.h * OH, A, Ainv: inv(A), M: [A[0], A[3], 0, A[1], A[4], 0, A[2], A[5], 1] };
+}
+
+// ---------------------------------------------------------------- app state
+const photos = [];
+let cur = null;              // current photo
+let selected = new Set();
+let tab = 'portrait', tool = 'pan', liqMode = 'push';
+let zoom = 1, panX = 0, panY = 0, split = -1, holdOrig = false;
+let clipboard = null;
+const flags = { main: true, disp: true, snap: false };
+let raf = 0;
+const ui = {};               // slider elements by key
+
+function invalidate(what = 'main') {
+  if (what === 'main') flags.main = true;
+  if (what === 'disp') flags.disp = true;
+  if (!raf) raf = requestAnimationFrame(frame);
+}
+let snapTimer = 0;
+function wantSnap() { clearTimeout(snapTimer); snapTimer = setTimeout(() => { flags.snap = true; invalidate('view'); }, 350); }
+
+function bindMasksAndWarp(p) {
+  if (!R.loaded) return;
+  if (p.an && p.an.faces.length) { const mk = p.masks || (p.masks = drawMasks(p.an.faces, p.w, p.h)); R.setMasks(texFromRaw(mk.m1), texFromRaw(mk.m2)); }
+  else R.setMasks(null, null);
+  R.setSeg(p.an ? p.an.seg : null);
+}
+// Masks are uploaded as ImageData so the bytes reach the GPU unchanged.
+const texFromRaw = (m) => new ImageData(new Uint8ClampedArray(m.data.buffer.slice(0)), m.w, m.h);
+
+function sizes() {
+  const cv = R.canvas, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; $('ov').width = w; $('ov').height = h; }
+  return dpr;
+}
+function viewRect(g) {
+  const CW = R.canvas.width, CH = R.canvas.height;
+  const fit = Math.min(CW / g.outW, CH / g.outH) * 0.94, sc = fit * zoom, dw = g.outW * sc, dh = g.outH * sc;
+  return { x: (CW - dw) / 2 + panX, y: (CH - dh) / 2 + panY, dw, dh, sc };
+}
+const cropMode = () => tab === 'crop';
+function curGeom() { const [W, H] = R.size; return geometry(cur.s, W, H, cropMode()); }
+
+function mainUniforms(s) {
+  const k = (v) => v / 100;
+  return {
+    smooth_: k(s.smooth), keepTex: k(s.smoothTex), blemish: k(s.blemish), wrinkles: k(s.wrinkles), darkC: k(s.darkCircles), bags: k(s.eyeBags),
+    shine: k(s.shine), even_: k(s.evenTone), sBright: k(s.skinBright), sWarm: k(s.skinWarm), body: k(s.bodySmooth),
+    eyeB: k(s.eyeBright), eyeW: k(s.eyeWhite), teeth: k(s.teeth), lipA: k(s.lipAmt), blushA: k(s.blushAmt), lipC: hex2rgb(s.lipColor), blushC: hex2rgb(s.blushColor),
+    bgMode: { none: 0, blur: 1, color: 2, image: 3 }[s.bgMode] || 0, bgEdge: k(s.bgEdge), bgClean: k(s.bgClean), bgBright: k(s.bgBright), bgSat: k(s.bgSat), bgCol: hex2rgb(s.bgColor),
+    expo: s.exposure, contr: k(s.contrast), hiL: k(s.highlights), shL: k(s.shadows), whi: k(s.whites), bla: k(s.blacks),
+    temp: k(s.temp), tint: k(s.tint), vib: k(s.vibrance), sat: k(s.saturation), clar: k(s.clarity), textr: k(s.texture), dehaze: k(s.dehaze), sharp: k(s.sharpen), fade: k(s.fade),
+    hslH: s.hslH.map(k), hslS: s.hslS.map(k), hslL: s.hslL.map(k),
+    gSh: [s.gShH / 360, k(s.gShS)], gMi: [s.gMiH / 360, k(s.gMiS)], gHi: [s.gHiH / 360, k(s.gHiS)], gBal: k(s.gBal),
+  };
+}
+const bgBlurRad = (s) => 1 + s.bgBlur * 0.4;
+function finalUniforms(s, g) { return { M: g.M, vig: s.vignette / 100, vigMid: s.vigMid / 100, outAR: g.outW / g.outH, grain: s.grain / 100 }; }
+
+function frame() {
+  raf = 0;
+  if (!cur || !R.loaded) return;
+  const s = cur.s, [W, H] = R.size;
+  if (flags.disp) { flags.disp = false; R.setDisp(buildDisp(allOps(cur), W, H)); }
+  if (flags.main) { flags.main = false; R.drawMain(mainUniforms(s), bgBlurRad(s)); }
+  sizes();
+  const g = curGeom(), v = viewRect(g), CW = R.canvas.width, CH = R.canvas.height;
+  R.drawFinal(Object.assign(finalUniforms(s, g), { flip: 1, view: [v.x / CW, v.y / CH, v.dw / CW, v.dh / CH], split: holdOrig ? 2 : split, bgc: [0.04, 0.04, 0.045, 1] }));
+  if (flags.snap && split < 0 && !holdOrig && !cropMode() && v.x >= 0 && v.y >= 0 && v.x + v.dw <= CW + 1 && v.y + v.dh <= CH + 1) { flags.snap = false; snapshot(v); }
+  drawOverlay(g, v);
+}
+function allOps(p) {
+  const [W, H] = [p.w, p.h], m = Math.max(W, H);
+  const ops = p.an ? faceOps(p.an.faces, p.s, W / m, H / m) : [];
+  return ops.concat(p.s.liq);
+}
+
+// thumbnail + histogram from what is on screen
+function snapshot(v) {
+  if (!R.canvas.width || !R.canvas.height || v.dw < 2 || v.dh < 2) return;
+  const th = 160, tw = Math.max(1, Math.round(v.dw / v.dh * th));
+  const c = document.createElement('canvas'); c.width = tw; c.height = th;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(R.canvas, v.x, v.y, v.dw, v.dh, 0, 0, tw, th);
+  const d = x.getImageData(0, 0, tw, th).data, hr = new Uint32Array(256), hg = new Uint32Array(256), hb = new Uint32Array(256);
+  for (let i = 0; i < d.length; i += 4) { hr[d[i]]++; hg[d[i + 1]]++; hb[d[i + 2]]++; }
+  drawHist([hr, hg, hb]);
+  cur.thumb = c.toDataURL('image/jpeg', 0.8);
+  const el = document.querySelector(`.th[data-id="${cur.id}"] img`); if (el) el.src = cur.thumb;
+  saveSoon(cur);
+}
+function drawHist(hs) {
+  const c = $('hist'), x = c.getContext('2d'), w = c.width, h = c.height;
+  x.clearRect(0, 0, w, h);
+  let mx = 1; for (const a of hs) for (let i = 2; i < 254; i++) mx = Math.max(mx, a[i]);
+  x.globalCompositeOperation = 'lighter';
+  ['rgba(230,70,70,.75)', 'rgba(70,200,90,.75)', 'rgba(70,120,240,.75)'].forEach((col, ci) => {
+    x.fillStyle = col; x.beginPath(); x.moveTo(0, h);
+    for (let i = 0; i < 256; i++) x.lineTo(i / 255 * w, h - Math.min(1, hs[ci][i] / mx) * (h - 2));
+    x.lineTo(w, h); x.fill();
+  });
+  x.globalCompositeOperation = 'source-over';
+}
+
+// ---------------------------------------------------------------- overlay (crop box, brush cursor, split line)
+let pointer = null; // last pointer position in device px
+function drawOverlay(g, v) {
+  const c = $('ov'), x = c.getContext('2d');
+  x.clearRect(0, 0, c.width, c.height);
+  if (!cur) return;
+  const dpr = window.devicePixelRatio || 1;
+  if (cropMode()) {
+    const cr = cur.s.crop, rx = v.x + cr.x * v.dw, ry = v.y + cr.y * v.dh, rw = cr.w * v.dw, rh = cr.h * v.dh;
+    x.fillStyle = 'rgba(0,0,0,.55)';
+    x.beginPath(); x.rect(v.x, v.y, v.dw, v.dh); x.rect(rx, ry, rw, rh); x.fill('evenodd');
+    x.strokeStyle = 'rgba(255,255,255,.35)'; x.lineWidth = 1;
+    for (let i = 1; i < 3; i++) { x.beginPath(); x.moveTo(rx + rw * i / 3, ry); x.lineTo(rx + rw * i / 3, ry + rh); x.moveTo(rx, ry + rh * i / 3); x.lineTo(rx + rw, ry + rh * i / 3); x.stroke(); }
+    x.strokeStyle = '#fff'; x.lineWidth = 1.5 * dpr; x.strokeRect(rx, ry, rw, rh);
+    x.lineWidth = 4 * dpr; const L = 18 * dpr;
+    for (const [px, py, sx, sy] of [[rx, ry, 1, 1], [rx + rw, ry, -1, 1], [rx, ry + rh, 1, -1], [rx + rw, ry + rh, -1, -1]]) { x.beginPath(); x.moveTo(px + sx * L, py); x.lineTo(px, py); x.lineTo(px, py + sy * L); x.stroke(); }
+  }
+  if (split >= 0 && split <= 1 && !holdOrig) {
+    const sx = split * c.width;
+    x.fillStyle = '#fff'; x.fillRect(sx - dpr, 0, 2 * dpr, c.height);
+    x.beginPath(); x.arc(sx, c.height / 2, 14 * dpr, 0, 7); x.fill();
+    x.fillStyle = '#000'; x.font = `${11 * dpr}px system-ui`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('◂▸', sx, c.height / 2);
+    x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(10 * dpr, 10 * dpr, 64 * dpr, 22 * dpr); x.fillRect(c.width - 74 * dpr, 10 * dpr, 64 * dpr, 22 * dpr);
+    x.fillStyle = '#fff'; x.fillText('Before', 42 * dpr, 21 * dpr); x.fillText('After', c.width - 42 * dpr, 21 * dpr);
+  }
+  if ((tool === 'heal' || tool === 'liquify') && pointer && !cropMode()) {
+    const r = +$('brushSize').value / 2 * dpr;
+    x.strokeStyle = 'rgba(255,255,255,.9)'; x.lineWidth = 1.5 * dpr; x.beginPath(); x.arc(pointer[0], pointer[1], r, 0, 7); x.stroke();
+    x.strokeStyle = 'rgba(0,0,0,.6)'; x.beginPath(); x.arc(pointer[0], pointer[1], r + 1.5 * dpr, 0, 7); x.stroke();
+  }
+}
+
+// screen (device px) -> source uv and N space
+function toSource(dx, dy) {
+  const g = curGeom(), v = viewRect(g);
+  const q = [(dx - v.x) / v.dw, (dy - v.y) / v.dh];
+  const [u, w] = ap(g.A, q[0], q[1]);
+  return { u, v: w, q, g, view: v };
+}
+function brushN(v, g) {
+  // device px per output px is v.sc; output px are frame px, which are source px * z
+  const [W, H] = R.size;
+  return (+$('brushSize').value / 2 * (window.devicePixelRatio || 1)) / v.sc / g.z / Math.max(W, H);
+}
+
+// ---------------------------------------------------------------- photo loading
+async function getBlob(p) { if (p.blob) return p.blob; const r = await DB.get('blobs', p.id); p.blob = r && r.blob; return p.blob; }
+async function decode(p) { const b = await getBlob(p); if (!b) throw new Error('Photo data missing'); return createImageBitmap(b); }
+const prevCache = [];
+async function ensurePrev(p) {
+  if (p.prev) return p.prev;
+  const bmp = await decode(p);
+  p.w = bmp.width; p.h = bmp.height;
+  const k = Math.min(1, PREV_MAX / Math.max(p.w, p.h));
+  const c = document.createElement('canvas'); c.width = Math.round(p.w * k); c.height = Math.round(p.h * k);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); bmp.close && bmp.close();
+  p.prev = c; prevCache.push(p);
+  // Keep only a few decoded photos in memory.
+  while (prevCache.length > 4) { const i = prevCache.findIndex((o) => o !== cur && o !== p); if (i < 0) break; const o = prevCache.splice(i, 1)[0]; o.prev = null; o.healed = null; }
+  return c;
+}
+async function ensureAnalysis(p) {
+  if (p.an || p.anFail) return p.an;
+  try { const c = await ensurePrev(p); p.an = await AI.analyze(c); p.masks = null; }
+  catch (e) { p.anFail = true; }
+  return p.an;
+}
+async function makeThumb(p) {
+  if (p.thumb) return;
+  try {
+    const b = await getBlob(p); let bmp;
+    try { bmp = await createImageBitmap(b, { resizeHeight: 160, resizeQuality: 'medium' }); } catch (e) { bmp = await createImageBitmap(b); }
+    const h = 160, w = Math.max(1, Math.round(bmp.width / bmp.height * h));
+    const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(bmp, 0, 0, w, h); bmp.close && bmp.close();
+    p.thumb = c.toDataURL('image/jpeg', 0.8);
+  } catch (e) { p.thumb = ''; }
+}
+
+async function addFiles(files) {
+  const list = [...files].filter((f) => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
+  if (!list.length) return;
+  busy(`Adding ${list.length} photo${list.length > 1 ? 's' : ''}…`);
+  let first = null;
+  for (const f of list) {
+    const p = { id: uid(), name: f.name, blob: f, s: defaults(), order: photos.length, undo: [], redo: [] };
+    p.last = JSON.stringify(p.s);
+    await makeThumb(p);
+    if (!p.thumb) { continue; }
+    photos.push(p); first = first || p;
+    DB.put('blobs', { id: p.id, blob: f }); saveMeta(p);
+    renderStrip();
+  }
+  busy('');
+  if (!cur && first) open(first);
+  else if (first && list.length === 1) open(first);
+}
+
+const saveTimers = new Map();
+function saveMeta(p) { DB.put('meta', { id: p.id, name: p.name, s: p.s, order: p.order, thumb: p.thumb, w: p.w, h: p.h }); }
+function saveSoon(p) { clearTimeout(saveTimers.get(p.id)); saveTimers.set(p.id, setTimeout(() => saveMeta(p), 700)); }
+
+async function bindPhoto(p) {
+  const raw = await ensurePrev(p);
+  if (!p.healed) p.healed = applyHeals(raw, p.s.heals);
+  R.load(raw, p.healed);
+  bindMasksAndWarp(p);
+  R.setCurve(curveLUT(p.s.curve));
+  await bindBgImage(p.s.bgImage);
+  flags.main = true; flags.disp = true;
+}
+let openToken = 0;
+async function open(p) {
+  const tok = ++openToken;
+  cur = p; selected = new Set([p.id]);
+  renderStrip(); $('empty').style.display = 'none';
+  busy('Opening…');
+  try { await bindPhoto(p); } catch (e) { console.error(e); busy('Could not open this photo.'); return; }
+  if (tok !== openToken) return;
+  zoom = 1; panX = panY = 0;
+  syncUI(); invalidate(); wantSnap();
+  busy('');
+  if (!p.an && !p.anFail) {
+    AI.chip('Finding faces…');
+    const an = await ensureAnalysis(p);
+    if (tok !== openToken || cur !== p) return;
+    if (an) { bindMasksAndWarp(p); flags.disp = true; invalidate(); wantSnap(); }
+    faceChip(p);
+  } else faceChip(p);
+  // Look ahead: analyse the next photo so it opens instantly.
+  const nx = photos[photos.indexOf(p) + 1];
+  if (nx && !nx.an && !nx.anFail) setTimeout(() => { if (cur === p) ensureAnalysis(nx); }, 400);
+}
+function faceChip(p) {
+  if (AI.failed() || p.anFail) { AI.chip('AI unavailable (offline?)', 'warn'); return; }
+  if (!p.an) return;
+  const n = p.an.faces.length;
+  AI.chip(n ? `${n} face${n > 1 ? 's' : ''} found` : 'No face found', n ? 'ok' : 'warn');
+}
+function busy(t) { const b = $('busy'); b.textContent = t; b.style.display = t ? 'block' : 'none'; }
+
+// ---------------------------------------------------------------- history
+function commit() {
+  if (!cur) return;
+  const j = JSON.stringify(cur.s);
+  if (j === cur.last) return;
+  cur.undo.push(cur.last); if (cur.undo.length > 80) cur.undo.shift();
+  cur.redo = []; cur.last = j;
+  saveSoon(cur); markEdited(cur); updateUndo(); wantSnap();
+}
+function restore(json) {
+  const old = cur.s; cur.s = JSON.parse(json); cur.last = json;
+  if (JSON.stringify(old.heals) !== JSON.stringify(cur.s.heals)) { cur.healed = applyHeals(cur.prev, cur.s.heals); R.setHealed(cur.healed); }
+  R.setCurve(curveLUT(cur.s.curve));
+  if (old.bgImage !== cur.s.bgImage) bindBgImage(cur.s.bgImage).then(() => invalidate());
+  syncUI(); flags.disp = true; invalidate(); saveSoon(cur); markEdited(cur); updateUndo(); wantSnap();
+}
+function undo() { if (!cur || !cur.undo.length) return; commit(); if (!cur.undo.length) return; cur.redo.push(cur.last); restore(cur.undo.pop()); }
+function redo() { if (!cur || !cur.redo.length) return; cur.undo.push(cur.last); restore(cur.redo.pop()); }
+function updateUndo() { $('undoBtn').disabled = !cur || !cur.undo.length; $('redoBtn').disabled = !cur || !cur.redo.length; }
+function markEdited(p) { const el = document.querySelector(`.th[data-id="${p.id}"]`); if (el) el.classList.toggle('edited', isEdited(p.s)); }
+
+// ---------------------------------------------------------------- panels
+function sliderRow(key, parent, opts = {}) {
+  const d = DEFS[key];
+  const row = document.createElement('div'); row.className = 'row' + (opts.cls ? ' ' + opts.cls : '');
+  row.innerHTML = `<label title="Double-click to reset">${opts.label || d.label}</label><span class="val"></span><input type="range" min="${d.min}" max="${d.max}" step="${d.step}">`;
+  const inp = row.querySelector('input'), val = row.querySelector('.val');
+  if (opts.track) row.style.setProperty('--trk', opts.track);
+  const show = (v) => { val.textContent = d.fmt ? d.fmt(v) : Math.round(v); row.classList.toggle('changed', v !== d.def); };
+  inp.addEventListener('input', () => { if (!cur) return; const v = +inp.value; cur.s[key] = v; show(v); changed(key); });
+  inp.addEventListener('change', commit);
+  row.querySelector('label').addEventListener('dblclick', () => { if (!cur) return; cur.s[key] = d.def; inp.value = d.def; show(d.def); changed(key); commit(); });
+  parent.appendChild(row);
+  ui[key] = { set: (v) => { inp.value = v; show(v); } };
+  return row;
+}
+function arrRow(arr, i, label, parent, track) {
+  const row = document.createElement('div'); row.className = 'row hsl-r';
+  row.innerHTML = `<label title="Double-click to reset">${label}</label><span class="val"></span><input type="range" min="-100" max="100" step="1">`;
+  row.style.setProperty('--trk', track);
+  const inp = row.querySelector('input'), val = row.querySelector('.val');
+  const show = (v) => { val.textContent = v; row.classList.toggle('changed', v !== 0); };
+  inp.addEventListener('input', () => { if (!cur) return; cur.s[arr][i] = +inp.value; show(+inp.value); changed(arr); });
+  inp.addEventListener('change', commit);
+  row.querySelector('label').addEventListener('dblclick', () => { if (!cur) return; cur.s[arr][i] = 0; inp.value = 0; show(0); changed(arr); commit(); });
+  parent.appendChild(row);
+  return { set: (v) => { inp.value = v; show(v); } };
+}
+function section(pane, title, group, open = true) {
+  const d = document.createElement('details'); d.className = 'sec'; d.open = open;
+  d.innerHTML = `<summary>${title}${group ? '<button class="rs" title="Reset this section">Reset</button>' : ''}</summary><div class="body"></div>`;
+  if (group) d.querySelector('.rs').addEventListener('click', (e) => {
+    e.preventDefault(); if (!cur) return;
+    resetKeys(cur.s, [].concat(group).flatMap((g) => GROUP_KEYS[g]));
+    if ([].concat(group).includes('curve')) R.setCurve(curveLUT(cur.s.curve));
+    if ([].concat(group).includes('bg')) bindBgImage(null);
+    syncUI(); flags.disp = true; invalidate(); commit();
+  });
+  document.querySelector(`[data-pane="${pane}"]`).appendChild(d);
+  return d.querySelector('.body');
+}
+function swatches(parent, key, colors) {
+  const w = document.createElement('div'); w.className = 'sw';
+  for (const c of colors) { const i = document.createElement('i'); i.style.background = c; i.dataset.c = c; w.appendChild(i); }
+  const pick = document.createElement('input'); pick.type = 'color'; w.appendChild(pick);
+  const set = (c) => { if (!cur) return; cur.s[key] = c; changed(key); commit(); refresh(); };
+  w.addEventListener('click', (e) => { if (e.target.dataset.c) set(e.target.dataset.c); });
+  pick.addEventListener('input', () => { if (!cur) return; cur.s[key] = pick.value; changed(key); refresh(); });
+  pick.addEventListener('change', commit);
+  const refresh = () => { const v = cur ? cur.s[key] : ''; w.querySelectorAll('i').forEach((i) => i.classList.toggle('on', i.dataset.c === v)); pick.value = v || '#ffffff'; };
+  ui[key] = { set: refresh };
+  parent.appendChild(w);
+}
+function note(parent, t) { const n = document.createElement('div'); n.className = 'note'; n.textContent = t; parent.appendChild(n); return n; }
+function h4(parent, t) { const n = document.createElement('div'); n.className = 'h4'; n.textContent = t; parent.appendChild(n); }
+
+function changed(key) {
+  if (!cur) return;
+  if (SHAPE_KEYS.has(key)) { flags.disp = true; invalidate('disp'); return; }
+  if (['straighten', 'vignette', 'vigMid', 'grain'].includes(key)) { invalidate('view'); return; }
+  if (key === 'curve') R.setCurve(curveLUT(cur.s.curve));
+  invalidate('main');
+}
+
+function buildPanels() {
+  // Portrait
+  let b = section('portrait', 'Skin', 'skin');
+  note(b, 'Works on every face in the photo. Skin is found by AI, so eyes, brows and lips stay sharp.');
+  GROUP_KEYS.skin.forEach((k) => sliderRow(k, b));
+  b = section('portrait', 'Face shape', 'shape');
+  GROUP_KEYS.shape.forEach((k) => sliderRow(k, b));
+  note(b, 'For body slimming or anything else, use the Liquify brush above the photo.');
+  b = section('portrait', 'Eyes & teeth', 'features');
+  GROUP_KEYS.features.forEach((k) => sliderRow(k, b));
+  b = section('portrait', 'Makeup', 'makeup', false);
+  sliderRow('lipAmt', b); swatches(b, 'lipColor', ['#b8344f', '#d0475f', '#c2185b', '#a83c32', '#e57373', '#8e2440', '#d98a8a']);
+  sliderRow('blushAmt', b); swatches(b, 'blushColor', ['#e2777a', '#f08a9a', '#e59a7a', '#d46a7e', '#f4a2a2']);
+  // Adjust
+  b = section('adjust', 'Light', 'light');
+  const ab = document.createElement('div'); ab.className = 'btnrow';
+  ab.innerHTML = '<button id="autoTone">✨ Auto tone</button>'; b.appendChild(ab);
+  GROUP_KEYS.light.forEach((k) => sliderRow(k, b));
+  b = section('adjust', 'Colour', 'color');
+  const wb = document.createElement('div'); wb.className = 'btnrow';
+  wb.innerHTML = '<button id="autoWB">Auto white balance</button><button data-tool="wb" class="wbt">💧 Pick</button>'; b.appendChild(wb);
+  sliderRow('temp', b, { cls: 'hsl-r', track: 'linear-gradient(90deg,#3b7ddd,#ddd,#e0a030)' });
+  sliderRow('tint', b, { cls: 'hsl-r', track: 'linear-gradient(90deg,#3ca03c,#ddd,#c040c0)' });
+  sliderRow('vibrance', b); sliderRow('saturation', b);
+  b = section('adjust', 'HSL / colour mixer', 'hsl', false);
+  const hs = document.createElement('div'); hs.className = 'seg'; hs.innerHTML = '<button data-h="hslH" class="on">Hue</button><button data-h="hslS">Saturation</button><button data-h="hslL">Luminance</button>';
+  b.appendChild(hs);
+  const hb = document.createElement('div'); b.appendChild(hb);
+  const hslRows = {};
+  for (const arr of ['hslH', 'hslS', 'hslL']) {
+    const box = document.createElement('div'); box.dataset.arr = arr; box.hidden = arr !== 'hslH'; hb.appendChild(box);
+    hslRows[arr] = HSL_NAMES.map((n, i) => {
+      const hh = HSL_HUES[i];
+      const track = arr === 'hslH' ? `linear-gradient(90deg,hsl(${hh - 30},80%,55%),hsl(${hh},80%,55%),hsl(${hh + 30},80%,55%))`
+        : arr === 'hslS' ? `linear-gradient(90deg,hsl(${hh},0%,55%),hsl(${hh},90%,55%))` : `linear-gradient(90deg,hsl(${hh},70%,20%),hsl(${hh},70%,50%),hsl(${hh},70%,85%))`;
+      return arrRow(arr, i, n, box, track);
+    });
+  }
+  hs.addEventListener('click', (e) => { const a = e.target.dataset.h; if (!a) return; hs.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === e.target)); hb.querySelectorAll('[data-arr]').forEach((x) => x.hidden = x.dataset.arr !== a); });
+  ui.hsl = { set: () => { for (const a in hslRows) hslRows[a].forEach((r, i) => r.set(cur.s[a][i])); } };
+  b = section('adjust', 'Tone curve', 'curve', false);
+  buildCurve(b);
+  b = section('adjust', 'Colour grading', 'grade', false);
+  const rainbow = 'linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)';
+  h4(b, 'Shadows'); sliderRow('gShH', b, { cls: 'hsl-r', track: rainbow }); sliderRow('gShS', b);
+  h4(b, 'Midtones'); sliderRow('gMiH', b, { cls: 'hsl-r', track: rainbow }); sliderRow('gMiS', b);
+  h4(b, 'Highlights'); sliderRow('gHiH', b, { cls: 'hsl-r', track: rainbow }); sliderRow('gHiS', b);
+  sliderRow('gBal', b);
+  b = section('adjust', 'Detail', 'detail', false);
+  GROUP_KEYS.detail.forEach((k) => sliderRow(k, b));
+  b = section('adjust', 'Effects', 'effects', false);
+  GROUP_KEYS.effects.forEach((k) => sliderRow(k, b));
+  // Background
+  b = section('bg', 'Background', 'bg');
+  note(b, 'The AI separates people from the background. Works best on portraits and groups.');
+  const md = document.createElement('div'); md.className = 'seg'; md.id = 'bgModes';
+  md.innerHTML = '<button data-m="none">Original</button><button data-m="blur">Blur</button><button data-m="color">Colour</button><button data-m="image">Image</button>';
+  b.appendChild(md);
+  md.addEventListener('click', (e) => { const m = e.target.dataset.m; if (!m || !cur) return; cur.s.bgMode = m; syncUI(); changed('bgMode'); commit(); });
+  const blurBox = document.createElement('div'); blurBox.id = 'bgBlurBox'; b.appendChild(blurBox); sliderRow('bgBlur', blurBox);
+  const colBox = document.createElement('div'); colBox.id = 'bgColBox'; b.appendChild(colBox);
+  swatches(colBox, 'bgColor', ['#ffffff', '#f2f2f2', '#dfe6ee', '#2f6fd6', '#1e3a8a', '#c62828', '#9e9e9e', '#000000', '#e9dccb', '#51897d']);
+  const imgBox = document.createElement('div'); imgBox.id = 'bgImgBox'; b.appendChild(imgBox);
+  imgBox.innerHTML = '<div class="btnrow"><label class="btn">Choose image…<input type="file" id="bgFile" accept="image/*" hidden></label><span class="mut sm" id="bgImgName"></span></div>';
+  h4(b, 'Clean up');
+  ['bgClean', 'bgBright', 'bgSat', 'bgEdge'].forEach((k) => sliderRow(k, b));
+  // Crop
+  b = section('crop', 'Crop & rotate', 'geo');
+  const ar = document.createElement('div'); ar.className = 'btnrow'; ar.id = 'aspects';
+  ar.innerHTML = [['free', 'Free'], ['orig', 'Original'], ['1:1', '1:1'], ['4:5', '4:5'], ['2:3', '2:3'], ['3:4', '3:4'], ['5:7', '5:7'], ['4:6', '4x6 in'], ['8:10', '8x10 in'], ['16:9', '16:9'], ['9:16', '9:16']].map(([k, l]) => `<button data-a="${k}">${l}</button>`).join('');
+  b.appendChild(ar);
+  const rt = document.createElement('div'); rt.className = 'btnrow';
+  rt.innerHTML = '<button id="rotL">⟲ 90°</button><button id="rotR">⟳ 90°</button><button id="flipH">⇋ Flip</button><button id="swapAR">Swap ↕↔</button>';
+  b.appendChild(rt);
+  sliderRow('straighten', b);
+  note(b, 'Drag the corners or edges of the box on the photo. Drag inside to move it.');
+}
+
+// ---------------------------------------------------------------- curve editor
+let curveCh = 'rgb', curveDrag = -1;
+function buildCurve(parent) {
+  const seg = document.createElement('div'); seg.className = 'seg'; seg.style.marginBottom = '8px';
+  seg.innerHTML = '<button data-c="rgb" class="on">RGB</button><button data-c="r" style="color:#f77">Red</button><button data-c="g" style="color:#7d7">Green</button><button data-c="b" style="color:#79f">Blue</button>';
+  parent.appendChild(seg);
+  const c = document.createElement('canvas'); c.id = 'curve'; c.width = 280; c.height = 280; parent.appendChild(c);
+  note(parent, 'Click to add a point, drag to move, double-click a point to remove it.');
+  seg.addEventListener('click', (e) => { const k = e.target.dataset.c; if (!k) return; curveCh = k; seg.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === e.target)); drawCurve(); });
+  const pos = (e) => { const r = c.getBoundingClientRect(); return [clamp((e.clientX - r.left) / r.width, 0, 1), clamp(1 - (e.clientY - r.top) / r.height, 0, 1)]; };
+  c.addEventListener('pointerdown', (e) => {
+    if (!cur) return; const pts = cur.s.curve[curveCh], [x, y] = pos(e);
+    let best = -1, bd = 0.05;
+    pts.forEach((p, i) => { const dd = Math.hypot(p[0] - x, p[1] - y); if (dd < bd) { bd = dd; best = i; } });
+    if (best < 0) { pts.push([x, y]); pts.sort((a, b) => a[0] - b[0]); best = pts.findIndex((p) => p[0] === x && p[1] === y); }
+    curveDrag = best; c.setPointerCapture(e.pointerId); changed('curve'); drawCurve();
+  });
+  c.addEventListener('pointermove', (e) => {
+    if (curveDrag < 0 || !cur) return; const pts = cur.s.curve[curveCh], [x, y] = pos(e);
+    const lo = curveDrag > 0 ? pts[curveDrag - 1][0] + 0.01 : 0, hi = curveDrag < pts.length - 1 ? pts[curveDrag + 1][0] - 0.01 : 1;
+    pts[curveDrag] = [curveDrag === 0 ? Math.min(x, hi) : curveDrag === pts.length - 1 ? Math.max(x, lo) : clamp(x, lo, hi), y];
+    changed('curve'); drawCurve();
+  });
+  c.addEventListener('pointerup', () => { if (curveDrag >= 0) { curveDrag = -1; commit(); } });
+  c.addEventListener('dblclick', (e) => {
+    if (!cur) return; const pts = cur.s.curve[curveCh], [x, y] = pos(e);
+    const i = pts.findIndex((p) => Math.hypot(p[0] - x, p[1] - y) < 0.05);
+    if (i > 0 && i < pts.length - 1) { pts.splice(i, 1); changed('curve'); drawCurve(); commit(); }
+  });
+  ui.curve = { set: drawCurve };
+}
+function drawCurve() {
+  const c = $('curve'); if (!c) return; const x = c.getContext('2d'), w = c.width, h = c.height;
+  x.clearRect(0, 0, w, h); x.strokeStyle = '#2a2a30'; x.lineWidth = 1;
+  for (let i = 1; i < 4; i++) { x.beginPath(); x.moveTo(i * w / 4, 0); x.lineTo(i * w / 4, h); x.moveTo(0, i * h / 4); x.lineTo(w, i * h / 4); x.stroke(); }
+  x.beginPath(); x.moveTo(0, h); x.lineTo(w, 0); x.strokeStyle = '#333'; x.stroke();
+  if (!cur) return;
+  const col = { rgb: '#eee', r: '#f66', g: '#5c5', b: '#69f' }[curveCh], pts = cur.s.curve[curveCh], lut = monotone(pts);
+  x.strokeStyle = col; x.lineWidth = 2; x.beginPath();
+  for (let i = 0; i < 256; i++) { const px = i / 255 * w, py = h - lut[i] * h; i ? x.lineTo(px, py) : x.moveTo(px, py); }
+  x.stroke(); x.fillStyle = col;
+  for (const p of pts) { x.beginPath(); x.arc(p[0] * w, h - p[1] * h, 5, 0, 7); x.fill(); }
+}
+
+// ---------------------------------------------------------------- UI sync
+function syncUI() {
+  if (!cur) return;
+  for (const k in DEFS) if (ui[k]) ui[k].set(cur.s[k]);
+  for (const k of ['lipColor', 'blushColor', 'bgColor']) ui[k] && ui[k].set();
+  ui.hsl.set(); drawCurve();
+  document.querySelectorAll('#bgModes button').forEach((b) => b.classList.toggle('on', b.dataset.m === cur.s.bgMode));
+  $('bgBlurBox').hidden = cur.s.bgMode !== 'blur'; $('bgColBox').hidden = cur.s.bgMode !== 'color'; $('bgImgBox').hidden = cur.s.bgMode !== 'image';
+  document.querySelectorAll('#aspects button').forEach((b) => b.classList.toggle('on', b.dataset.a === cur.s.aspect));
+  updateUndo();
+}
+
+// ---------------------------------------------------------------- presets UI
+function applyValues(v, groups) {
+  if (!cur) return;
+  resetKeys(cur.s, keysOf(groups));
+  Object.assign(cur.s, clone(v));
+  R.setCurve(curveLUT(cur.s.curve));
+  if (groups.includes('bg')) bindBgImage(cur.s.bgImage).then(() => invalidate());
+  syncUI(); flags.disp = true; invalidate(); commit();
+}
+function renderPresets() {
+  const mk = (list, el, groups, del) => {
+    el.innerHTML = '';
+    list.forEach((p, i) => {
+      const b = document.createElement('button'); b.innerHTML = `<span></span>${del ? '<span class="x" title="Delete">✕</span>' : ''}`;
+      b.firstChild.textContent = p.name;
+      b.addEventListener('click', (e) => {
+        if (e.target.classList.contains('x')) { if (confirm(`Delete preset "${p.name}"?`)) { const l = loadMyPresets(); l.splice(i, 1); saveMyPresets(l); renderPresets(); } return; }
+        applyValues(p.v, groups || p.groups);
+      });
+      el.appendChild(b);
+    });
+    if (!list.length) el.innerHTML = '<div class="note">Set up a photo, then save its settings as a preset to reuse on other shoots.</div>';
+  };
+  mk(RETOUCH, $('retouchList'), ['portrait']);
+  mk(LOOKS, $('lookList'), ['color']);
+  mk(loadMyPresets(), $('myList'), null, true);
+}
+
+// ---------------------------------------------------------------- strip
+function renderStrip() {
+  const el = $('strip'); el.innerHTML = '';
+  for (const p of photos) {
+    const d = document.createElement('div'); d.className = 'th' + (selected.has(p.id) ? ' sel' : '') + (p === cur ? ' cur' : '') + (isEdited(p.s) ? ' edited' : '');
+    d.dataset.id = p.id; d.title = p.name;
+    d.innerHTML = '<img alt=""><span class="nm"></span><span class="ed"></span>';
+    d.querySelector('img').src = p.thumb || ''; d.querySelector('.nm').textContent = p.name;
+    el.appendChild(d);
+  }
+  $('syncBtn').disabled = !cur || selected.size < 2;
+  $('removeBtn').disabled = !selected.size;
+}
+let lastClick = null;
+$('strip').addEventListener('click', (e) => {
+  const t = e.target.closest('.th'); if (!t) return;
+  const p = photos.find((x) => x.id === t.dataset.id); if (!p) return;
+  if (e.shiftKey && lastClick) {
+    const a = photos.indexOf(lastClick), b = photos.indexOf(p);
+    for (let i = Math.min(a, b); i <= Math.max(a, b); i++) selected.add(photos[i].id);
+    renderStrip(); return;
+  }
+  if (e.metaKey || e.ctrlKey) { selected.has(p.id) && p !== cur ? selected.delete(p.id) : selected.add(p.id); lastClick = p; renderStrip(); return; }
+  lastClick = p;
+  if (p !== cur) { commit(); open(p); }
+});
+
+// ---------------------------------------------------------------- sync / presets dialog
+let dlgMode = 'sync';
+function openGroupDialog(mode) {
+  dlgMode = mode;
+  $('syncTitle').textContent = mode === 'sync' ? 'Sync settings' : 'Save preset';
+  $('syncOk').textContent = mode === 'sync' ? 'Sync' : 'Save';
+  $('presetNameRow').hidden = mode !== 'preset';
+  $('syncNote').textContent = mode === 'sync' ? `Copy this photo's settings to ${selected.size - 1} other selected photo${selected.size > 2 ? 's' : ''}. Face retouching adapts to each face automatically. Heal and liquify brush work stays on this photo only.` : 'Choose what the preset should include.';
+  $('syncDlg').showModal();
+}
+$('syncCancel').addEventListener('click', () => $('syncDlg').close());
+$('syncOk').addEventListener('click', () => {
+  const groups = [...document.querySelectorAll('#syncDlg [data-g]')].filter((c) => c.checked).map((c) => c.dataset.g);
+  if (!groups.length || !cur) { $('syncDlg').close(); return; }
+  const keys = keysOf(groups), vals = {}; for (const k of keys) vals[k] = clone(cur.s[k]);
+  if (dlgMode === 'sync') {
+    for (const p of photos) if (selected.has(p.id) && p !== cur) {
+      const before = JSON.stringify(p.s); Object.assign(p.s, clone(vals));
+      if (p.undo) { p.undo.push(before); p.last = JSON.stringify(p.s); }
+      saveMeta(p); markEdited(p);
+    }
+  } else {
+    const name = $('presetName').value.trim() || 'My preset';
+    const l = loadMyPresets(); l.push({ name, groups, v: vals }); saveMyPresets(l); renderPresets();
+  }
+  $('syncDlg').close();
+});
+$('syncBtn').addEventListener('click', () => { if (cur && selected.size > 1) { commit(); openGroupDialog('sync'); } });
+$('savePreset').addEventListener('click', () => { if (cur) { $('presetName').value = ''; openGroupDialog('preset'); } });
+$('expPresets').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(loadMyPresets(), null, 1)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'clickretouch-presets.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+});
+$('impPresets').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { const list = JSON.parse(await f.text()); if (!Array.isArray(list)) throw 0; saveMyPresets(loadMyPresets().concat(list.filter((p) => p && p.name && p.v && p.groups))); renderPresets(); }
+  catch (err) { alert('That file is not a ClickRetouch presets file.'); }
+});
+$('selAll').addEventListener('click', () => { photos.forEach((p) => selected.add(p.id)); renderStrip(); });
+$('removeBtn').addEventListener('click', () => {
+  const ids = [...selected]; if (!ids.length) return;
+  if (!confirm(`Remove ${ids.length} photo${ids.length > 1 ? 's' : ''} from the editor? Your original files are not touched.`)) return;
+  for (const id of ids) { const i = photos.findIndex((p) => p.id === id); if (i >= 0) photos.splice(i, 1); DB.del('meta', id); DB.del('blobs', id); }
+  photos.forEach((p, i) => { if (p.order !== i) { p.order = i; saveMeta(p); } });
+  selected.clear();
+  if (!photos.includes(cur)) { cur = null; R.unload(); if (photos.length) open(photos[0]); else { $('empty').style.display = ''; drawOverlay(); const x = R.gl; x.bindFramebuffer(x.FRAMEBUFFER, null); x.clearColor(0.04, 0.04, 0.045, 1); x.clear(x.COLOR_BUFFER_BIT); } }
+  renderStrip();
+});
+
+// ---------------------------------------------------------------- background image
+const bgCache = new Map();
+async function bindBgImage(id) {
+  if (!id) { R.setBgImage(null); return; }
+  let img = bgCache.get(id);
+  if (!img) {
+    const r = await DB.get('files', id); if (!r) { R.setBgImage(null); return; }
+    const bmp = await createImageBitmap(r.blob); const k = Math.min(1, 2400 / Math.max(bmp.width, bmp.height));
+    img = document.createElement('canvas'); img.width = Math.round(bmp.width * k); img.height = Math.round(bmp.height * k); img.getContext('2d').drawImage(bmp, 0, 0, img.width, img.height);
+    img.label = r.name; bgCache.set(id, img);
+  }
+  R.setBgImage(img);
+  const n = $('bgImgName'); if (n) n.textContent = img.label || '';
+}
+
+// ---------------------------------------------------------------- auto tone / white balance
+function sampleStats(canvas) {
+  const k = 128 / Math.max(canvas.width, canvas.height), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(canvas.width * k)); c.height = Math.max(1, Math.round(canvas.height * k));
+  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(canvas, 0, 0, c.width, c.height);
+  const d = x.getImageData(0, 0, c.width, c.height).data, ls = [];
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4) { const l = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255; ls.push(l); if (l > 0.08 && l < 0.95) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; } }
+  ls.sort((a, b) => a - b);
+  const q = (p) => ls[Math.min(ls.length - 1, Math.floor(p * ls.length))];
+  return { med: q(0.5), lo: q(0.005), hi: q(0.995), r: r / n, g: g / n, b: b / n };
+}
+function wbFrom(r, g, b) {
+  const lin = (v) => Math.pow(Math.max(v, 1) / 255, 2.2); r = lin(r); g = lin(g); b = lin(b);
+  const T = clamp((b - r) / (0.3 * (r + b)), -1, 1), mr = 1 + 0.3 * T, mb = 1 - 0.3 * T, avg = (r * mr + b * mb) / 2;
+  const Ti = clamp((1 - avg / g) / 0.25, -1, 1);
+  return [Math.round(T * 100), Math.round(Ti * 100)];
+}
+function autoTone() {
+  if (!cur || !cur.prev) return;
+  const st = sampleStats(cur.prev), s = cur.s;
+  s.exposure = Math.round(clamp(Math.log2(Math.pow(0.46, 2.2) / Math.pow(Math.max(st.med, 0.02), 2.2)), -2, 2) * 20) / 20;
+  s.whites = Math.round(clamp((0.96 - st.hi) * 160, -40, 40));
+  s.blacks = Math.round(clamp((0.03 - st.lo) * 220, -40, 30));
+  s.highlights = st.hi > 0.97 ? -25 : 0; s.shadows = st.med < 0.35 ? 20 : 5; s.vibrance = 10;
+  syncUI(); invalidate(); commit();
+}
+function autoWB() { if (!cur || !cur.prev) return; const st = sampleStats(cur.prev); [cur.s.temp, cur.s.tint] = wbFrom(st.r, st.g, st.b); syncUI(); invalidate(); commit(); }
+
+// ---------------------------------------------------------------- pointer handling on the photo
+const viewEl = $('view');
+const pts = new Map();
+let drag = null;
+function devPos(e) { const r = R.canvas.getBoundingClientRect(), dpr = R.canvas.width / r.width; return [(e.clientX - r.left) * dpr, (e.clientY - r.top) * dpr]; }
+viewEl.addEventListener('pointerdown', (e) => {
+  if (!cur || !R.loaded) return;
+  viewEl.setPointerCapture(e.pointerId);
+  const p = devPos(e); pts.set(e.pointerId, p);
+  if (pts.size === 2) { const [a, b] = [...pts.values()]; drag = { type: 'pinch', d0: Math.hypot(a[0] - b[0], a[1] - b[1]), z0: zoom, mid: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], px: panX, py: panY }; return; }
+  if (split >= 0 && Math.abs(p[0] - split * R.canvas.width) < 30 * (window.devicePixelRatio || 1)) { drag = { type: 'split' }; return; }
+  if (cropMode()) { drag = cropHit(p); return; }
+  if (e.button === 1 || spaceDown || tool === 'pan') { drag = { type: 'pan', x: p[0], y: p[1], px: panX, py: panY }; return; }
+  const src = toSource(p[0], p[1]);
+  if (tool === 'wb') {
+    const c = cur.prev, x = c.getContext('2d', { willReadFrequently: true }), cx = Math.round(src.u * c.width), cy = Math.round(src.v * c.height);
+    const d = x.getImageData(cx - 2, cy - 2, 5, 5).data; let r = 0, g = 0, b = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3]) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+    if (n) { [cur.s.temp, cur.s.tint] = wbFrom(r / n, g / n, b / n); syncUI(); invalidate(); commit(); }
+    setTool('pan'); return;
+  }
+  if (tool === 'heal') { drag = { type: 'heal', last: null }; healAt(src); return; }
+  if (tool === 'liquify') { drag = { type: 'liq', last: src }; if (liqMode !== 'push') liqTick(); return; }
+});
+viewEl.addEventListener('pointermove', (e) => {
+  const p = devPos(e);
+  if (pts.has(e.pointerId)) pts.set(e.pointerId, p);
+  pointer = p;
+  if (!drag) { if (tool === 'heal' || tool === 'liquify') invalidate('view'); return; }
+  if (drag.type === 'pinch' && pts.size === 2) {
+    const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    zoomAt(drag.mid, clamp(drag.z0 * d / drag.d0, 0.2, 16), drag); return;
+  }
+  if (drag.type === 'pan') { panX = drag.px + p[0] - drag.x; panY = drag.py + p[1] - drag.y; invalidate('view'); return; }
+  if (drag.type === 'split') { split = clamp(p[0] / R.canvas.width, 0, 1); invalidate('view'); return; }
+  if (drag.type && drag.type.startsWith('crop')) { cropMove(p); return; }
+  if (drag.type === 'heal') { healAt(toSource(p[0], p[1])); return; }
+  if (drag.type === 'liq' && liqMode === 'push') {
+    const s2 = toSource(p[0], p[1]), [W, H] = R.size, m = Math.max(W, H), r = brushN(s2.view, s2.g);
+    const a = drag.last, k = +$('brushStr').value / 100;
+    const vx = (s2.u - a.u) * W / m * k, vy = (s2.v - a.v) * H / m * k;
+    if (Math.hypot(vx, vy) > r * 0.02) { cur.s.liq.push(['push', a.u * W / m, a.v * H / m, vx, vy, r]); drag.last = s2; invalidate('disp'); }
+    return;
+  }
+  if (drag.type === 'liq') drag.last = toSource(p[0], p[1]);
+});
+function endPointer(e) {
+  pts.delete(e.pointerId);
+  if (!drag) return;
+  const t = drag.type; drag = null;
+  if (t === 'heal' || t === 'liq' || (t && t.startsWith('crop'))) commit();
+}
+viewEl.addEventListener('pointerup', endPointer);
+viewEl.addEventListener('pointercancel', endPointer);
+viewEl.addEventListener('pointerleave', () => { pointer = null; invalidate('view'); });
+function liqTick() {
+  if (!drag || drag.type !== 'liq' || liqMode === 'push') return;
+  const src = drag.last, [W, H] = R.size, m = Math.max(W, H), r = brushN(src.view, src.g), k = +$('brushStr').value / 100;
+  cur.s.liq.push(['scale', src.u * W / m, src.v * H / m, (liqMode === 'bloat' ? 1 : -1) * 0.035 * k, r]);
+  invalidate('disp');
+  setTimeout(liqTick, 50);
+}
+function healAt(src) {
+  if (src.u < 0 || src.v < 0 || src.u > 1 || src.v > 1) return;
+  const r = brushN(src.view, src.g), [W, H] = R.size, m = Math.max(W, H);
+  if (drag.last && Math.hypot((src.u - drag.last.u) * W, (src.v - drag.last.v) * H) / m < r * 0.6) return;
+  drag.last = src;
+  const [dx, dy] = pickHealSource(cur.healed, src.u, src.v, r);
+  const h = { x: src.u, y: src.v, r, dx, dy };
+  cur.s.heals.push(h);
+  if (cur.healed === cur.prev) { cur.healed = applyHeals(cur.prev, cur.s.heals); }
+  else healOne(cur.healed.getContext('2d', { willReadFrequently: true }), cur.healed.width, cur.healed.height, h);
+  R.setHealed(cur.healed); invalidate('main');
+}
+viewEl.addEventListener('wheel', (e) => {
+  if (!cur) return; e.preventDefault();
+  const p = devPos(e), f = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0025));
+  zoomAt(p, clamp(zoom * f, 0.2, 16));
+}, { passive: false });
+function zoomAt(p, nz, base) {
+  const CW = R.canvas.width, CH = R.canvas.height;
+  const px0 = base ? base.px : panX, py0 = base ? base.py : panY, z0 = base ? base.z0 : zoom;
+  // keep the point under the cursor fixed
+  const cx = p[0] - CW / 2 - px0, cy = p[1] - CH / 2 - py0, k = nz / z0;
+  panX = px0 + cx - cx * k; panY = py0 + cy - cy * k; zoom = nz;
+  if (nz <= 1.001) { panX = panY = 0; }
+  invalidate('view');
+}
+
+// crop box dragging
+function cropHit(p) {
+  const g = curGeom(), v = viewRect(g), cr = cur.s.crop;
+  const rx = v.x + cr.x * v.dw, ry = v.y + cr.y * v.dh, rw = cr.w * v.dw, rh = cr.h * v.dh, tol = 22 * (window.devicePixelRatio || 1);
+  const nl = Math.abs(p[0] - rx) < tol, nr = Math.abs(p[0] - rx - rw) < tol, nt = Math.abs(p[1] - ry) < tol, nb = Math.abs(p[1] - ry - rh) < tol;
+  const inX = p[0] > rx - tol && p[0] < rx + rw + tol, inY = p[1] > ry - tol && p[1] < ry + rh + tol;
+  let h = '';
+  if (inY && nl) h += 'l'; if (inY && nr) h += 'r'; if (inX && nt) h += 't'; if (inX && nb) h += 'b';
+  if (!h && p[0] > rx && p[0] < rx + rw && p[1] > ry && p[1] < ry + rh) h = 'm';
+  if (!h) return { type: 'pan', x: p[0], y: p[1], px: panX, py: panY };
+  return { type: 'crop', h, start: { ...cr }, p0: [(p[0] - v.x) / v.dw, (p[1] - v.y) / v.dh] };
+}
+function aspectN() {
+  const s = cur.s, g = curGeom();
+  if (s.aspect === 'free') return 0;
+  if (s.aspect === 'orig') return 1;
+  const [a, b] = s.aspect.split(':').map(Number);
+  let r = a / b;
+  if (s.aspectSwap) r = 1 / r;
+  return r * g.OH / g.OW;
+}
+function cropMove(p) {
+  const g = curGeom(), v = viewRect(g), q = [(p[0] - v.x) / v.dw, (p[1] - v.y) / v.dh];
+  const dx = q[0] - drag.p0[0], dy = q[1] - drag.p0[1], s0 = drag.start, h = drag.h, MIN = 0.04;
+  let { x, y, w, h: hh } = s0;
+  if (h === 'm') { x = clamp(s0.x + dx, 0, 1 - s0.w); y = clamp(s0.y + dy, 0, 1 - s0.h); }
+  else {
+    let l = s0.x, r = s0.x + s0.w, t = s0.y, b = s0.y + s0.h;
+    if (h.includes('l')) l = clamp(l + dx, 0, r - MIN); if (h.includes('r')) r = clamp(r + dx, l + MIN, 1);
+    if (h.includes('t')) t = clamp(t + dy, 0, b - MIN); if (h.includes('b')) b = clamp(b + dy, t + MIN, 1);
+    const an = aspectN();
+    if (an) {
+      let nw = r - l, nh = b - t;
+      if (h.includes('l') || h.includes('r')) nh = nw / an; else nw = nh * an;
+      if (nh > 1) { nh = 1; nw = an; } if (nw > 1) { nw = 1; nh = 1 / an; }
+      if (h.includes('t')) t = b - nh; else if (h.includes('b') || h.includes('l') || h.includes('r')) { if (!h.includes('t') && !h.includes('b')) t = clamp((s0.y + s0.h / 2) - nh / 2, 0, 1 - nh); }
+      if (h.includes('l')) l = r - nw; else if (!h.includes('r')) l = clamp((s0.x + s0.w / 2) - nw / 2, 0, 1 - nw);
+      l = clamp(l, 0, 1 - nw); t = clamp(t, 0, 1 - nh); r = l + nw; b = t + nh;
+    }
+    x = l; y = t; w = r - l; hh = b - t;
+  }
+  cur.s.crop = { x, y, w, h: hh };
+  invalidate('view');
+}
+function setAspect(a) {
+  if (!cur) return;
+  if (a === cur.s.aspect && a !== 'free' && a !== 'orig') cur.s.aspectSwap = !cur.s.aspectSwap; else if (a !== cur.s.aspect) cur.s.aspectSwap = false;
+  cur.s.aspect = a;
+  const an = aspectN();
+  if (an) { let w = 1, h = 1 / an; if (h > 1) { h = 1; w = an; } cur.s.crop = { x: (1 - w) / 2, y: (1 - h) / 2, w, h }; }
+  syncUI(); invalidate('view'); commit();
+}
+
+// ---------------------------------------------------------------- tools
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll('[data-tool]').forEach((b) => b.classList.toggle('on', b.dataset.tool === t));
+  $('brushOpts').classList.toggle('show', t === 'heal' || t === 'liquify');
+  $('liqModes').style.display = t === 'liquify' ? '' : 'none';
+  $('strLbl').style.display = $('brushStr').style.display = t === 'liquify' ? '' : 'none';
+  viewEl.style.cursor = t === 'pan' ? 'grab' : t === 'wb' ? 'crosshair' : 'none';
+  if (t !== 'pan' && cropMode()) setTab('adjust');
+  invalidate('view');
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-tool]'); if (b) setTool(b.dataset.tool === tool && tool !== 'pan' ? 'pan' : b.dataset.tool); });
+$('liqModes').addEventListener('click', (e) => { const m = e.target.dataset.lm; if (!m) return; liqMode = m; $('liqModes').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === e.target)); });
+$('clearBrush').addEventListener('click', () => {
+  if (!cur) return;
+  if (tool === 'heal') { cur.s.heals = []; cur.healed = cur.prev; R.setHealed(cur.prev); invalidate('main'); }
+  if (tool === 'liquify') { cur.s.liq = []; invalidate('disp'); }
+  commit();
+});
+function setTab(t) {
+  tab = t;
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
+  document.querySelectorAll('[data-pane]').forEach((p) => p.hidden = p.dataset.pane !== t);
+  if (t === 'crop' && tool !== 'pan') setTool('pan');
+  zoom = 1; panX = panY = 0;
+  invalidate('view');
+}
+$('tabs').addEventListener('click', (e) => { const t = e.target.dataset.tab; if (t) { if (tab === 'crop' && t !== 'crop') commit(); setTab(t); } });
+$('cmpBtn').addEventListener('click', () => { split = split < 0 ? 0.5 : -1; $('cmpBtn').classList.toggle('on', split >= 0); invalidate('view'); });
+$('undoBtn').addEventListener('click', undo);
+$('redoBtn').addEventListener('click', redo);
+$('zoomIn').addEventListener('click', () => zoomAt([R.canvas.width / 2, R.canvas.height / 2], clamp(zoom * 1.4, 0.2, 16)));
+$('zoomOut').addEventListener('click', () => zoomAt([R.canvas.width / 2, R.canvas.height / 2], clamp(zoom / 1.4, 0.2, 16)));
+$('zoomFit').addEventListener('click', () => { zoom = 1; panX = panY = 0; invalidate('view'); });
+
+let spaceDown = false;
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches('input[type=text],input[type=number],textarea,select')) return;
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+  if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); $('selAll').click(); return; }
+  if (mod && e.key.toLowerCase() === 'c' && cur && !window.getSelection().toString()) { clipboard = clone(cur.s); return; }
+  if (mod && e.key.toLowerCase() === 'v' && cur && clipboard) { e.preventDefault(); const keep = { heals: cur.s.heals, liq: cur.s.liq }; cur.s = Object.assign(clone(clipboard), keep); R.setCurve(curveLUT(cur.s.curve)); bindBgImage(cur.s.bgImage).then(() => invalidate()); syncUI(); flags.disp = true; invalidate(); commit(); return; }
+  if (mod) return;
+  if (e.key === '\\' && !holdOrig) { holdOrig = true; invalidate('view'); }
+  if (e.key === ' ') { spaceDown = true; e.preventDefault(); }
+  if (e.target.matches('input[type=range]')) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const i = photos.indexOf(cur) + (e.key === 'ArrowRight' ? 1 : -1); if (photos[i]) { commit(); open(photos[i]); } }
+  if (e.key === 'h' || e.key === 'H') setTool(tool === 'heal' ? 'pan' : 'heal');
+  if (e.key === 'l' || e.key === 'L') setTool(tool === 'liquify' ? 'pan' : 'liquify');
+  if (e.key === 'Escape') setTool('pan');
+  if (e.key === '=' || e.key === '+') $('zoomIn').click();
+  if (e.key === '-') $('zoomOut').click();
+  if (e.key === '0') $('zoomFit').click();
+  if (e.key === '[' || e.key === ']') { const b = $('brushSize'); b.value = +b.value * (e.key === ']' ? 1.15 : 0.87); invalidate('view'); }
+});
+document.addEventListener('keyup', (e) => { if (e.key === '\\') { holdOrig = false; invalidate('view'); } if (e.key === ' ') spaceDown = false; });
+
+// files
+for (const id of ['fileIn', 'fileIn2', 'fileIn3']) $(id).addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
+viewEl.addEventListener('dragover', (e) => { e.preventDefault(); viewEl.classList.add('drop'); });
+viewEl.addEventListener('dragleave', () => viewEl.classList.remove('drop'));
+viewEl.addEventListener('drop', (e) => { e.preventDefault(); viewEl.classList.remove('drop'); addFiles(e.dataTransfer.files); });
+document.addEventListener('dragover', (e) => e.preventDefault());
+document.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+window.addEventListener('resize', () => invalidate('view'));
+new ResizeObserver(() => invalidate('view')).observe(viewEl);
+
+// ---------------------------------------------------------------- export
+function exportTargets() {
+  const v = $('exScope').value;
+  if (v === 'cur') return cur ? [cur] : [];
+  if (v === 'sel') return photos.filter((p) => selected.has(p.id));
+  return photos.slice();
+}
+$('exportBtn').addEventListener('click', () => {
+  if (!photos.length) return;
+  commit();
+  const n = selected.size;
+  $('exScope').innerHTML = `<option value="cur">This photo</option>${n > 1 ? `<option value="sel">Selected (${n})</option>` : ''}<option value="all">All photos (${photos.length})</option>`;
+  $('exScope').value = n > 1 ? 'sel' : 'cur';
+  $('exNote').textContent = ''; $('prog').style.display = 'none'; $('exGo').disabled = false;
+  $('expDlg').showModal();
+});
+$('exCancel').addEventListener('click', () => { exporting = false; $('expDlg').close(); });
+let exporting = false;
+let jszip = null;
+function loadZip() {
+  if (jszip) return jszip;
+  jszip = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'; s.onload = () => res(window.JSZip); s.onerror = () => { jszip = null; rej(new Error('zip')); }; document.head.appendChild(s); });
+  return jszip;
+}
+function save(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 20000); }
+async function renderFull(p, longEdge, fmt, q) {
+  // Full-size render: decode the original, apply heals at full size, run the same pipeline.
+  await ensureAnalysis(p);
+  const bmp = await decode(p);
+  p.w = bmp.width; p.h = bmp.height;
+  let k = Math.min(1, R.MAXT / Math.max(p.w, p.h), Math.sqrt(EXPORT_MAX_PX / (p.w * p.h)));
+  const W = Math.round(p.w * k), H = Math.round(p.h * k);
+  const raw = document.createElement('canvas'); raw.width = W; raw.height = H; raw.getContext('2d').drawImage(bmp, 0, 0, W, H); bmp.close && bmp.close();
+  const healed = applyHeals(raw, p.s.heals);
+  R.load(raw, healed);
+  bindMasksAndWarp(p);
+  R.setDisp(buildDisp(allOps(p), W, H));
+  R.setCurve(curveLUT(p.s.curve));
+  await bindBgImage(p.s.bgImage);
+  R.drawMain(mainUniforms(p.s), bgBlurRad(p.s));
+  const g = geometry(p.s, W, H, false);
+  let ow = Math.round(g.outW), oh = Math.round(g.outH);
+  if (longEdge && Math.max(ow, oh) > longEdge) { const f = longEdge / Math.max(ow, oh); ow = Math.round(ow * f); oh = Math.round(oh * f); }
+  const c = R.exportCanvas(finalUniforms(p.s, g), ow, oh);
+  return new Promise((res) => c.toBlob(res, fmt, q));
+}
+$('exGo').addEventListener('click', async () => {
+  const list = exportTargets(); if (!list.length) return;
+  const fmt = $('exFmt').value, q = +$('exQ').value / 100, size = +$('exSize').value, suf = $('exSuffix').value.replace(/[\\/:*?"<>|]/g, '');
+  const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[fmt];
+  const zip = list.length > 1 && $('exZip').checked;
+  exporting = true; $('exGo').disabled = true; $('prog').style.display = 'block';
+  const bar = $('prog').firstElementChild; bar.style.width = '0';
+  let Z = null;
+  if (zip) { try { Z = new (await loadZip())(); } catch (e) { $('exNote').textContent = 'Could not load the ZIP tool (offline?). Saving files one by one.'; } }
+  const used = new Set(); let done = 0, failed = 0;
+  const keep = cur;
+  for (const p of list) {
+    if (!exporting) break;
+    $('exNote').textContent = `Rendering ${done + 1} of ${list.length}: ${p.name}`;
+    try {
+      const blob = await renderFull(p, size, fmt, q);
+      let base = p.name.replace(/\.[^.]+$/, '') + suf, name = `${base}.${ext}`, i = 2;
+      while (used.has(name)) name = `${base}-${i++}.${ext}`;
+      used.add(name);
+      if (Z) Z.file(name, blob); else { save(blob, name); await new Promise((r) => setTimeout(r, 350)); }
+    } catch (e) { console.error(e); failed++; }
+    done++; bar.style.width = (done / list.length * 100) + '%';
+  }
+  if (Z && done) { $('exNote').textContent = 'Making the ZIP…'; save(await Z.generateAsync({ type: 'blob', compression: 'STORE' }), `ClickRetouch-${new Date().toISOString().slice(0, 10)}.zip`); }
+  $('exNote').textContent = exporting ? `Done. ${done - failed} exported${failed ? `, ${failed} failed` : ''}.` : 'Stopped.';
+  exporting = false; $('exGo').disabled = false;
+  if (keep) { cur = null; await open(keep); }
+});
+
+// ---------------------------------------------------------------- start
+async function start() {
+  if (!R) { $('empty').innerHTML = '<div class="big">This browser cannot run the editor</div><div>It needs WebGL 2. Use a recent Chrome, Edge or Safari.</div>'; return; }
+  buildPanels(); renderPresets(); setTool('pan'); renderStrip(); updateUndo(); drawCurve();
+  document.querySelectorAll('#aspects').forEach((a) => a.addEventListener('click', (e) => { const k = e.target.dataset.a; if (k) setAspect(k); }));
+  $('rotL').addEventListener('click', () => { if (!cur) return; cur.s.rot90 = (cur.s.rot90 + 3) % 4; cur.s.crop = { x: 0, y: 0, w: 1, h: 1 }; cur.s.aspect = 'free'; syncUI(); invalidate('view'); commit(); });
+  $('rotR').addEventListener('click', () => { if (!cur) return; cur.s.rot90 = (cur.s.rot90 + 1) % 4; cur.s.crop = { x: 0, y: 0, w: 1, h: 1 }; cur.s.aspect = 'free'; syncUI(); invalidate('view'); commit(); });
+  $('flipH').addEventListener('click', () => { if (!cur) return; cur.s.flipH = !cur.s.flipH; invalidate('view'); commit(); });
+  $('swapAR').addEventListener('click', () => { if (!cur || cur.s.aspect === 'free') return; setAspect(cur.s.aspect); });
+  $('autoTone').addEventListener('click', autoTone);
+  $('autoWB').addEventListener('click', autoWB);
+  $('bgFile').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f || !cur) return;
+    const id = 'bg-' + uid(); await DB.put('files', { id, name: f.name, blob: f });
+    bgCache.delete(id); cur.s.bgImage = id; cur.s.bgMode = 'image'; await bindBgImage(id); syncUI(); invalidate(); commit();
+  });
+  // Restore the last session.
+  const metas = (await DB.all('meta')) || [];
+  metas.sort((a, b) => a.order - b.order);
+  for (const m of metas) {
+    const p = { id: m.id, name: m.name, s: Object.assign(defaults(), m.s), order: m.order, thumb: m.thumb, w: m.w, h: m.h, undo: [], redo: [] };
+    p.last = JSON.stringify(p.s); photos.push(p);
+  }
+  renderStrip();
+  if (photos.length) open(photos[0]);
+}
+start();
+</script>
+</body>
+</html>

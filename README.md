@@ -115,3 +115,18 @@ There is no build step. Open `index.html` in a browser, or serve the folder with
 ## Paper size
 
 The freebie sheets and the 35 × 45 mm sheet are made for **102 × 153 mm** photo paper (1205 × 1807 px at 300 dpi). 35 × 45 mm photos are 413 × 531 px. The 2 × 2 in and mixed ID sheets are made for 4 × 6 in paper (1200 × 1800 px at 300 dpi) so the photos are exactly 2 in and 1 in.
+
+## Photo editor
+
+`photo-editor.html` (ClickRetouch) is an Evoto-style portrait retouching and batch photo editor that runs in the browser. Add a whole shoot, retouch one photo, then sync the settings to the rest.
+
+- **Portrait**: skin smoothing (with a keep-texture control), blemishes and acne, wrinkles, dark circles, eye bags, oil and shine, even skin tone, skin brightness and warmth, body skin. Face shape: slim face, V-line jaw, cheekbones, chin, forehead, head size, eye size, nose, mouth, smile. Brighten and whiten eyes, whiten teeth, lip colour and blush. Works on every face in the photo
+- **Adjust**: exposure, contrast, highlights, shadows, whites, blacks, auto tone, temperature, tint, auto and picked white balance, vibrance, saturation, HSL colour mixer, tone curve (RGB and per channel), colour grading, clarity, texture, dehaze, sharpen, vignette, grain and fade
+- **Background**: blur, replace with a colour or an image, clean up backdrop wrinkles and seams, background brightness and saturation
+- **Crop**: free or fixed ratios (including 4x6 and 8x10 in), rotate, flip, straighten
+- Healing brush (picks a matching patch automatically) and liquify brush (push, bloat, pinch)
+- Retouch presets, looks, and your own presets (export and import them as a file to share between devices)
+- Before/after split (or hold `\`), undo/redo, histogram, and select several photos in the strip (Ctrl/Cmd or Shift click) then **Sync…**
+- Export JPEG, PNG or WebP at full size or a set long edge; several photos come as one ZIP
+
+The AI is Google's MediaPipe face landmarker and selfie multiclass segmenter (Apache-2.0), loaded from jsDelivr and Google's model storage the first time (about 20 MB), then run on the device. Photos are kept in the browser's storage on that device so work survives a reload; they are never uploaded. Needs WebGL 2 (current Chrome, Edge or Safari). Exports are capped at 36 MP on computers and 16 MP on phones and tablets.
