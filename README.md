@@ -84,6 +84,12 @@ Notes:
 - GIFs are made in the browser with gifenc (MIT) from jsDelivr, loaded once when a GIF layout is switched on, so the booth needs internet the first time.
 - Nothing is uploaded. Send to my phone goes straight from the booth to the guest's phone over WebRTC.
 
+## Christmas designs (freebie templates)
+
+Below the sheet preview, **🎄 Christmas design** turns every sheet into a Christmas version at no extra charge, so a package's free prints can be Christmas prints: Classic red, Green & gold, Snow white or Candy cane. The frames stay the same; the design adds the background, snowflakes or sparkles, a gold line around each photo, holly in two corners, and turns the logo white on the dark designs. An optional greeting (default "Merry Christmas", plus a second line such as the family name) is written over the first photo of each sheet. The choice is remembered on the device.
+
+Two Christmas card layouts (₱70 each, like the special layouts) have their own greeting space: **Christmas card** (1 photo) and **Christmas collage** (1 big + 2 small). They use Classic red when no design is picked. All artwork is drawn in code, so it prints sharp.
+
 ## Video editor
 
 `video-editor.html` (ClickCut) is a CapCut-style video editor that runs in the browser. Import videos, photos and music, arrange them on a timeline (a magnetic main track plus overlay, text and audio layers), then trim, split, reorder and export.
