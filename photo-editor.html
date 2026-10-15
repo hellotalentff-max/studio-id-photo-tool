@@ -305,6 +305,7 @@ const isEdited = (s) => JSON.stringify(s) !== JSON.stringify(defaults());
 
 // ---------------------------------------------------------------- presets
 const RETOUCH = [
+  { name: '✨ Auto (fits each face)', auto: true },
   { name: 'None', v: {} },
   { name: 'Natural', v: { smooth: 30, smoothTex: 75, blemish: 60, darkCircles: 30, eyeBags: 25, shine: 30, eyeBright: 20, teeth: 25 } },
   { name: 'Studio clean', v: { smooth: 50, smoothTex: 60, blemish: 80, wrinkles: 30, darkCircles: 50, eyeBags: 45, shine: 50, evenTone: 30, eyeBright: 35, eyeWhite: 25, teeth: 40, faceSlim: 15, eyeSize: 8 } },
@@ -440,7 +441,8 @@ vec3 hue(float h){return clamp(abs(mod(h*6.+vec3(0.,4.,2.),6.)-3.)-1.,0.,1.);}
       for(int j=-5;j<=5;j++)for(int i=-5;i<=5;i++){vec2 q=vec2(float(i),float(j));float r2=dot(q,q);if(r2>30.)continue;
       vec3 c=texture(t,uv+q*px*rad/5.).rgb;vec3 dc=c-c0;float w=exp(-r2/12.5-dot(dc,dc)/(2.*sig*sig));a+=c*w;ws+=w;}o=vec4(a/ws,1.);}`),
     main: mk(LIB + `
-uniform sampler2D S,L,B,G1,G2,G3,M1,M2,SEG,BGI,CRV;
+uniform sampler2D S,L,B,BL,G1,G2,G3,M1,M2,SEG,BGI,CRV;
+uniform float hasSkin;uniform vec2 skinC,skinT,downUV;
 uniform vec2 px;uniform float fineR;
 uniform float smooth_,keepTex,blemish,wrinkles,darkC,bags,shine,even_,sBright,sWarm,body;
 uniform float eyeB,eyeW,teeth,lipA,blushA;uniform vec3 lipC,blushC;
@@ -448,6 +450,7 @@ uniform float bgMode,bgEdge,bgClean,bgBright,bgSat,hasSeg,hasLm,hasBgi;uniform v
 uniform float expo,contr,hiL,shL,whi,bla,temp,tint,vib,sat,clar,textr,dehaze,sharp,fade;
 uniform float hslH[8],hslS[8],hslL[8];
 uniform vec2 gSh,gMi,gHi;uniform float gBal;
+vec2 cbcr(vec3 c){float y=lum(c);return vec2((c.b-y)*.564,(c.r-y)*.713);}
 float skinLike(vec3 c){float y=lum(c);float cb=(c.b-y)*.564,cr=(c.r-y)*.713;
  return smoothstep(.0,.03,cr)*(1.-smoothstep(.13,.2,cr))*(1.-smoothstep(.0,.06,cb));}
 float cen(int i){return i==0?0.:i==1?30.:i==2?60.:i==3?120.:i==4?180.:i==5?240.:i==6?270.:300.;}
@@ -461,24 +464,35 @@ void main(){
  vec3 fine=(texture(S,uv+vec2(d.x,0.)).rgb+texture(S,uv-vec2(d.x,0.)).rgb+texture(S,uv+vec2(0.,d.y)).rgb+texture(S,uv-vec2(0.,d.y)).rgb
   +texture(S,uv+e).rgb+texture(S,uv-e).rgb+texture(S,uv+vec2(e.x,-e.y)).rgb+texture(S,uv+vec2(-e.x,e.y)).rgb)*.125;
  float feat=m1.a;
+ vec3 bl=texture(BL,uv).rgb;
+ // Skin = AI skin mask, trimmed to pixels whose colour matches this photo's measured skin tone,
+ // so hair, beards, brows and clothes at the mask edge are left alone.
+ vec2 cc=cbcr(l);vec2 dz=(cc-skinC)/skinT;
+ float tone=hasSkin>.5?(1.-smoothstep(1.,2.2,dot(dz,dz)))*smoothstep(.04,.12,lum(l)):1.;
  float face=hasSeg>.5?sg.r:m2.a*skinLike(s);
- float skin=clamp(face,0.,1.)*(1.-feat);
- float bodyS=hasSeg>.5?sg.g*(1.-feat):0.;
+ float skin=clamp(face,0.,1.)*(1.-feat)*tone;
+ float bodyS=hasSeg>.5?sg.g*(1.-feat)*tone:0.;
  // The skin fixes all pull the low-frequency layer toward a cleaner version of itself, then the photo's own
  // fine detail goes back on top. Mixing toward one target (not adding fixes) keeps them from overshooting.
  float ue=m1.b*(1.-m2.r);
- float sm=skin*smooth_+bodyS*body;
- float spot=smoothstep(.008,.04,lum(g1)-lum(l))*skin;
+ float sm=clamp(skin*smooth_+bodyS*body,0.,1.);
+ // blemishes: spots darker or redder than the skin around them
+ float dk=lum(g1)-lum(l);float rd=cbcr(l).y-cbcr(g1).y;
+ float spot=max(smoothstep(.01,.04,dk),smoothstep(.008,.03,rd)*smoothstep(-.005,.01,dk))*skin;
+ float sp=clamp(spot*blemish*1.6,0.,1.);
  float flat_=1.-smoothstep(.03,.1,abs(lum(g1)-lum(b)));
- vec3 tg=mix(l,b,clamp(sm,0.,1.));
- tg=mix(tg,g1,clamp(skin*wrinkles*flat_*.8,0.,1.));
- tg=mix(tg,g1,clamp(spot*blemish*1.5,0.,1.));
- tg=mix(tg,g1,clamp(ue*bags*.9,0.,1.));
- vec3 c=s+(tg-l);
- c+=(fine-s)*clamp(sm,0.,1.)*(1.-keepTex);
- float lift=max(0.,lum(g2)-lum(g1));
- c+=vec3(lift*1.3+.015)*ue*darkC;
- c=mix(c,setLum(g2,lum(c)),ue*darkC*.45);
+ vec3 tg=mix(l,mix(b,bl,.45*sm),sm);
+ tg=mix(tg,bl,clamp(skin*wrinkles*flat_*.85,0.,1.));
+ tg=mix(tg,g1,sp);
+ tg=mix(tg,bl,clamp(ue*bags,0.,1.));
+ vec3 hf=s-l;
+ vec3 c=tg+hf*(1.-sp*.85);
+ c+=(fine-s)*sm*(1.-keepTex);
+ // dark circles: lift the under-eye to match the cheek just below it
+ vec3 ref=texture(BL,uv+downUV).rgb;
+ float lift=max(0.,lum(ref)-lum(bl));
+ c+=vec3(lift*1.15)*ue*darkC;
+ c=mix(c,setLum(ref,lum(c)),ue*darkC*.55);
  // shine
  float sk=clamp(skin+bodyS*.6,0.,1.);
  float hl=max(0.,lum(s)-lum(g2));
@@ -629,14 +643,19 @@ void main(){
   };
 
   let d = null; // textures for the loaded photo
-  function freeDoc() { if (!d) return; for (const k of ['S0', 'S', 'L', 'B1', 'B', 'G1', 'T1', 'Q', 'TQ', 'G2', 'G3', 'C', 'M1', 'M2', 'SEG', 'D']) if (d[k] && !(k === 'S' && d.S === d.S0)) free(d[k]); d = null; }
+  function freeDoc() { if (!d) return; for (const k of ['S0', 'S', 'L', 'B1', 'B', 'G1', 'T1', 'Hh', 'THh', 'BL', 'Q', 'TQ', 'G2', 'G3', 'C', 'M1', 'M2', 'SEG', 'D']) if (d[k] && !(k === 'S' && d.S === d.S0)) free(d[k]); d = null; }
   function statics() {
     const { L, B1, B, G1, T1, Q, TQ, G2 } = d;
     run(P.copy, L, L.w, L.h, { t: d.S }, {});
-    const px = [1 / L.w, 1 / L.h], k = L.w / 1024 > L.h / 1024 ? L.w / 1024 : L.h / 1024;
-    run(P.bil, B1, L.w, L.h, { t: L.t }, { px, rad: 7 * k, sig: 0.09 });
-    run(P.bil, B, L.w, L.h, { t: B1.t }, { px, rad: 7 * k, sig: 0.08 });
-    blur2(L, T1, G1, 10 * k);
+    // Blur sizes follow the face size, so a close-up and a full-length shot get the same look.
+    const px = [1 / L.w, 1 / L.h], fw = d.fwL;
+    run(P.bil, B1, L.w, L.h, { t: L.t }, { px, rad: clamp(fw * 0.03, 1.5, 12), sig: 0.09 });
+    run(P.bil, B, L.w, L.h, { t: B1.t }, { px, rad: clamp(fw * 0.03, 1.5, 12), sig: 0.08 });
+    blur2(L, T1, G1, clamp(fw * 0.06, 3, 40));
+    const { Hh, THh, BL } = d, hp = [1 / Hh.w, 1 / Hh.h], hr = clamp(fw * Hh.w / L.w * 0.07, 2, 12);
+    run(P.copy, Hh, Hh.w, Hh.h, { t: d.S }, {});
+    run(P.bil, THh, Hh.w, Hh.h, { t: Hh.t }, { px: hp, rad: hr, sig: 0.07 });
+    run(P.bil, BL, Hh.w, Hh.h, { t: THh.t }, { px: hp, rad: hr, sig: 0.06 });
     run(P.copy, Q, Q.w, Q.h, { t: d.S }, {});
     blur2(Q, TQ, G2, 12 * Math.max(Q.w, Q.h) / 256);
     d.g3r = -1;
@@ -645,15 +664,19 @@ void main(){
     gl, MAXT, canvas: cv,
     get loaded() { return !!d; },
     get size() { return d ? [d.W, d.H] : [0, 0]; },
-    load(raw, healed) {
+    // faceN: face width as a fraction of the long edge (null when there is no face).
+    load(raw, healed, faceN) {
       freeDoc();
       const W = raw.width, H = raw.height, m = Math.max(W, H);
-      const ak = Math.min(1, 1024 / m), aw = Math.max(2, Math.round(W * ak)), ah = Math.max(2, Math.round(H * ak));
+      const A = Math.min(m, faceN ? clamp(260 / faceN, 1024, 2560) : 1024);
+      const ak = A / m, aw = Math.max(2, Math.round(W * ak)), ah = Math.max(2, Math.round(H * ak));
       const qk = 256 / m, qw = Math.max(2, Math.round(W * qk)), qh = Math.max(2, Math.round(H * qk));
-      d = { W, H };
+      d = { W, H, fwL: faceN ? faceN * A : A * 0.25 };
       d.S0 = texFrom(raw, true);
       d.S = healed && healed !== raw ? texFrom(healed, true) : d.S0;
       d.L = target(aw, ah, true); d.B1 = target(aw, ah, true); d.B = target(aw, ah, true); d.G1 = target(aw, ah, true); d.T1 = target(aw, ah, true);
+      const hw = Math.max(2, Math.round(aw / 2)), hh = Math.max(2, Math.round(ah / 2));
+      d.Hh = target(hw, hh, true); d.THh = target(hw, hh, true); d.BL = target(hw, hh, true);
       d.Q = target(qw, qh, true); d.TQ = target(qw, qh, true); d.G2 = target(qw, qh, true); d.G3 = target(qw, qh, true);
       d.C = target(W, H, false);
       statics();
@@ -675,7 +698,7 @@ void main(){
       const fa = d.W / d.H, ia = this.bgiAR || 1;
       const fit = ia > fa ? [(1 - fa / ia) / 2, 0, fa / ia, 1] : [0, (1 - ia / fa) / 2, 1, ia / fa];
       run(P.main, d.C, d.W, d.H,
-        { S: d.S, L: d.L.t, B: d.B.t, G1: d.G1.t, G2: d.G2.t, G3: d.G3.t, M1: d.M1, M2: d.M2, SEG: d.SEG, BGI: this.bgi, CRV: this.crv },
+        { S: d.S, L: d.L.t, B: d.B.t, BL: d.BL.t, G1: d.G1.t, G2: d.G2.t, G3: d.G3.t, M1: d.M1, M2: d.M2, SEG: d.SEG, BGI: this.bgi, CRV: this.crv },
         Object.assign({ px: [1 / d.W, 1 / d.H], fineR: Math.max(1, Math.max(d.W, d.H) / 1600), hasSeg: d.SEG ? 1 : 0, hasLm: d.M1 ? 1 : 0, hasBgi: this.bgi ? 1 : 0, bgiFit: fit }, u));
     },
     drawFinal(u, tgt) {
@@ -705,6 +728,8 @@ const LM = {
   eyeR: [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246],
   eyeL: [263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466],
   lowR: [33, 7, 163, 144, 145, 153, 154, 155, 133], lowL: [263, 249, 390, 373, 374, 380, 381, 382, 362],
+  low1R: [130, 25, 110, 24, 23, 22, 26, 112, 243], low3R: [143, 111, 117, 118, 119, 120, 121, 128, 245],
+  low1L: [359, 255, 339, 254, 253, 252, 256, 341, 463], low3L: [372, 340, 346, 347, 348, 349, 350, 357, 465],
   browR: [70, 63, 105, 66, 107, 55, 65, 52, 53, 46], browL: [300, 293, 334, 296, 336, 285, 295, 282, 283, 276],
   lipsOut: [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185],
   lipsIn: [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191],
@@ -728,12 +753,11 @@ function drawMasks(faces, W, H) {
   layer((x, P, f, ew) => { x.filter = `blur(${ew * 0.04}px)`; poly(x, P, LM.lipsIn); x.fill(); });
   layer((x, P, f, ew) => { x.filter = `blur(${ew * 0.05}px)`; poly(x, P, LM.lipsOut); x.fill(); x.globalCompositeOperation = 'destination-out'; poly(x, P, LM.lipsIn); x.fill(); });
   layer((x, P, f, ew) => {
-    x.filter = `blur(${ew * 0.14}px)`;
-    const down = { x: P(152).x - P(10).x, y: P(152).y - P(10).y }, dl = Math.hypot(down.x, down.y); down.x /= dl; down.y /= dl;
-    for (const idx of [LM.lowR, LM.lowL]) {
-      const pts = idx.map(P), n = pts.length - 1;
-      x.beginPath(); pts.forEach((p, i) => i ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y));
-      for (let i = n; i >= 0; i--) { const s = ew * (0.12 + 0.42 * Math.sin(Math.PI * i / n)); x.lineTo(pts[i].x + down.x * s, pts[i].y + down.y * s); }
+    // Under-eye: the band between the lower lid's second and fourth landmark rings (tear trough and bags).
+    x.filter = `blur(${ew * 0.1}px)`;
+    for (const [up, dn] of [[LM.low1R, LM.low3R], [LM.low1L, LM.low3L]]) {
+      x.beginPath(); up.forEach((i, n) => { const p = P(i); n ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y); });
+      for (let n = dn.length - 1; n >= 0; n--) { const p = P(dn[n]); x.lineTo(p.x, p.y); }
       x.closePath(); x.fill();
     }
   });
@@ -980,7 +1004,7 @@ function frame() {
   if (!cur || !R.loaded) return;
   const s = cur.s, [W, H] = R.size;
   if (flags.disp) { flags.disp = false; R.setDisp(buildDisp(allOps(cur), W, H)); }
-  if (flags.main) { flags.main = false; R.drawMain(mainUniforms(s), bgBlurRad(s)); }
+  if (flags.main) { flags.main = false; R.drawMain(Object.assign(mainUniforms(s), photoUniforms(cur)), bgBlurRad(s)); }
   sizes();
   const g = curGeom(), v = viewRect(g), CW = R.canvas.width, CH = R.canvas.height;
   R.drawFinal(Object.assign(finalUniforms(s, g), { flip: 1, view: [v.x / CW, v.y / CH, v.dw / CW, v.dh / CH], split: holdOrig ? 2 : split, bgc: [0.04, 0.04, 0.045, 1] }));
@@ -1083,9 +1107,69 @@ async function ensurePrev(p) {
 }
 async function ensureAnalysis(p) {
   if (p.an || p.anFail) return p.an;
-  try { const c = await ensurePrev(p); p.an = await AI.analyze(c); p.masks = null; }
-  catch (e) { p.anFail = true; }
+  try { const c = await ensurePrev(p); p.an = await AI.analyze(c); p.masks = null; p.stats = faceStats(p); }
+  catch (e) { console.error(e); p.anFail = true; }
   return p.an;
+}
+// Face width as a fraction of the photo's long edge (median over faces), or null.
+function faceN(p) {
+  if (!p.an || !p.an.faces.length || !p.w) return null;
+  const m = Math.max(p.w, p.h), sx = p.w / m, sy = p.h / m;
+  const ws = p.an.faces.map((f) => Math.hypot((f[454].x - f[234].x) * sx, (f[454].y - f[234].y) * sy)).sort((a, b) => a - b);
+  return ws[ws.length >> 1] || null;
+}
+// Measures the faces: skin tone (for the skin mask) plus what the Auto retouch needs to know.
+function faceStats(p) {
+  const an = p.an; if (!an || !an.faces.length || !p.prev) return null;
+  const mk = p.masks || (p.masks = drawMasks(an.faces, p.w, p.h)), w = mk.m1.w, h = mk.m1.h, m1 = mk.m1.data, m2 = mk.m2.data;
+  const fw = (faceN(p) || 0.25) * Math.max(w, h);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(p.prev, 0, 0, w, h); const D = x.getImageData(0, 0, w, h).data;
+  x.filter = `blur(${Math.max(1.5, fw * 0.035)}px)`; x.drawImage(p.prev, 0, 0, w, h); x.filter = 'none';
+  const Bd = x.getImageData(0, 0, w, h).data;
+  const seg = an.seg;
+  const segAt = (i, j) => seg ? seg.data[(Math.min(seg.h - 1, Math.floor(j * seg.h / h)) * seg.w + Math.min(seg.w - 1, Math.floor(i * seg.w / w))) * 4] / 255 : 1;
+  const L = (d, k) => (0.2126 * d[k] + 0.7152 * d[k + 1] + 0.0722 * d[k + 2]) / 255;
+  let n = 0, sCb = 0, sCr = 0, qCb = 0, qCr = 0, rough = 0, spots = 0, shiny = 0, cheek = 0, nCheek = 0, under = 0, nUnder = 0, yel = 0, nTeeth = 0, scl = 0, nScl = 0;
+  const lums = [];
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const k = (j * w + i) * 4, l = L(D, k), lb = L(Bd, k);
+    const oval = m2[k + 3] / 255, feat = m1[k + 3] / 255, ue = m1[k + 2] / 255, eye = m2[k] / 255;
+    if (oval > 0.5 && feat < 0.2 && ue < 0.3 && segAt(i, j) > 0.5 && l > 0.06) {
+      const cb = (D[k + 2] / 255 - l) * 0.564, cr = (D[k] / 255 - l) * 0.713;
+      n++; sCb += cb; sCr += cr; qCb += cb * cb; qCr += cr * cr; lums.push(l);
+      rough += Math.abs(l - lb);
+      const crb = (Bd[k] / 255 - lb) * 0.713;
+      if (lb - l > 0.035 || (cr - crb > 0.03 && lb - l > 0)) spots++;
+      const mx = Math.max(D[k], D[k + 1], D[k + 2]), mn = Math.min(D[k], D[k + 1], D[k + 2]);
+      if (l > 0.78 && (mx - mn) / Math.max(mx, 1) < 0.22) shiny++;
+      if (m2[k + 1] > 128) { cheek += lb; nCheek++; }
+    }
+    if (ue > 0.5 && eye < 0.1 && feat < 0.5) { under += lb; nUnder++; }
+    if (m1[k] > 128 && l > 0.3) { yel += ((D[k] + D[k + 1]) / 2 - D[k + 2]) / 255; nTeeth++; }
+    if (eye > 0.5 && m2[k + 2] < 80 && l > 0.3) { const mx = Math.max(D[k], D[k + 1], D[k + 2]), mn = Math.min(D[k], D[k + 1], D[k + 2]); scl += (mx - mn) / Math.max(mx, 1); nScl++; }
+  }
+  if (n < 50) return null;
+  lums.sort((a, b) => a - b);
+  const mCb = sCb / n, mCr = sCr / n;
+  return {
+    skin: { cb: mCb, cr: mCr, sb: Math.sqrt(Math.max(0, qCb / n - mCb * mCb)), sr: Math.sqrt(Math.max(0, qCr / n - mCr * mCr)), lum: lums[n >> 1] },
+    rough: rough / n, spots: spots / n, shine: shiny / n,
+    dark: nCheek > 20 && nUnder > 20 ? (cheek / nCheek - under / nUnder) / Math.max(cheek / nCheek, 0.05) : 0,
+    teeth: nTeeth > 30 ? yel / nTeeth : null, sclera: nScl > 20 ? scl / nScl : null,
+  };
+}
+// Per-photo shader inputs: measured skin tone and the "down the face" direction for the under-eye fix.
+function photoUniforms(p) {
+  const u = { hasSkin: 0, skinC: [0, 0], skinT: [1, 1], downUV: [0, 0.03] };
+  const st = p.stats;
+  if (st) { u.hasSkin = 1; u.skinC = [st.skin.cb, st.skin.cr]; u.skinT = [Math.max(st.skin.sb * 2.5, 0.02), Math.max(st.skin.sr * 2.5, 0.02)]; }
+  if (p.an && p.an.faces.length) {
+    let x = 0, y = 0; for (const f of p.an.faces) { x += f[152].x - f[10].x; y += f[152].y - f[10].y; }
+    const n = p.an.faces.length; u.downUV = [x / n * 0.11, y / n * 0.11];
+  }
+  return u;
 }
 async function makeThumb(p) {
   if (p.thumb) return;
@@ -1124,7 +1208,7 @@ function saveSoon(p) { clearTimeout(saveTimers.get(p.id)); saveTimers.set(p.id, 
 async function bindPhoto(p) {
   const raw = await ensurePrev(p);
   if (!p.healed) p.healed = applyHeals(raw, p.s.heals);
-  R.load(raw, p.healed);
+  R.load(raw, p.healed, faceN(p));
   bindMasksAndWarp(p);
   R.setCurve(curveLUT(p.s.curve));
   await bindBgImage(p.s.bgImage);
@@ -1145,7 +1229,7 @@ async function open(p) {
     AI.chip('Finding faces…');
     const an = await ensureAnalysis(p);
     if (tok !== openToken || cur !== p) return;
-    if (an) { bindMasksAndWarp(p); flags.disp = true; invalidate(); wantSnap(); }
+    if (an) { await bindPhoto(p); if (tok !== openToken || cur !== p) return; invalidate(); wantSnap(); }
     faceChip(p);
   } else faceChip(p);
   // Look ahead: analyse the next photo so it opens instantly.
@@ -1246,7 +1330,11 @@ function changed(key) {
 
 function buildPanels() {
   // Portrait
-  let b = section('portrait', 'Skin', 'skin');
+  let b = section('portrait', '✨ Auto retouch', null);
+  const ar0 = document.createElement('div'); ar0.className = 'btnrow';
+  ar0.innerHTML = '<button class="primary" id="autoRet">✨ Auto retouch</button>'; b.appendChild(ar0);
+  note(b, 'Measures each face (skin texture, spots, dark circles, shine, teeth) and sets the sliders to suit it. With several photos selected, each gets its own settings.');
+  b = section('portrait', 'Skin', 'skin');
   note(b, 'Works on every face in the photo. Skin is found by AI, so eyes, brows and lips stay sharp.');
   GROUP_KEYS.skin.forEach((k) => sliderRow(k, b));
   b = section('portrait', 'Face shape', 'shape');
@@ -1260,7 +1348,7 @@ function buildPanels() {
   // Adjust
   b = section('adjust', 'Light', 'light');
   const ab = document.createElement('div'); ab.className = 'btnrow';
-  ab.innerHTML = '<button id="autoTone">✨ Auto tone</button>'; b.appendChild(ab);
+  ab.innerHTML = '<button id="autoTone">✨ Auto tone</button><span class="mut sm">Exposes for faces, fixes white balance</span>'; b.appendChild(ab);
   GROUP_KEYS.light.forEach((k) => sliderRow(k, b));
   b = section('adjust', 'Colour', 'color');
   const wb = document.createElement('div'); wb.className = 'btnrow';
@@ -1395,6 +1483,7 @@ function renderPresets() {
       b.firstChild.textContent = p.name;
       b.addEventListener('click', (e) => {
         if (e.target.classList.contains('x')) { if (confirm(`Delete preset "${p.name}"?`)) { const l = loadMyPresets(); l.splice(i, 1); saveMyPresets(l); renderPresets(); } return; }
+        if (p.auto) { autoRetouch(); return; }
         applyValues(p.v, groups || p.groups);
       });
       el.appendChild(b);
@@ -1514,16 +1603,79 @@ function wbFrom(r, g, b) {
   const Ti = clamp((1 - avg / g) / 0.25, -1, 1);
   return [Math.round(T * 100), Math.round(Ti * 100)];
 }
-function autoTone() {
-  if (!cur || !cur.prev) return;
-  const st = sampleStats(cur.prev), s = cur.s;
-  s.exposure = Math.round(clamp(Math.log2(Math.pow(0.46, 2.2) / Math.pow(Math.max(st.med, 0.02), 2.2)), -2, 2) * 20) / 20;
-  s.whites = Math.round(clamp((0.96 - st.hi) * 160, -40, 40));
-  s.blacks = Math.round(clamp((0.03 - st.lo) * 220, -40, 30));
-  s.highlights = st.hi > 0.97 ? -25 : 0; s.shadows = st.med < 0.35 ? 20 : 5; s.vibrance = 10;
-  syncUI(); invalidate(); commit();
+// Auto: works on the selected photos (each measured on its own), or just this one.
+function setPhotoValues(p, vals) {
+  const before = JSON.stringify(p.s); Object.assign(p.s, vals);
+  if (p === cur) { if (vals.curve) R.setCurve(curveLUT(p.s.curve)); syncUI(); flags.disp = true; invalidate(); commit(); }
+  else { p.undo.push(before); p.last = JSON.stringify(p.s); p.redo = []; saveMeta(p); markEdited(p); }
 }
-function autoWB() { if (!cur || !cur.prev) return; const st = sampleStats(cur.prev); [cur.s.temp, cur.s.tint] = wbFrom(st.r, st.g, st.b); syncUI(); invalidate(); commit(); }
+async function forTargets(label, fn) {
+  if (!cur) return;
+  const list = selected.size > 1 ? photos.filter((p) => selected.has(p.id)) : [cur];
+  let noFace = 0;
+  for (let i = 0; i < list.length; i++) {
+    busy(list.length > 1 ? `${label} ${i + 1} of ${list.length}…` : `${label}…`);
+    try { const v = await fn(list[i]); if (v) setPhotoValues(list[i], v); else noFace++; } catch (e) { console.error(e); noFace++; }
+  }
+  busy(noFace ? (list.length > 1 ? `${noFace} photo${noFace > 1 ? 's' : ''} had no face to retouch.` : 'No face found to retouch.') : '');
+  if (noFace) setTimeout(() => busy(''), 2500);
+}
+const r5 = (v) => Math.round(v / 5) * 5;
+async function autoRetouchValues(p) {
+  await ensureAnalysis(p);
+  if (p.an && !p.stats) { await ensurePrev(p); p.stats = faceStats(p); }
+  const st = p.stats; if (!st) return null;
+  const k = (v, lo, hi) => clamp((v - lo) / (hi - lo), 0, 1);
+  const smooth = r5(20 + 45 * k(st.rough, 0.006, 0.026));
+  const dark = r5(15 + 55 * k(st.dark, 0.02, 0.18));
+  const v = {
+    smooth, smoothTex: 65, blemish: r5(55 + 40 * k(st.spots, 0, 0.06)), wrinkles: r5(smooth * 0.6),
+    darkCircles: dark, eyeBags: r5(dark * 0.8), shine: r5(15 + 50 * k(st.shine, 0, 0.12)),
+    evenTone: r5(10 + 35 * k(st.skin.sr, 0.012, 0.035)), skinBright: 0, skinWarm: 0, bodySmooth: r5(smooth * 0.5),
+    eyeBright: 25, eyeWhite: st.sclera == null ? 15 : r5(10 + 35 * k(st.sclera, 0.1, 0.3)),
+    teeth: st.teeth == null ? 0 : r5(15 + 45 * k(st.teeth, 0.04, 0.16)),
+  };
+  return v;
+}
+function neutralAvg(canvas) {
+  const k = 200 / Math.max(canvas.width, canvas.height), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(canvas.width * k)); c.height = Math.max(1, Math.round(canvas.height * k));
+  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(canvas, 0, 0, c.width, c.height);
+  const d = x.getImageData(0, 0, c.width, c.height).data; let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const mx = Math.max(d[i], d[i + 1], d[i + 2]), mn = Math.min(d[i], d[i + 1], d[i + 2]), l = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+    if (l > 0.25 && l < 0.96 && (mx - mn) / mx < 0.18) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+  }
+  return n > d.length / 4 * 0.02 ? [r / n, g / n, b / n] : null;
+}
+async function autoWBValues(p) {
+  const c = await ensurePrev(p), nt = neutralAvg(c), st = sampleStats(c);
+  // Greys and whites in the photo are the best guide; with none, fall back to the whole picture, more gently.
+  const [T, Ti] = nt ? wbFrom(...nt) : wbFrom(st.r, st.g, st.b), f = nt ? 0.85 : 0.5;
+  return { temp: Math.round(T * f), tint: Math.round(Ti * f) };
+}
+async function autoToneValues(p) {
+  const c = await ensurePrev(p); await ensureAnalysis(p);
+  const st = sampleStats(c), lin = (v) => Math.pow(Math.max(v, 0.02), 2.2);
+  let ev = Math.log2(lin(0.46) / lin(st.med));
+  // With people in the photo, expose mainly for their faces (a dark suit or backdrop should not brighten them).
+  if (p.stats) ev = 0.8 * Math.log2(lin(0.56) / lin(p.stats.skin.lum)) + 0.2 * clamp(ev, -1, 1.5);
+  // Photos that already reach bright highlights are not underexposed: brighten only gently, so naturally
+  // darker skin is not washed out.
+  if (ev > 0 && st.hi > 0.9) ev *= 0.35;
+  ev = clamp(ev, -2.5, 2.5);
+  const g = Math.pow(2, ev / 2.2), hi = Math.min(1, st.hi * g), lo = st.lo * g, med = Math.min(1, st.med * g);
+  return Object.assign({
+    exposure: Math.round(ev * 20) / 20,
+    highlights: hi > 0.97 ? -35 : hi > 0.92 ? -15 : 0,
+    shadows: med < 0.35 ? 25 : 10,
+    whites: Math.round(clamp((0.95 - hi) * 150, -30, 35)),
+    blacks: Math.round(clamp((0.03 - lo) * 220, -35, 25)),
+    contrast: hi - lo < 0.6 ? 15 : 5, vibrance: 12,
+  }, await autoWBValues(p));
+}
+const autoTone = () => forTargets('Auto tone', autoToneValues);
+const autoWB = () => forTargets('White balance', autoWBValues);
+const autoRetouch = () => forTargets('Auto retouch', autoRetouchValues);
 
 // ---------------------------------------------------------------- pointer handling on the photo
 const viewEl = $('view');
@@ -1770,12 +1922,12 @@ async function renderFull(p, longEdge, fmt, q) {
   const W = Math.round(p.w * k), H = Math.round(p.h * k);
   const raw = document.createElement('canvas'); raw.width = W; raw.height = H; raw.getContext('2d').drawImage(bmp, 0, 0, W, H); bmp.close && bmp.close();
   const healed = applyHeals(raw, p.s.heals);
-  R.load(raw, healed);
+  R.load(raw, healed, faceN(p));
   bindMasksAndWarp(p);
   R.setDisp(buildDisp(allOps(p), W, H));
   R.setCurve(curveLUT(p.s.curve));
   await bindBgImage(p.s.bgImage);
-  R.drawMain(mainUniforms(p.s), bgBlurRad(p.s));
+  R.drawMain(Object.assign(mainUniforms(p.s), photoUniforms(p)), bgBlurRad(p.s));
   const g = geometry(p.s, W, H, false);
   let ow = Math.round(g.outW), oh = Math.round(g.outH);
   if (longEdge && Math.max(ow, oh) > longEdge) { const f = longEdge / Math.max(ow, oh); ow = Math.round(ow * f); oh = Math.round(oh * f); }
@@ -1821,6 +1973,7 @@ async function start() {
   $('flipH').addEventListener('click', () => { if (!cur) return; cur.s.flipH = !cur.s.flipH; invalidate('view'); commit(); });
   $('swapAR').addEventListener('click', () => { if (!cur || cur.s.aspect === 'free') return; setAspect(cur.s.aspect); });
   $('autoTone').addEventListener('click', autoTone);
+  $('autoRet').addEventListener('click', autoRetouch);
   $('autoWB').addEventListener('click', autoWB);
   $('bgFile').addEventListener('change', async (e) => {
     const f = e.target.files[0]; e.target.value = ''; if (!f || !cur) return;

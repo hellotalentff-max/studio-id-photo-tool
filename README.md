@@ -120,6 +120,7 @@ The freebie sheets and the 35 × 45 mm sheet are made for **102 × 153 mm** phot
 
 `photo-editor.html` (ClickRetouch) is an Evoto-style portrait retouching and batch photo editor that runs in the browser. Add a whole shoot, retouch one photo, then sync the settings to the rest.
 
+- **✨ Auto retouch**: measures each face (skin texture, blemishes, dark circles, shine, teeth colour) and sets the retouch sliders to suit that face. With several photos selected, each photo gets its own settings. **Auto tone** exposes for faces and fixes white balance from the greys and whites in the photo
 - **Portrait**: skin smoothing (with a keep-texture control), blemishes and acne, wrinkles, dark circles, eye bags, oil and shine, even skin tone, skin brightness and warmth, body skin. Face shape: slim face, V-line jaw, cheekbones, chin, forehead, head size, eye size, nose, mouth, smile. Brighten and whiten eyes, whiten teeth, lip colour and blush. Works on every face in the photo
 - **Adjust**: exposure, contrast, highlights, shadows, whites, blacks, auto tone, temperature, tint, auto and picked white balance, vibrance, saturation, HSL colour mixer, tone curve (RGB and per channel), colour grading, clarity, texture, dehaze, sharpen, vignette, grain and fade
 - **Background**: blur, replace with a colour or an image, clean up backdrop wrinkles and seams, background brightness and saturation
