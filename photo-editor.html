@@ -312,7 +312,7 @@ const DEFS = {
   faceSlim: S('Slim face', -100, 100), jaw: S('V-line jaw', -100, 100), cheekbones: S('Cheekbones', -100, 100),
   chin: S('Chin length', -100, 100), forehead: S('Forehead height', -100, 100), headSize: S('Head size', -100, 100),
   eyeSize: S('Eye size', -100, 100), noseSlim: S('Slim nose', -100, 100), mouthSize: S('Mouth size', -100, 100), smile: S('Smile', -100, 100),
-  eyeBright: S('Brighten eyes', 0, 100), eyeWhite: S('Whiten eyes', 0, 100), teeth: S('Whiten teeth', 0, 100),
+  eyeBright: S('Brighten eyes', 0, 100), eyeWhite: S('Whiten eyes', 0, 100), teeth: S('Whiten teeth', 0, 100), irisFlare: S('Iris flare', 0, 100), eyeColAmt: S('Eye colour', 0, 100),
   lipAmt: S('Lip colour', 0, 100), blushAmt: S('Blush', 0, 100), contour: S('Contour', 0, 100), highlight: S('Highlight', 0, 100),
   hairDye: S('Hair colour', 0, 100), hairShine: S('Shine', 0, 100), hairBright: S('Brightness', -100, 100), hairSmooth: S('Smooth frizz', 0, 100), flyaways: S('Remove flyaways', 0, 100),
   clothWrinkle: S('Remove wrinkles', 0, 100), clothColorAmt: S('Colour change', 0, 100), clothBright: S('Brightness', -100, 100), clothSat: S('Saturation', -100, 100),
@@ -342,7 +342,7 @@ function defaults() {
   const s = {};
   for (const k in DEFS) s[k] = DEFS[k].def;
   Object.assign(s, {
-    lipColor: '#b8344f', blushColor: '#e2777a', hairColor: '#6b3a22', clothColor: '#1e3a8a', hslH: Array(8).fill(0), hslS: Array(8).fill(0), hslL: Array(8).fill(0),
+    eyeColor: '#6b8f3a', lipColor: '#b8344f', blushColor: '#e2777a', hairColor: '#6b3a22', clothColor: '#1e3a8a', hslH: Array(8).fill(0), hslS: Array(8).fill(0), hslL: Array(8).fill(0),
     curve: { rgb: flatCurve(), r: flatCurve(), g: flatCurve(), b: flatCurve() },
     bgMode: 'none', bgColor: '#ffffff', bgImage: null,
     lights: [], goboType: 'none', goboFrom: 'left', goboColor: '#ffe6bd', goboTarget: 'all', sunX: 0.85, sunY: 0.12, rimColor: '#ffffff', leakStyle: 'none', bokehStyle: 'warm',
@@ -354,7 +354,7 @@ function defaults() {
 const GROUP_KEYS = {
   skin: ['smooth', 'smoothTex', 'blemish', 'wrinkles', 'darkCircles', 'eyeBags', 'shine', 'evenTone', 'skinBright', 'skinWarm', 'bodySmooth'],
   shape: ['faceSlim', 'jaw', 'cheekbones', 'chin', 'forehead', 'headSize', 'eyeSize', 'noseSlim', 'mouthSize', 'smile'],
-  features: ['eyeBright', 'eyeWhite', 'teeth'],
+  features: ['eyeBright', 'eyeWhite', 'irisFlare', 'eyeColAmt', 'eyeColor', 'teeth'],
   makeup: ['lipAmt', 'lipColor', 'blushAmt', 'blushColor', 'contour', 'highlight'],
   hair: ['hairDye', 'hairColor', 'hairShine', 'hairBright', 'hairSmooth', 'flyaways'],
   clothes: ['clothWrinkle', 'clothColorAmt', 'clothColor', 'clothBright', 'clothSat'],
@@ -638,7 +638,7 @@ vec3 scr(vec3 a,vec3 b){return 1.-(1.-a)*(1.-clamp(b,0.,1.));}
     main: mk(LIB + `
 uniform sampler2D S,L,B,BL,G1,G2,G3,M1,M2,SEG,BGI,CRV;
 uniform float hasSkin,fwN;uniform vec2 skinC,skinT,downUV;
-uniform sampler2D SEG2,M3,LMK;uniform float nM;uniform vec4 mA[4],mB[4];uniform float contourA,highA,hairDye,hairShine,hairBright,hairSmooth,flyA,clothWr,clothA,clothBr,clothSat;uniform vec3 hairCol,clothCol;
+uniform sampler2D SEG2,M3,LMK;uniform float nM;uniform vec4 mA[4],mB[4];uniform float nI,irisF,eyeColA;uniform vec3 eyeCol;uniform vec4 irs[12];uniform float contourA,highA,hairDye,hairShine,hairBright,hairSmooth,flyA,clothWr,clothA,clothBr,clothSat;uniform vec3 hairCol,clothCol;
 uniform sampler2D HM;uniform vec2 aspN;
 uniform float nL,amb,shp,nF;uniform vec4 lP[5],lC[5],lQ[5],fE[6];
 uniform float gType,gAmt,gScale,gAng,gSoft,gTgt,gDir,gReach,gFront;uniform vec3 gCol;
@@ -752,7 +752,19 @@ void main(){
  // lipstick: the colour takes over, its own lightness is partly kept (dark shades go darker), the lip texture and gloss stay
  if(lipA>0.){float L=lum(c);float tl=mix(L,L*(.55+lum(lipC)*.9),.6);vec3 lc=setLum(lipC,tl)+(s-g1)*.35;
   c=mix(c,lc,clamp(m1.g*min(1.,lipA*1.4),0.,1.));}
- c=mix(c,setLum(mix(c,blushC,.7),lum(c)),m2.g*blushA*.55);
+ // blush: the colour washed over the cheek's own shading
+ c=mix(c,setLum(mix(c,blushC,.85),lum(c)*(.96+.04*lum(blushC))),clamp(m2.g*blushA*.9,0.,1.));
+ // iris: flare (bright radial fibres, strongest low in the iris, opposite the usual catchlight) and colour.
+ // Only the visible iris: outside the pupil, inside the eye opening.
+ for(int i=0;i<12;i++){if(float(i)>=nI)break;
+  vec2 dq=(pN0-irs[i].xy)/irs[i].z;float d=length(dq);if(d>1.05)continue;
+  float ring=smoothstep(.3,.42,d)*(1.-smoothstep(.88,1.02,d))*clamp(m2.r*1.4,0.,1.);
+  if(ring<=0.)continue;
+  if(eyeColA>0.){float L=lum(c);c=mix(c,setLum(mix(c,eyeCol,.85),clamp(L*1.08+.02,0.,1.)),ring*eyeColA*.75);}
+  if(irisF>0.){float an=atan(dq.y,dq.x);float fib=.55+.45*sin(an*31.+sin(an*7.)*2.)*sin(an*13.+1.3);
+   float low=.45+.55*smoothstep(-.3,.7,dq.y);float fl=ring*fib*low*smoothstep(.35,.7,d);
+   c+=(c*.9+.05)*fl*irisF*.9;c=mix(vec3(lum(c)),c,1.+fl*irisF*.5);}
+ }
  // contour (warm-brown shading) and highlight
  vec4 m3=texture(M3,uv)*hasLm;
  c=mix(c,c*vec3(.8,.7,.64),clamp(m3.r*contourA*.85,0.,1.));
@@ -1147,7 +1159,12 @@ function drawMasks(faces, W, H) {
   layer((x, P, f, ew) => { x.filter = `blur(${ew * 0.03}px)`; poly(x, P, LM.eyeR); x.fill(); poly(x, P, LM.eyeL); x.fill(); });
   layer((x, P, f, ew) => {
     const fw = dist(P(234), P(454));
-    for (const i of [50, 280]) { const p = P(i), r = fw * 0.16, g = x.createRadialGradient(p.x, p.y, 0, p.x, p.y, r); g.addColorStop(0, '#fff'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.beginPath(); x.ellipse(p.x, p.y, r, r * 0.8, 0, 0, 7); x.fill(); }
+    for (const [i, side] of [[50, 234], [280, 454]]) {
+      const a = P(i), o = P(side), p = { x: a.x + (o.x - a.x) * 0.15, y: a.y + (o.y - a.y) * 0.15 }, r = fw * 0.2;
+      const g = x.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+      g.addColorStop(0, '#fff'); g.addColorStop(0.45, 'rgba(255,255,255,0.85)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g; x.beginPath(); x.ellipse(p.x, p.y, r, r * 0.8, Math.atan2(o.y - a.y, o.x - a.x) * 0.3, 0, 7); x.fill();
+    }
   });
   layer((x, P, f, ew) => {
     if (f.length < 478) return; x.filter = `blur(${ew * 0.03}px)`;
@@ -1393,7 +1410,7 @@ function mainUniforms(s) {
     shine: k(s.shine), even_: k(s.evenTone), sBright: k(s.skinBright), sWarm: k(s.skinWarm), body: k(s.bodySmooth),
     hairDye: k(s.hairDye), hairShine: k(s.hairShine), hairBright: k(s.hairBright), hairSmooth: k(s.hairSmooth), flyA: k(s.flyaways), hairCol: hex2rgb(s.hairColor),
     clothWr: k(s.clothWrinkle), clothA: k(s.clothColorAmt), clothBr: k(s.clothBright), clothSat: k(s.clothSat), clothCol: hex2rgb(s.clothColor),
-    contourA: k(s.contour), highA: k(s.highlight), eyeB: k(s.eyeBright), eyeW: k(s.eyeWhite), teeth: k(s.teeth), lipA: k(s.lipAmt), blushA: k(s.blushAmt), lipC: hex2rgb(s.lipColor), blushC: hex2rgb(s.blushColor),
+    contourA: k(s.contour), highA: k(s.highlight), irisF: k(s.irisFlare), eyeColA: k(s.eyeColAmt), eyeCol: hex2rgb(s.eyeColor), eyeB: k(s.eyeBright), eyeW: k(s.eyeWhite), teeth: k(s.teeth), lipA: k(s.lipAmt), blushA: k(s.blushAmt), lipC: hex2rgb(s.lipColor), blushC: hex2rgb(s.blushColor),
     bgMode: { none: 0, blur: 1, color: 2, image: 3 }[s.bgMode] || 0, bgEdge: k(s.bgEdge), bgClean: k(s.bgClean), bgBright: k(s.bgBright), bgSat: k(s.bgSat), bgCol: hex2rgb(s.bgColor),
     expo: s.exposure, contr: k(s.contrast), hiL: k(s.highlights), shL: k(s.shadows), whi: k(s.whites), bla: k(s.blacks),
     temp: k(s.temp), tint: k(s.tint), vib: k(s.vibrance), sat: k(s.saturation), clar: k(s.clarity), textr: k(s.texture), dehaze: k(s.dehaze), sharp: k(s.sharpen), fade: k(s.fade),
@@ -1667,7 +1684,7 @@ function faceStats(p) {
 }
 // Per-photo shader inputs: measured skin tone and the "down the face" direction for the under-eye fix.
 function photoUniforms(p) {
-  const u = { hasSkin: 0, skinC: [0, 0], skinT: [1, 1], downUV: [0, 0.03], nF: 0, fE: { v4: new Float32Array(24) }, fwN: faceN(p) || 0.25 };
+  const u = { hasSkin: 0, skinC: [0, 0], skinT: [1, 1], downUV: [0, 0.03], nF: 0, fE: { v4: new Float32Array(24) }, fwN: faceN(p) || 0.25, nI: 0, irs: { v4: new Float32Array(48) } };
   const st = p.stats;
   if (st) { u.hasSkin = 1; u.skinC = [st.skin.cb, st.skin.cr]; u.skinT = [Math.max(st.skin.sb * 2.5, 0.02), Math.max(st.skin.sr * 2.5, 0.02)]; }
   if (p.an && p.an.faces.length) {
@@ -1679,6 +1696,10 @@ function photoUniforms(p) {
       E.set([(f[10].x + f[152].x) / 2 * ax, (f[10].y + f[152].y) / 2 * ay, fw * 0.55, fh * 0.58], i * 4);
     });
     u.fE = { v4: E }; u.nF = Math.min(6, n);
+    // irises (centre and radius, from the iris landmarks)
+    const I = new Float32Array(48); let ni = 0;
+    for (const f of p.an.faces) { if (f.length < 478) continue; for (const [c0, r0] of [[468, 469], [473, 474]]) { if (ni >= 12) break; I.set([f[c0].x * ax, f[c0].y * ay, Math.hypot((f[r0].x - f[c0].x) * ax, (f[r0].y - f[c0].y) * ay) * 1.05, 0], ni * 4); ni++; } }
+    u.irs = { v4: I }; u.nI = ni;
   }
   return u;
 }
@@ -1923,7 +1944,9 @@ function buildPanels() {
   GROUP_KEYS.shape.forEach((k) => sliderRow(k, b));
   note(b, 'For body slimming or anything else, use the Liquify brush above the photo.');
   b = section('portrait', 'Eyes & teeth', 'features');
-  GROUP_KEYS.features.forEach((k) => sliderRow(k, b));
+  ['eyeBright', 'eyeWhite', 'irisFlare', 'teeth'].forEach((k) => sliderRow(k, b));
+  sliderRow('eyeColAmt', b);
+  swatches(b, 'eyeColor', ['#5a3a22', '#8a5a2b', '#9a7a3a', '#6b8f3a', '#3f7a5a', '#4a7fb5', '#7aa6d6', '#8a9aa8', '#b08a3a', '#7a5aa8']);
   b = section('portrait', 'Makeup', 'makeup', false);
   sliderRow('lipAmt', b); swatches(b, 'lipColor', ['#b8344f', '#d0475f', '#c2185b', '#a83c32', '#e57373', '#8e2440', '#d98a8a']);
   sliderRow('blushAmt', b); swatches(b, 'blushColor', ['#e2777a', '#f08a9a', '#e59a7a', '#d46a7e', '#f4a2a2']);
@@ -2093,7 +2116,7 @@ function syncUI() {
   if (!cur) return;
   for (const k in DEFS) if (ui[k]) ui[k].set(cur.s[k]);
   ui.masks && ui.masks.set();
-  for (const k of ['lipColor', 'blushColor', 'hairColor', 'clothColor', 'bgColor', 'goboColor', 'rimColor', 'goboType', 'goboFrom', 'goboTarget', 'leakStyle', 'bokehStyle', 'lights']) ui[k] && ui[k].set();
+  for (const k of ['eyeColor', 'lipColor', 'blushColor', 'hairColor', 'clothColor', 'bgColor', 'goboColor', 'rimColor', 'goboType', 'goboFrom', 'goboTarget', 'leakStyle', 'bokehStyle', 'lights']) ui[k] && ui[k].set();
   ui.hsl.set(); drawCurve();
   document.querySelectorAll('#bgModes button').forEach((b) => b.classList.toggle('on', b.dataset.m === cur.s.bgMode));
   $('bgBlurBox').hidden = cur.s.bgMode !== 'blur'; $('bgColBox').hidden = cur.s.bgMode !== 'color'; $('bgImgBox').hidden = cur.s.bgMode !== 'image';
