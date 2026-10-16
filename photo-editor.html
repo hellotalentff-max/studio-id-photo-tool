@@ -249,7 +249,7 @@ dialog .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
   <div class="f"><span>Photos</span><select id="exScope"></select></div>
   <div class="f"><span>Format</span><select id="exFmt"><option value="image/jpeg">JPEG</option><option value="image/png">PNG</option><option value="image/webp">WebP</option></select></div>
   <div class="f"><span>Quality</span><input type="range" id="exQ" min="60" max="100" value="92"></div>
-  <div class="f"><span>Print size</span><select id="exPrint"><option value="">None (keep the photo's pixels)</option><option value="4x6">4R · 4 × 6 in</option><option value="5x7">5R · 5 × 7 in</option><option value="8x10">8 × 10 in</option><option value="8x24">8 × 24 in</option></select></div>
+  <div class="f"><span>Print size</span><select id="exPrint"><option value="">None (keep the photo's pixels)</option><option value="4x6">4R · 4 × 6 in</option><option value="5x7">5R · 5 × 7 in</option><option value="8x10">8 × 10 in</option><option value="8x24">8 × 24 in</option><option value="2x2">2 × 2 in (ID photo)</option><option value="35x45">35 × 45 mm (ID photo)</option></select></div>
   <div class="note" id="exPrintNote" hidden></div>
   <div class="f" id="exSizeRow"><span>Long edge</span><select id="exSize"><option value="0">Original size</option><option value="4000">4000 px</option><option value="3000">3000 px</option><option value="2048">2048 px</option><option value="1080">1080 px (social)</option></select></div>
   <div class="f"><span>File name</span><input type="text" id="exSuffix" value="_retouched"></div>
@@ -1580,7 +1580,7 @@ function drawOverlay(g, v) {
     x.fillStyle = 'rgba(8,8,10,.78)';
     x.beginPath(); x.rect(v.x, v.y, v.dw, v.dh); x.rect(rx, ry, rw, rh); x.fill('evenodd');
     const [Ww] = R.size, f = (cur.w || Ww) / Ww, wpx = Math.round(cr.w * g.OW * f), hpx = Math.round(cr.h * g.OH * f);
-    const asp = cur.s.aspect === 'free' ? 'Free' : cur.s.aspect === 'orig' ? 'Original' : (PRINT_LABEL[cur.s.aspect] || cur.s.aspect);
+    const asp = cur.s.aspect === 'free' ? 'Free' : cur.s.aspect === 'orig' ? 'Original' : (PRINT_LABEL[cur.s.aspect] || STUDIO_LABEL[cur.s.aspect] || cur.s.aspect);
     const lab = `${asp}${cur.s.aspectSwap ? ' (turned)' : ''} · ${wpx} × ${hpx} px`;
     x.font = `600 ${12 * dpr}px system-ui`; x.textBaseline = 'middle'; x.textAlign = 'left';
     const tw = x.measureText(lab).width + 16 * dpr, ly = ry > 30 * dpr ? ry - 16 * dpr : ry + 16 * dpr;
@@ -1973,6 +1973,15 @@ function changed(key) {
   invalidate('main');
 }
 
+
+// The studio's own sizes for framing a photo: the ID photo sizes and the frame shapes on the freebie sheets (ratios of the frame
+// boxes in freebie-templates.html). Each key is width:height; the label shows in the crop box.
+const STUDIO_SIZES = [
+  ['Studio ID sizes', [['2:2', '2×2 in'], ['35:45', '35×45 mm']]],
+  ['Freebie frames', [['253:380', 'Minis frame'], ['89:59', 'Besties frame'], ['85:128', 'Solo frame'], ['52:61', 'Christmas card']]]
+];
+const STUDIO_LABEL = Object.fromEntries(STUDIO_SIZES.flatMap(([, l]) => l));
+
 function buildPanels() {
   // Portrait
   let b = section('portrait', '✨ Auto retouch', null);
@@ -2097,7 +2106,8 @@ function buildPanels() {
   // Crop
   b = section('crop', 'Crop & rotate', 'geo');
   const ar = document.createElement('div'); ar.className = 'btnrow'; ar.id = 'aspects';
-  ar.innerHTML = [['free', 'Free'], ['orig', 'Original'], ['1:1', '1:1'], ['4:5', '4:5'], ['2:3', '2:3'], ['3:4', '3:4'], ['4:6', '4R · 4×6 in'], ['5:7', '5R · 5×7 in'], ['8:10', '8×10 in'], ['8:24', '8×24 in'], ['16:9', '16:9'], ['9:16', '9:16']].map(([k, l]) => `<button data-a="${k}">${l}</button>`).join('');
+  ar.innerHTML = [['free', 'Free'], ['orig', 'Original'], ['1:1', '1:1'], ['4:5', '4:5'], ['2:3', '2:3'], ['3:4', '3:4'], ['4:6', '4R · 4×6 in'], ['5:7', '5R · 5×7 in'], ['8:10', '8×10 in'], ['8:24', '8×24 in'], ['16:9', '16:9'], ['9:16', '9:16']].map(([k, l]) => `<button data-a="${k}">${l}</button>`).join('')
+    + STUDIO_SIZES.map(([h, l]) => `<div class="h4" style="flex-basis:100%;margin:6px 0 0">${h}</div>` + l.map(([k, n]) => `<button data-a="${k}">${n}</button>`).join('')).join('');
   b.appendChild(ar);
   const rt = document.createElement('div'); rt.className = 'btnrow';
   rt.innerHTML = '<button id="rotL">⟲ 90°</button><button id="rotR">⟳ 90°</button><button id="flipH">⇋ Flip</button><button id="swapAR">Swap ↕↔</button>';
@@ -3018,8 +3028,8 @@ function exPrintSync() {
   const k = $('exPrint').value, pr = PRINTS[k];
   $('exSizeRow').hidden = !!k; $('exPrintNote').hidden = !k;
   if (pr) {
-    const a = `${pr[0]}:${pr[1]}`, match = cur && cur.s.aspect === a;
-    $('exPrintNote').textContent = `${pr[0] * pr[2]} × ${pr[1] * pr[2]} px at ${pr[2]} dpi (turned to match each photo). ` + (match ? 'This photo is already cropped to this size.' : `Photos not cropped to ${PRINT_LABEL[a]} are trimmed evenly to fit. To choose the framing, use Crop → ${PRINT_LABEL[a]} first.`);
+    const a = pr[3] || `${pr[0]}:${pr[1]}`, match = cur && cur.s.aspect === a;
+    $('exPrintNote').textContent = `${Math.round(pr[0] * pr[2])} × ${Math.round(pr[1] * pr[2])} px at ${pr[2]} dpi (turned to match each photo). ` + (match ? 'This photo is already cropped to this size.' : `Photos not cropped to ${PRINT_LABEL[a]} are trimmed evenly to fit. To choose the framing, use Crop → ${PRINT_LABEL[a]} first.`);
   }
   try { localStorage.setItem('clickretouch-print', k); } catch (e) {}
 }
@@ -3034,12 +3044,13 @@ function loadZip() {
 function save(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 20000); }
 // Print sizes: exact print pixels, turned to match the photo (portrait or landscape). 8 x 24 in is 250 dpi on
 // phones and tablets, which refuse canvases much over 16 MP (same as the freebie page's large sheets).
-const PRINTS = { '4x6': [4, 6, 300], '5x7': [5, 7, 300], '8x10': [8, 10, 300], '8x24': [8, 24, isTouch ? 250 : 300] };
-const PRINT_LABEL = { '4:6': '4R · 4×6 in', '5:7': '5R · 5×7 in', '8:10': '8×10 in', '8:24': '8×24 in' };
+// A 4th number is the crop key when it is not simply width:height in inches (35 x 45 mm is not a whole number of inches).
+const PRINTS = { '4x6': [4, 6, 300], '5x7': [5, 7, 300], '8x10': [8, 10, 300], '8x24': [8, 24, isTouch ? 250 : 300], '2x2': [2, 2, 300, '2:2'], '35x45': [35 / 25.4, 45 / 25.4, 300, '35:45'] };
+const PRINT_LABEL = { '4:6': '4R · 4×6 in', '5:7': '5R · 5×7 in', '8:10': '8×10 in', '8:24': '8×24 in', '2:2': '2×2 in', '35:45': '35×45 mm' };
 function printDims(key, ow, oh) {
   const pr = PRINTS[key]; if (!pr) return null;
   const [a, b, dpi] = pr, land = ow > oh;
-  return { w: (land ? b : a) * dpi, h: (land ? a : b) * dpi, dpi };
+  return { w: Math.round((land ? b : a) * dpi), h: Math.round((land ? a : b) * dpi), dpi };
 }
 // Puts the print resolution (dots per inch) in a JPEG's JFIF header, so printers print it at the right size.
 async function setJpegDpi(blob, dpi) {
