@@ -92,6 +92,18 @@ The Christmas artwork keeps a **0.05 in margin** (about 1.3 mm) clear of the pap
 
 Two Christmas card layouts (₱70 each, like the special layouts) have their own greeting space: **Christmas card** (1 photo) and **Christmas collage** (1 big + 2 small). They use Classic red when no design is picked. All artwork is drawn in code, so it prints sharp.
 
+## Canvas Studio
+
+`canvas.html` works like a new document in Photoshop: **set the page size first, then place the photos on it.**
+
+1. **Page size**: pick a preset (4R, 5R, 8 × 10 in, 8 × 24 in, the studio's 102 × 153 mm sheet, 2 × 2 in, 35 × 45 mm, A4) or type any width and height in inches, millimetres or pixels, with the resolution in dpi and a page colour. The pixel size is shown before the page is made. A page with more pixels than the device can handle (about 16 million on phones, 50 million on computers) is made at a lower dpi, and the page says so. 8 × 24 in starts at 250 dpi, like the other tools.
+2. **Photos**: add several at once or drop them on the page. Each photo is placed fitted inside the page. Drag it to move, drag a corner of its box to resize, use the sliders for size and turn, or the buttons Fit inside page, Fill the page, Fit width, Fit height, Centre, Flip, 90° turns, Duplicate and Remove. Arrow keys nudge the selected photo (Shift for bigger steps). The list orders the photos front to back.
+3. **Behind the photos**: the page colour, a **blurred copy of the selected photo** (fills the empty space with no account or upload), or transparent (PNG).
+4. **Generative AI fill**: extends the picture into the empty part of the page, for example a half-length portrait on an 8 × 24 in page ("continue the wall and floor", "extend the body down to full length" in the Tell the AI box). It uses Google's Gemini image model with **your own API key**, pasted in the page and kept only on that device (each staff device needs its own; set a spending limit on the key, and keep it private). The empty area is painted magenta and sent with the photos around it. Image models accept only certain shapes (nothing taller than 9:16), so a tall page is filled in two or more overlapping parts, each one seeing what the earlier parts made. The result goes into a layer **behind** the photos, so the photos are never changed; Remove AI fill undoes it, and pressing Fill again tries once more. **The page is sent to Google when Fill is pressed**, so use it only with the client's agreement. The model name can be changed in the page (default `gemini-nano-banana-2.1`), and quality is 1K or 2K.
+5. **Guides and export**: an optional safe-margin guide (default 0.05 in, never exported), then JPG or PNG at the full page size, tagged with the dpi so print apps size it correctly. Print at 100%, without "Fit to page".
+
+Everything except the AI fill runs in the browser; photos are not uploaded.
+
 ## Video editor
 
 `video-editor.html` (ClickCut) is a CapCut-style video editor that runs in the browser. Import videos, photos and music, arrange them on a timeline (a magnetic main track plus overlay, text and audio layers), then trim, split, reorder and export.
