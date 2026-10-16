@@ -697,8 +697,17 @@
     }
     ctx.restore();
   }
+  // The Christmas artwork keeps 0.05 in clear of the paper edge, so a printer that trims or misses the very edge does not cut it off.
+  const XMAS_MARGIN_IN = 0.05;
+  const xmasMargin = (P) => XMAS_MARGIN_IN * P.W / (P.mm[0] / 25.4);       // in design pixels (P.mm[0] is the paper width in mm)
+  function xmasInset(ctx, P) {                    // clip to the paper minus the margin, and shrink the artwork to sit inside it
+    const m = xmasMargin(P);
+    ctx.beginPath(); ctx.rect(m, m, P.W - 2 * m, P.H - 2 * m); ctx.clip();
+    ctx.translate(m, m); ctx.scale((P.W - 2 * m) / P.W, (P.H - 2 * m) / P.H);
+  }
   function drawXmasBg(ctx, P, th) {
     ctx.save();
+    xmasInset(ctx, P);
     const g = ctx.createRadialGradient(P.W / 2, P.H * 0.4, P.W * 0.1, P.W / 2, P.H * 0.5, Math.max(P.W, P.H) * 0.75);
     g.addColorStop(0, th.bg[0]); g.addColorStop(1, th.bg[1]);
     ctx.fillStyle = g; ctx.fillRect(0, 0, P.W, P.H);
@@ -739,9 +748,11 @@
     // holly in two corners (top corners when the logo sits bottom right)
     const hs = Math.min(P.W, P.H) * (t.card ? 0.15 : 0.12);
     const br = t.logo && t.logo.where === 'bottomRight';
+    ctx.save(); xmasInset(ctx, P);                 // inside the 0.05 in margin, like the background
     holly(ctx, hs * 0.55, hs * 0.5, hs, 0.6);
     if (br) holly(ctx, P.W - hs * 0.55, hs * 0.5, hs, Math.PI - 0.6);
     else holly(ctx, P.W - hs * 0.55, P.H - hs * 0.5, hs, Math.PI + 0.6);
+    ctx.restore();
     if (opts && opts.thumb) { ctx.restore(); return; }
     const greet = xmasCfg.greet || 'Merry Christmas', sub = xmasCfg.sub || '';
     if (t.card && t.greet) {

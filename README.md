@@ -88,6 +88,8 @@ Notes:
 
 Below the sheet preview, **🎄 Christmas design** turns every sheet into a Christmas version at no extra charge, so a package's free prints can be Christmas prints: Classic red, Green & gold, Snow white or Candy cane. The frames stay the same; the design adds snowflakes or sparkles, a thin coloured line around each photo, a fine border, and holly in two corners. All four designs use white or cream backgrounds with only fine coloured details, to save printer ink (the studio asked for no solid colour areas). An optional greeting (default "Merry Christmas", plus a second line such as the family name) is written over the first photo of each sheet. The choice is remembered on the device.
 
+The Christmas artwork keeps a **0.05 in margin** (about 1.3 mm) clear of the paper edge on all four sides, so the border, candy-cane band, holly and snowflakes are not cut off when the printer trims or misses the very edge. The margin is the same 0.05 in on every paper size (`XMAS_MARGIN_IN` in the file); the artwork is shrunk slightly to sit inside it, and the photos and greeting are not moved.
+
 Two Christmas card layouts (₱70 each, like the special layouts) have their own greeting space: **Christmas card** (1 photo) and **Christmas collage** (1 big + 2 small). They use Classic red when no design is picked. All artwork is drawn in code, so it prints sharp.
 
 ## Video editor
