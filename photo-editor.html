@@ -129,7 +129,6 @@ dialog .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;margin:8px 0}.pgrid .full{grid-column:1/3}.pgrid label{display:block;font-size:11.5px;color:var(--mut);margin-bottom:2px}.pgrid input,.pgrid select{width:100%}
 .pbtns{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.pbtns button{flex:1 1 auto;justify-content:center}
 .pinfo{font-size:11.5px;color:var(--acc);margin:6px 0}.pwarn{font-size:11.5px;color:#f0c27a;background:rgba(240,194,122,.1);border-radius:7px;padding:7px 9px;margin:8px 0;line-height:1.45}
-.aistat{font-size:12px;min-height:1.4em;margin:6px 0;color:var(--mut)}
 </style>
 </head>
 <body>
@@ -1541,8 +1540,8 @@ const SETUPS = [
 ];
 const bgBlurRad = (s) => 1.5 + Math.pow(s.bgBlur / 100, 1.5) * 55;   // px of blur at a 768 px long edge; eases in
 // A page (set in Crop → Page size) can be bigger than the photo. Outside the photo the shader paints the page colour, with the
-// blurred or AI-made backdrop picture over it (that picture is placed by a rectangle in the photo's own frame, so it follows the photo).
-const pageRect = (pg) => { const r = pg.mode === 'ai' ? pg.ai : pg.mode === 'blur' ? pg.blurRect : null; return r ? [r.x, r.y, r.w, r.h] : null; };
+// blurred-photo backdrop picture over it (that picture is placed by a rectangle in the photo's own frame, so it follows the photo).
+const pageRect = (pg) => { const r = pg.mode === 'blur' ? pg.blurRect : null; return r ? [r.x, r.y, r.w, r.h] : null; };
 function finalUniforms(s, g) {
   const u = { M: g.M, vig: s.vignette / 100, vigMid: s.vigMid / 100, outAR: g.outW / g.outH, grain: s.grain / 100 };
   const pg = s.page;
@@ -1613,7 +1612,7 @@ function drawOverlay(g, v) {
       x.save(); x.beginPath(); x.rect(rx, ry, rw, rh); x.clip();
       x.beginPath(); x.rect(0, 0, c.width, c.height); x.rect(v.x, v.y, v.dw, v.dh); x.clip('evenodd');
       x.fillStyle = pg.bg || '#ffffff'; x.fillRect(rx, ry, rw, rh);
-      const bc = pg.mode === 'ai' ? cur.aiCanvas : pg.mode === 'blur' ? cur.blurCanvas : null, br = pg.mode === 'ai' ? pg.ai : pg.mode === 'blur' ? pg.blurRect : null;
+      const bc = pg.mode === 'blur' ? cur.blurCanvas : null, br = pg.mode === 'blur' ? pg.blurRect : null;
       if (bc && br) x.drawImage(bc, v.x + br.x * v.dw, v.y + br.y * v.dh, br.w * v.dw, br.h * v.dh);
       x.restore();
     }
@@ -2150,7 +2149,7 @@ function buildPanels() {
   // Page size (like a new document), then the crop tools
   b = section('crop', 'Page size', null);
   b.innerHTML = `
-    <div class="note">Set the size of the finished picture first, like a new document in Photoshop, then frame the photo inside it. The page can be bigger than the photo (an 8 × 24 in page around a normal portrait); the empty space gets a colour, a blurred copy of the photo, or an AI-made extension.</div>
+    <div class="note">Set the size of the finished picture first, like a new document in Photoshop, then frame the photo inside it. The page can be bigger than the photo (an 8 × 24 in page around a normal portrait); the empty space gets a colour or a blurred copy of the photo.</div>
     <div class="pgrid">
       <div class="full"><label for="pgPreset">Preset</label><select id="pgPreset">${PAGE_PRESETS.map((p, i) => `<option value="${i}">${p[0]}</option>`).join('')}</select></div>
       <div><label for="pgW">Width</label><input type="number" id="pgW" min="0.1" step="any" value="8"></div>
@@ -2165,7 +2164,7 @@ function buildPanels() {
       <div class="pbtns"><button id="pgFit">Fit inside</button><button id="pgFill">Fill the page</button><button id="pgW2">Fit width</button><button id="pgH2">Fit height</button><button id="pgCenter">Centre</button></div>
       <div class="note">Or drag the box on the photo: drag inside to move the page over the photo, drag a corner to make the photo bigger or smaller on the page.</div>
       <div class="h4">Empty space on the page</div>
-      <div class="seg" id="pgMode"><button data-m="color">Colour</button><button data-m="blur">Blurred photo</button><button data-m="ai">AI fill</button></div>
+      <div class="seg" id="pgMode"><button data-m="color">Colour</button><button data-m="blur">Blurred photo</button></div>
       <div class="row" style="grid-template-columns:1fr auto;margin-top:8px"><label>Page colour</label><input type="color" id="pgColor" value="#ffffff"></div>
       <div class="row" id="pgBlurBox"><label>Blur</label><span class="val" id="pgBlurVal">40</span><input type="range" id="pgBlur" min="5" max="120" step="1" value="40"></div>
     </div>`;
@@ -2202,29 +2201,6 @@ function buildPanels() {
   const cd = document.createElement('div'); cd.className = 'btnrow';
   cd.innerHTML = '<button class="primary" id="cropDone">✓ Done, show the cropped photo</button>'; b.appendChild(cd);
   cd.querySelector('button').addEventListener('click', () => { commit(); setTab(tabBeforeCrop || 'adjust'); });
-  b = section('crop', 'Generative AI fill', null);
-  b.innerHTML = `
-    <div class="note">Extends the picture into the empty part of the page, for example a half-length portrait on an 8 × 24 in page. Set a page size, make the photo smaller than the page, then press Fill. The page is sent to Google's Gemini service, in one or more parts. The photo is not changed: the result goes behind it.</div>
-    <div class="pgrid">
-      <div class="full"><label for="aiHint">Tell the AI (optional)</label><input type="text" id="aiHint" maxlength="200" placeholder="e.g. continue the plain cream studio wall and floor"></div>
-      <div class="full"><label for="aiKey">Gemini API key</label><div style="display:flex;gap:6px"><input type="password" id="aiKey" autocomplete="off" placeholder="Paste your key"><button id="aiShow" type="button">Show</button></div></div>
-      <div><label for="aiModel">Model</label><input type="text" id="aiModel" value="gemini-nano-banana-2.1"></div>
-      <div><label for="aiSize">Quality</label><select id="aiSize"><option value="1K">1K (fastest)</option><option value="2K" selected>2K (sharper)</option></select></div>
-    </div>
-    <div class="pwarn">The page is sent to Google when you press Fill, so use it only with the client's agreement. The key is saved on this device only (in the browser): each device needs its own. Keep the key private and set a spending limit on it.</div>
-    <div class="pbtns"><button class="primary" id="aiFill">Fill the empty area</button><button id="aiRemove">Remove AI fill</button></div>
-    <button id="aiCancel" hidden style="width:100%;justify-content:center">Cancel</button>
-    <div class="aistat" id="aiStat" role="status" aria-live="polite"></div>`;
-  try { const o = JSON.parse(localStorage.getItem(AI_KEY) || '{}'); if (o.key) $('aiKey').value = o.key; if (o.model) $('aiModel').value = o.model; if (o.size) $('aiSize').value = o.size; } catch (e) {}
-  ['aiKey', 'aiModel', 'aiSize'].forEach((id) => $(id).addEventListener('change', saveAiSettings));
-  $('aiShow').addEventListener('click', () => { const pw = $('aiKey').type === 'password'; $('aiKey').type = pw ? 'text' : 'password'; $('aiShow').textContent = pw ? 'Hide' : 'Show'; });
-  $('aiFill').addEventListener('click', aiFillPage);
-  $('aiCancel').addEventListener('click', () => { if (aiAbort) aiAbort.abort(); });
-  $('aiRemove').addEventListener('click', () => {
-    if (!cur || !cur.s.page) return; const pg = cur.s.page;
-    pg.ai = null; cur.aiCanvas = null; DB.del('blobs', 'ai-' + cur.id); if (pg.mode === 'ai') pg.mode = 'color'; R.setBack(null);
-    aiStat('AI fill removed.'); syncUI(); invalidate('view'); commit();
-  });
 }
 
 // ---------------------------------------------------------------- curve editor
@@ -2418,7 +2394,7 @@ $('selAll').addEventListener('click', () => { photos.forEach((p) => selected.add
 $('removeBtn').addEventListener('click', () => {
   const ids = [...selected]; if (!ids.length) return;
   if (!confirm(`Remove ${ids.length} photo${ids.length > 1 ? 's' : ''} from the editor? Your original files are not touched.`)) return;
-  for (const id of ids) { const i = photos.findIndex((p) => p.id === id); if (i >= 0) photos.splice(i, 1); DB.del('meta', id); DB.del('blobs', id); DB.del('blobs', 'ai-' + id); }
+  for (const id of ids) { const i = photos.findIndex((p) => p.id === id); if (i >= 0) photos.splice(i, 1); DB.del('meta', id); DB.del('blobs', id); }
   photos.forEach((p, i) => { if (p.order !== i) { p.order = i; saveMeta(p); } });
   selected.clear();
   if (!photos.includes(cur)) { cur = null; R.unload(); if (photos.length) open(photos[0]); else { $('empty').style.display = ''; drawOverlay(); const x = R.gl; x.bindFramebuffer(x.FRAMEBUFFER, null); x.clearColor(0.04, 0.04, 0.045, 1); x.clear(x.COLOR_BUFFER_BIT); } }
@@ -2716,10 +2692,9 @@ function setAspect(a) {
   syncUI(); invalidate('view'); commit();
 }
 
-// ---------------------------------------------------------------- page size (like a new document in Photoshop) and generative fill
+// ---------------------------------------------------------------- page size (like a new document in Photoshop)
 // A page is the crop box allowed to reach past the photo: the output is the page, with the photo placed inside it. Where the page is
-// bigger than the photo, the page colour shows, with an optional backdrop picture (a blurred copy of the photo, or an AI-made
-// extension) over it. The backdrop is placed by a rectangle in the photo's own frame, so it stays with the photo when the photo moves.
+// bigger than the photo, the page colour shows, with an optional backdrop picture (a blurred copy of the photo) over it. The backdrop is placed by a rectangle in the photo's own frame, so it stays with the photo when the photo moves.
 const PAGE_PRESETS = [
   ['4R · 4 × 6 in', 4, 6, 'in', 300], ['5R · 5 × 7 in', 5, 7, 'in', 300], ['8 × 10 in', 8, 10, 'in', 300], ['8 × 24 in', 8, 24, 'in', 250],
   ['Studio sheet · 102 × 153 mm', 102, 153, 'mm', 300], ['2 × 2 in', 2, 2, 'in', 300], ['35 × 45 mm', 35, 45, 'mm', 300], ['A4 · 210 × 297 mm', 210, 297, 'mm', 300],
@@ -2748,7 +2723,7 @@ function pageFit(mode) {
 }
 function setPage(w, h, dpi) {
   const s = cur.s, old = s.page;
-  s.page = Object.assign({ bg: '#ffffff', mode: 'color', blur: 40, ai: null, blurRect: null }, old || {}, { w, h, dpi });
+  s.page = Object.assign({ bg: '#ffffff', mode: 'color', blur: 40, blurRect: null }, old || {}, { w, h, dpi });
   s.aspect = `${w}:${h}`; s.aspectSwap = false;
   pageFit('contain');
 }
@@ -2772,17 +2747,11 @@ function rebuildBlur(p, src) {
   p.blurCanvas = c; const cr = p.s.crop; pg.blurRect = { x: cr.x, y: cr.y, w: cr.w, h: cr.h };
   if (p === cur && R.loaded) { R.setBack(c); invalidate('view'); }
 }
-async function ensureAi(p) {
-  if (p.aiCanvas || !p.s.page || !p.s.page.ai) return;
-  const r = await DB.get('blobs', 'ai-' + p.id); if (!r || !r.blob) return;
-  const bmp = await createImageBitmap(r.blob), c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
-  c.getContext('2d').drawImage(bmp, 0, 0); bmp.close && bmp.close(); p.aiCanvas = c;
-}
 // hands the photo's backdrop picture (if its page uses one) to the renderer
 async function bindBack(p, src) {
   const pg = p.s.page;
-  if (!pg || pg.mode === 'color') { R.setBack(null); return; }
-  if (pg.mode === 'ai') { await ensureAi(p); R.setBack(p.aiCanvas || null); return; }
+  if (pg && pg.mode === 'ai') { pg.mode = 'color'; pg.ai = null; }                       // pages saved while the AI fill existed
+  if (!pg || pg.mode !== 'blur') { R.setBack(null); return; }
   rebuildBlur(p, src); R.setBack(p.blurCanvas || null);
 }
 function syncPageUI() {
@@ -2793,117 +2762,13 @@ function syncPageUI() {
     $('pgNote').style.display = 'none';
     $('pgInfo').textContent = `Page: ${pg.w} × ${pg.h} px at ${pg.dpi} dpi (${(pg.w / pg.dpi).toFixed(2)} × ${(pg.h / pg.dpi).toFixed(2)} in). The photo is saved at exactly this size.`;
     $('pgColor').value = pg.bg || '#ffffff'; $('pgBlur').value = pg.blur; $('pgBlurBox').hidden = pg.mode !== 'blur';
-    document.querySelectorAll('#pgMode button').forEach((b) => { b.classList.toggle('on', b.dataset.m === pg.mode); if (b.dataset.m === 'ai') b.disabled = !pg.ai; });
+    document.querySelectorAll('#pgMode button').forEach((b) => b.classList.toggle('on', b.dataset.m === pg.mode));
   } else showPageSize();
-  $('aiRemove').disabled = !(pg && pg.ai);
 }
 function showPageSize() {
   const z = pageSizeInput();
   $('pgInfo').textContent = z ? `${z.w} × ${z.h} px at ${z.dpi} dpi (${(z.w / z.dpi).toFixed(2)} × ${(z.h / z.dpi).toFixed(2)} in)` : 'Enter a width and a height.';
   $('pgNote').textContent = z ? z.note : ''; $('pgNote').style.display = z && z.note ? '' : 'none';
-}
-
-// ---- generative fill (Google Gemini, with your own API key)
-// The empty part of the page is painted magenta and sent with the photo around it; the model is asked to replace the magenta with a
-// seamless continuation. The result goes behind the photo, so the photo itself is never altered. Image models accept only certain
-// shapes (nothing taller than 9:16), so a tall page such as 8 x 24 in is filled in overlapping parts, each one seeing the earlier parts.
-const AI_KEY = 'clickretouch-gemini', AI_RATIOS = [['1:1', 1], ['2:3', 2 / 3], ['3:2', 3 / 2], ['3:4', 3 / 4], ['4:3', 4 / 3], ['4:5', 4 / 5], ['5:4', 5 / 4], ['9:16', 9 / 16], ['16:9', 16 / 9], ['21:9', 21 / 9]];
-const aiStat = (m) => { $('aiStat').textContent = m || ''; };
-const saveAiSettings = () => { try { localStorage.setItem(AI_KEY, JSON.stringify({ key: $('aiKey').value.trim(), model: $('aiModel').value.trim(), size: $('aiSize').value })); } catch (e) {} };
-function findImages(o, out = []) {                      // the answer's layout differs between Gemini interfaces, so look for any image part
-  if (!o || typeof o !== 'object') return out;
-  if (o.type === 'image' && typeof o.data === 'string') out.push({ mime: o.mime_type || o.mimeType || 'image/png', data: o.data });
-  const inl = o.inlineData || o.inline_data; if (inl && typeof inl.data === 'string') out.push({ mime: inl.mimeType || inl.mime_type || 'image/png', data: inl.data });
-  Object.values(o).forEach((v) => findImages(v, out));
-  return out;
-}
-function findText(o, out = []) { if (!o || typeof o !== 'object') return out; if (typeof o.text === 'string') out.push(o.text); Object.values(o).forEach((v) => findText(v, out)); return out; }
-async function callGemini(key, model, prompt, b64, ratio, size, signal) {
-  const post = async (url, body) => {
-    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body), signal });
-    let j = null; try { j = await res.json(); } catch (e) {}
-    return { ok: res.ok, status: res.status, j };
-  };
-  const base = 'https://generativelanguage.googleapis.com/v1beta/', input = [{ type: 'text', text: prompt }, { type: 'image', mime_type: 'image/jpeg', data: b64 }];
-  const keyBad = (x) => !x.ok && x.j && x.j.error && /API key|API_KEY/i.test(x.j.error.message || '');
-  let r = await post(base + 'interactions', { model, input, response_format: { type: 'image', mime_type: 'image/png', aspect_ratio: ratio, image_size: size } });
-  if (!r.ok && !keyBad(r) && r.status === 400) r = await post(base + 'interactions', { model, input });                    // without the output settings
-  if (!r.ok && !keyBad(r) && (r.status === 404 || r.status === 400)) {                                                   // older models answer on generateContent
-    const r2 = await post(base + 'models/' + encodeURIComponent(model) + ':generateContent', {
-      contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'image/jpeg', data: b64 } }] }],
-      generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: ratio } }
-    });
-    if (r2.ok || !r.j) r = r2;
-  }
-  if (!r.ok) {
-    const m = r.j && r.j.error && r.j.error.message ? r.j.error.message : 'HTTP ' + r.status;
-    throw new Error(keyBad(r) || r.status === 401 || r.status === 403 ? 'Google rejected the API key (' + m + ')' : r.status === 429 ? 'Too many requests or the spending limit was reached: ' + m : m);
-  }
-  const imgs = findImages(r.j);
-  if (!imgs.length) throw new Error('The AI did not return a picture.' + (findText(r.j)[0] ? ' It said: ' + findText(r.j)[0].slice(0, 200) : ''));
-  return imgs[imgs.length - 1];
-}
-const b64Blob = (b64, mime) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: mime }); };
-const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
-let aiAbort = null;
-async function aiFillPage() {
-  const p = cur;
-  if (!p || !p.s.page) { aiStat('Set a page size first (Page size, above).'); return; }
-  const key = $('aiKey').value.trim(); if (!key) { aiStat('Paste your Gemini API key first.'); $('aiKey').focus(); return; }
-  const pg = p.s.page, c0 = { ...p.s.crop };
-  if (c0.x >= -1e-3 && c0.y >= -1e-3 && c0.x + c0.w <= 1 + 1e-3 && c0.y + c0.h <= 1 + 1e-3) { aiStat('Nothing to fill: the photo already covers the page. Make the photo smaller in the page first (Fit inside page, or drag a corner of the box outwards).'); return; }
-  saveAiSettings();
-  const model = $('aiModel').value.trim() || 'gemini-nano-banana-2.1', size = $('aiSize').value, hint = $('aiHint').value.trim();
-  frame();                                                        // make sure the photo's pixels are current
-  const [W, H] = R.size, g = geometry(p.s, W, H, false);
-  const aiScale = Math.min(1, 3600 / Math.max(pg.w, pg.h)), AW = Math.max(2, Math.round(pg.w * aiScale)), AH = Math.max(2, Math.round(pg.h * aiScale));
-  // the photo as placed on the page (transparent where the page is empty): this also tells which pixels are the photo's
-  const photoC = R.exportCanvas(Object.assign(finalUniforms(p.s, g), { padC: [0, 0, 0, 0], hasBK: 0 }), AW, AH);
-  const ai = mkCanvas(AW, AH), aix = ai.getContext('2d');
-  const pr = AW / AH; let best = AI_RATIOS[0]; AI_RATIOS.forEach((r) => { if (Math.abs(Math.log(r[1] / pr)) < Math.abs(Math.log(best[1] / pr))) best = r; });
-  const winW = AW, winH = Math.round(AW / best[1]), wins = [];
-  if (winH >= AH) wins.push({ y: Math.round((AH - winH) / 2) });
-  else { const n = Math.ceil((AH - winH) / (winH * 0.75)) + 1; for (let i = 0; i < n; i++) wins.push({ y: Math.round(i * (AH - winH) / (n - 1)) }); }
-  let sy = 0, sn = 0; { const d = photoC.getContext('2d').getImageData(0, 0, AW, AH).data; for (let y = 0; y < AH; y += 8) for (let x = 0; x < AW; x += 8) if (d[(y * AW + x) * 4 + 3] > 128) { sy += y; sn++; } }
-  const mid = sn ? sy / sn : AH / 2; wins.sort((a, b) => Math.abs(a.y + winH / 2 - mid) - Math.abs(b.y + winH / 2 - mid));   // next to the photo first
-  aiAbort = new AbortController(); $('aiFill').disabled = true; $('aiCancel').hidden = false;
-  const warnings = []; let done = 0, any = false;
-  try {
-    for (const w of wins) {
-      aiStat(`AI fill: part ${done + 1} of ${wins.length}… this takes about 10–30 seconds.`);
-      const target = mkCanvas(winW, winH), tx = target.getContext('2d');       // what still needs filling: not the photo, not filled yet
-      tx.fillStyle = '#fff'; tx.fillRect(0, 0, winW, winH); tx.globalCompositeOperation = 'destination-out';
-      tx.drawImage(photoC, 0, -w.y); tx.drawImage(ai, 0, -w.y); tx.globalCompositeOperation = 'source-over';
-      const probe = mkCanvas(48, Math.max(1, Math.round(48 * winH / winW))), pcx = probe.getContext('2d'); pcx.drawImage(target, 0, 0, probe.width, probe.height);
-      const pd = pcx.getImageData(0, 0, probe.width, probe.height).data; let need = false;
-      for (let i = 3; i < pd.length; i += 4) if (pd[i] > 40) { need = true; break; }
-      if (!need) { done++; continue; }
-      const send = Math.min(1, 1536 / Math.max(winW, winH)), sw = Math.round(winW * send), sh = Math.round(winH * send);
-      const comp = mkCanvas(sw, sh), px = comp.getContext('2d');             // what the model sees: magenta where it must paint
-      px.fillStyle = '#ff00ff'; px.fillRect(0, 0, sw, sh);
-      px.setTransform(send, 0, 0, send, 0, -w.y * send); px.drawImage(ai, 0, 0); px.drawImage(photoC, 0, 0); px.setTransform(1, 0, 0, 1, 0, 0);
-      const jpeg = await new Promise((res) => comp.toBlob(res, 'image/jpeg', 0.9));
-      const b64 = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(jpeg); });
-      const prompt = 'This picture has areas painted solid magenta (#FF00FF). Replace every magenta area with newly generated picture content that continues the rest of the picture naturally: the same lighting, perspective, colours, background and texture, joining seamlessly with the edges of what is already there. ' +
-        'Keep every non-magenta pixel exactly as it is: do not move, resize, crop, retouch or restyle it. Do not add borders, frames, text, logos, watermarks or extra people. Return the whole picture at the same framing and shape.' +
-        (hint ? ' Extra instruction from the photographer: ' + hint : '');
-      const out = await callGemini(key, model, prompt, b64, best[0], size, aiAbort.signal);
-      const bmp = await createImageBitmap(b64Blob(out.data, out.mime));
-      if (Math.abs(bmp.width / bmp.height - sw / sh) / (sw / sh) > 0.06) warnings.push('The AI returned a slightly different shape, so part ' + (done + 1) + ' was stretched to fit.');
-      const gen = mkCanvas(winW, winH), gx = gen.getContext('2d'); gx.drawImage(bmp, 0, 0, winW, winH); bmp.close && bmp.close();
-      const mask = mkCanvas(winW, winH), mx = mask.getContext('2d'); mx.filter = `blur(${Math.max(2, Math.round(winW / 300))}px)`; mx.drawImage(target, 0, 0); mx.filter = 'none';
-      gx.globalCompositeOperation = 'destination-in'; gx.drawImage(mask, 0, 0); gx.globalCompositeOperation = 'source-over';   // keep only what is new, with a soft edge
-      aix.drawImage(gen, 0, w.y); any = true; done++;
-    }
-    aiStat('AI fill done. It sits behind the photo: Remove AI fill undoes it, or press Fill again to try once more.' + (warnings.length ? ' ' + warnings.join(' ') : ''));
-  } catch (e) {
-    aiStat(e.name === 'AbortError' ? 'AI fill cancelled.' + (any ? ' The parts finished so far are kept.' : '') : 'AI fill failed: ' + e.message + (/Failed to fetch|NetworkError/i.test(e.message) ? ' Check the internet connection.' : ''));
-  } finally { aiAbort = null; $('aiFill').disabled = false; $('aiCancel').hidden = true; }
-  if (any && p.s.page === pg) {
-    p.aiCanvas = ai; pg.ai = c0; pg.mode = 'ai';
-    ai.toBlob((b) => b && DB.put('blobs', { id: 'ai-' + p.id, blob: b }), 'image/png');
-    if (cur === p) { R.setBack(ai); syncUI(); invalidate('view'); commit(); }
-  }
 }
 
 // ---------------------------------------------------------------- masks (local adjustments, like Lightroom's Masking)
@@ -3137,7 +3002,7 @@ $('zoomFit').addEventListener('click', () => { zoom = 1; panX = panY = 0; invali
 
 let spaceDown = false;
 document.addEventListener('keydown', (e) => {
-  if (e.target.matches('input[type=text],input[type=number],input[type=password],textarea,select')) return;
+  if (e.target.matches('input[type=text],input[type=number],textarea,select')) return;
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
