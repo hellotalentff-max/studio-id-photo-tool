@@ -669,7 +669,7 @@ vec3 hslAdj(float h){for(int i=0;i<8;i++){float a=cen(i);float b=i==7?360.:cen(i
  return vec3(hslH[0],hslS[0],hslL[0]);}
 void main(){
  vec3 s=texture(S,uv).rgb,l=texture(L,uv).rgb,b=texture(B,uv).rgb,g1=texture(G1,uv).rgb,g2=texture(G2,uv).rgb;
- vec4 m1=texture(M1,uv)*hasLm,m2=texture(M2,uv)*hasLm,sg=texture(SEG,uv);
+ vec4 m1=texture(M1,uv)*hasLm,m2=texture(M2,uv)*hasLm,m3=texture(M3,uv)*hasLm,sg=texture(SEG,uv);
  vec2 d=px*fineR;vec2 e=d*.7071;
  vec3 fine=(texture(S,uv+vec2(d.x,0.)).rgb+texture(S,uv-vec2(d.x,0.)).rgb+texture(S,uv+vec2(0.,d.y)).rgb+texture(S,uv-vec2(0.,d.y)).rgb
   +texture(S,uv+e).rgb+texture(S,uv-e).rgb+texture(S,uv+vec2(e.x,-e.y)).rgb+texture(S,uv+vec2(-e.x,e.y)).rgb)*.125;
@@ -709,10 +709,17 @@ void main(){
  // skin samples around a real spot are lighter or less red. Replace the spot with the clean ring colour, not
  // the blur (which still contains the spot and left a faint mark).
  float dk=lum(g1)-sl0,rd=scr0-cbcr(g1).y;
- float iso=max(step(4.5,w1)*s1/max(w1,1.),step(4.5,w2)*s2/max(w2,1.));
- float spot=max(smoothstep(.01,.04,dk),smoothstep(.008,.03,rd)*smoothstep(-.005,.01,dk))*smoothstep(.4,.7,iso)*skin;
+ // a bump or spot is darker or redder all the way round; a shadow or fold (smile line, side of the nose, jaw)
+ // is dark along its length, so some ring samples on it are just as dark and it is left alone
+ float iso1=step(4.5,w1)*s1/max(w1,1.),iso2=step(4.5,w2)*s2/max(w2,1.);
+ float compact=max(smoothstep(.8,.96,iso1),smoothstep(.8,.96,iso2));
+ float keepSh=1.-m3.b;   // the face's natural shadow lines, from the landmarks
+ float darkSpot=smoothstep(.012,.045,dk)*compact*keepSh;
+ float redSpot=smoothstep(.008,.03,rd)*smoothstep(-.005,.01,dk)*max(smoothstep(.65,.88,iso1),smoothstep(.65,.88,iso2))*(1.-m3.b*.6);
+ float spot=max(darkSpot,redSpot)*skin;
  // fill colour: the average of the skin samples on the closer ring (the wider ring when the spot is large)
  vec3 ring=w1>4.5?(dk>.05&&w2>4.5?e2/w2:e1/w1):(w2>4.5?e2/w2:g1);
+ ring=mix(ring,setLum(ring,lum(g1)),.35);   // a touch of the local tone, so the fill is not a shade lighter than the skin around it
  float sp=clamp(spot*blemish*1.6,0.,1.);
  float flat_=1.-smoothstep(.03,.1,abs(lum(g1)-lum(b)));
  vec3 tg=mix(l,mix(b,bl,.45*sm),sm);
@@ -725,13 +732,15 @@ void main(){
  // tiny pimples at full detail: a small dark dot with lighter skin all round; pores are fainter and stay
  if(blemish>0.){vec2 fr=px*fineR*3.;vec3 fa=vec3(0.);float fc=0.,ls=lum(s);
   for(int i=0;i<8;i++){float an=float(i)*.7854+.39;vec3 q=texture(S,uv+vec2(cos(an),sin(an))*fr).rgb;fa+=q;fc+=step(.02,lum(q)-ls);}
-  fa/=8.;float tiny=smoothstep(.035,.075,lum(fa)-ls)*(1.-smoothstep(.12,.2,lum(fa)-ls))*step(7.5,fc)*skin*(1.-smoothstep(.03,.06,length(cbcr(fa)-cbcr(s))+0.));
+  fa/=8.;float tiny=smoothstep(.035,.075,lum(fa)-ls)*(1.-smoothstep(.12,.2,lum(fa)-ls))*step(7.5,fc)*skin*(1.-m3.b)*(1.-smoothstep(.03,.06,length(cbcr(fa)-cbcr(s))+0.));
   c=mix(c,c+clamp(fa-s,-.1,.1),clamp(tiny*blemish*1.3,0.,1.));}
- // dark circles: lift the under-eye to match the cheek just below it
+ // dark circles: the under-eye takes on the colour and tone of the cheek just below it (its own skin texture
+ // stays), so it blends into the skin instead of being lightened; it never ends up brighter than that cheek
  vec3 ref=texture(BL,uv+downUV).rgb;
- float lift=max(0.,lum(ref)-lum(bl));
- c+=vec3(lift*1.15)*ue*darkC;
- c=mix(c,setLum(ref,lum(c)),ue*darkC*.55);
+ // (the shifts are capped: right under the lashes the blurred skin still holds some of the eye's darkness)
+ vec3 chr=(ref-vec3(lum(ref)))-(bl-vec3(lum(bl)));
+ float ld=clamp(lum(ref)-lum(bl),-.02,.07);
+ c=mix(c,c+clamp(chr,-.04,.04)+vec3(ld),clamp(ue*darkC,0.,1.));
  // shine
  float sk=clamp(skin+bodyS*.6,0.,1.);
  float hl=max(0.,lum(s)-lum(g2));
@@ -768,7 +777,6 @@ void main(){
    c+=(c*.9+.05)*fl*irisF*.9;c=mix(vec3(lum(c)),c,1.+fl*irisF*.5);}
  }
  // contour (warm-brown shading) and highlight
- vec4 m3=texture(M3,uv)*hasLm;
  c=mix(c,c*vec3(.8,.7,.64),clamp(m3.r*contourA*.85,0.,1.));
  c+=(1.-c)*m3.g*highA*.32;
  // hair (AI hair mask): smooth frizz, shine, brightness, colour, and flyaway strands outside the hair shape
@@ -1215,7 +1223,21 @@ function drawMasks(faces, W, H) {
     const up = { x: (P(10).x - P(152).x) / fh, y: (P(10).y - P(152).y) / fh };
     dot({ x: P(0).x + up.x * fh * 0.015, y: P(0).y + up.y * fh * 0.015 }, fw * 0.02);
   });
-  return { m1: raw(layers[0], layers[1], layers[2], layers[3]), m2: raw(layers[4], layers[5], layers[6], layers[7]), m3: raw(layers[8], layers[9], layers[8].map(() => 0), layers[8].map(() => 255)) };
+  // natural face shadows that blemish removal must leave alone: smile lines, sides of the nose, the chin crease
+  layer((x, P, f, ew) => {
+    const fw = dist(P(234), P(454)), fh = dist(P(10), P(152)), dn = { x: (P(152).x - P(10).x) / fh, y: (P(152).y - P(10).y) / fh };
+    const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    x.filter = `blur(${fw * 0.03}px)`; x.lineCap = x.lineJoin = 'round';
+    const line = (pts, w) => { x.lineWidth = w; x.beginPath(); pts.forEach((p, i) => i ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y)); x.stroke(); };
+    for (const [alar, mouth, side] of [[129, 61, 234], [358, 291, 454]]) {
+      const out = (p, k) => { const sd = P(side), d = Math.hypot(sd.x - p.x, sd.y - p.y) || 1; return { x: p.x + (sd.x - p.x) / d * fw * k, y: p.y + (sd.y - p.y) / d * fw * k }; };
+      const m = P(mouth), end = { x: out(m, 0.07).x + dn.x * fh * 0.08, y: out(m, 0.07).y + dn.y * fh * 0.08 };
+      line([P(alar), out(lerp(P(alar), m, 0.5), 0.05), out(m, 0.06), end], fw * 0.07);
+    }
+    line([P(193), P(129)], fw * 0.06); line([P(417), P(358)], fw * 0.06);
+    const ch = lerp(P(17), P(152), 0.4); x.beginPath(); x.ellipse(ch.x, ch.y, fw * 0.12, fw * 0.035, Math.atan2(P(291).y - P(61).y, P(291).x - P(61).x), 0, 7); x.fill();
+  });
+  return { m1: raw(layers[0], layers[1], layers[2], layers[3]), m2: raw(layers[4], layers[5], layers[6], layers[7]), m3: raw(layers[8], layers[9], layers[10], layers[8].map(() => 255)) };
 }
 
 // ---------------------------------------------------------------- warps (face reshape + liquify)
