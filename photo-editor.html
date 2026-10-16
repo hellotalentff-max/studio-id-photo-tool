@@ -628,6 +628,8 @@ vec3 scr(vec3 a,vec3 b){return 1.-(1.-a)*(1.-clamp(b,0.,1.));}
 `;
   const P = {
     copy: mk('uniform sampler2D t;void main(){o=texture(t,uv);}'),
+    // background colour weighted by the background mask (rgb*b, b), for background-only blurs
+    bgw: mk('uniform sampler2D T,SEG;uniform float hasSeg;void main(){float b=hasSeg>.5?smoothstep(.3,.7,texture(SEG,uv).b):1.;o=vec4(texture(T,uv).rgb*b,b);}'),
     // r: rough height of the people (body + faces) for light shading, g: person mask (blurred later)
     hmap: mk('uniform sampler2D SEG,M2;uniform float hasSeg,hasLm;void main(){float p=hasSeg>.5?1.-texture(SEG,uv).b:0.;o=vec4(clamp(p*.75+texture(M2,uv).a*.5*hasLm,0.,1.),p,0.,1.);}'),
     blur: mk(`uniform sampler2D t;uniform vec2 dir;void main(){vec4 a=vec4(0.);float ws=0.;
@@ -636,7 +638,7 @@ vec3 scr(vec3 a,vec3 b){return 1.-(1.-a)*(1.-clamp(b,0.,1.));}
       for(int j=-5;j<=5;j++)for(int i=-5;i<=5;i++){vec2 q=vec2(float(i),float(j));float r2=dot(q,q);if(r2>30.)continue;
       vec3 c=texture(t,uv+q*px*rad/5.).rgb;vec3 dc=c-c0;float w=exp(-r2/12.5-dot(dc,dc)/(2.*sig*sig));a+=c*w;ws+=w;}o=vec4(a/ws,1.);}`),
     main: mk(LIB + `
-uniform sampler2D S,L,B,BL,G1,G2,G3,M1,M2,SEG,BGI,CRV;
+uniform sampler2D S,L,B,BL,G1,G2,G3,G4,M1,M2,SEG,CRV;
 uniform float hasSkin,fwN;uniform vec2 skinC,skinT,downUV;
 uniform sampler2D SEG2,M3,LMK;uniform float nM;uniform vec4 mA[4],mB[4];uniform float nI,irisF,eyeColA;uniform vec3 eyeCol;uniform vec4 irs[12];uniform float contourA,highA,hairDye,hairShine,hairBright,hairSmooth,flyA,clothWr,clothA,clothBr,clothSat;uniform vec3 hairCol,clothCol;
 uniform sampler2D HM;uniform vec2 aspN;
@@ -812,10 +814,14 @@ void main(){
  if(hasSeg>.5){
   float w=.02+bgEdge*.45;
   float bg=smoothstep(.5-w,.5+w,sg.b);
-  c=mix(c,c+(g2-l)+(fine-s)*.6,bg*bgClean);
-  if(bgMode>.5&&bgMode<1.5)c=mix(c,texture(G3,uv).rgb,bg);
+  // G3/G4 are blurs of the background only (colour weighted by the background mask, then divided by it),
+  // so the person's colours never bleed into the backdrop as a halo
+  // clean backdrop: large wrinkles, folds and seams smoothed; the backdrop's fine texture partly kept
+  vec4 cw=texture(G4,uv);vec3 cl=cw.a>.02?cw.rgb/cw.a:l;
+  c=mix(c,c+(cl-l)+(fine-s)*.3,bg*bgClean*smoothstep(.05,.3,cw.a));
+  if(bgMode>.5&&bgMode<1.5){vec4 bw=texture(G3,uv);vec3 bb=bw.a>.02?bw.rgb/bw.a:c;c=mix(c,bb,bg*smoothstep(.02,.2,bw.a));}
   else if(bgMode>1.5&&bgMode<2.5)c=mix(c,bgCol,bg);
-  else if(bgMode>2.5&&hasBgi>.5)c=mix(c,texture(BGI,bgiFit.xy+uv*bgiFit.zw).rgb,bg);
+  else if(bgMode>2.5&&hasBgi>.5)c=mix(c,texture(G3,bgiFit.xy+uv*bgiFit.zw).rgb,bg);
   c*=1.+bgBright*.5*bg;
   c=mix(vec3(lum(c)),c,1.+bgSat*bg);
  }
@@ -1028,7 +1034,7 @@ void main(){
   };
 
   let d = null; // textures for the loaded photo
-  function freeDoc() { if (!d) return; for (const k of ['S0', 'S', 'L', 'B1', 'B', 'G1', 'T1', 'Hh', 'THh', 'BL', 'Q', 'TQ', 'G2', 'G3', 'HM0', 'HM', 'C', 'M1', 'M2', 'M3', 'SEG', 'SEG2', 'LMK', 'D']) if (d[k] && !(k === 'S' && d.S === d.S0)) free(d[k]); d = null; }
+  function freeDoc() { if (!d) return; for (const k of ['S0', 'S', 'L', 'B1', 'B', 'G1', 'T1', 'Hh', 'THh', 'BL', 'Q', 'TQ', 'G2', 'G3', 'G4', 'BW', 'TB', 'HM0', 'HM', 'C', 'M1', 'M2', 'M3', 'SEG', 'SEG2', 'LMK', 'D']) if (d[k] && !(k === 'S' && d.S === d.S0)) free(d[k]); d = null; }
   function statics() {
     const { L, B1, B, G1, T1, Q, TQ, G2 } = d;
     run(P.copy, L, L.w, L.h, { t: d.S }, {});
@@ -1043,7 +1049,7 @@ void main(){
     run(P.bil, BL, Hh.w, Hh.h, { t: THh.t }, { px: hp, rad: hr, sig: 0.06 });
     run(P.copy, Q, Q.w, Q.h, { t: d.S }, {});
     blur2(Q, TQ, G2, 12 * Math.max(Q.w, Q.h) / 256);
-    d.g3r = -1;
+    d.g3r = -1; d.bgDirty = true;
   }
   return {
     gl, MAXT, canvas: cv,
@@ -1062,7 +1068,9 @@ void main(){
       d.L = target(aw, ah, true); d.B1 = target(aw, ah, true); d.B = target(aw, ah, true); d.G1 = target(aw, ah, true); d.T1 = target(aw, ah, true);
       const hw = Math.max(2, Math.round(aw / 2)), hh = Math.max(2, Math.round(ah / 2));
       d.Hh = target(hw, hh, true); d.THh = target(hw, hh, true); d.BL = target(hw, hh, true);
-      d.Q = target(qw, qh, true); d.TQ = target(qw, qh, true); d.G2 = target(qw, qh, true); d.G3 = target(qw, qh, true); d.HM0 = target(qw, qh, true); d.HM = target(qw, qh, true); d.hmDirty = true;
+      d.Q = target(qw, qh, true); d.TQ = target(qw, qh, true); d.G2 = target(qw, qh, true); d.HM0 = target(qw, qh, true); d.HM = target(qw, qh, true); d.hmDirty = true;
+      const bk = Math.min(1, 768 / m), bw = Math.max(2, Math.round(W * bk)), bh = Math.max(2, Math.round(H * bk));
+      d.BW = target(bw, bh, true); d.TB = target(bw, bh, true); d.G3 = target(bw, bh, true); d.G4 = target(bw, bh, true); d.bgDirty = true;
       d.C = target(W, H, false);
       statics();
     },
@@ -1074,18 +1082,28 @@ void main(){
     },
     setMasks(m1, m2, m3) { if (!d) return; free(d.M1); free(d.M2); free(d.M3); d.M1 = m1 ? texFrom(m1) : null; d.M2 = m2 ? texFrom(m2) : null; d.M3 = m3 ? texFrom(m3) : null; d.hmDirty = true; },
     setLocalMasks(m) { if (!d) return; free(d.LMK); d.LMK = m ? texData(m.w, m.h, m.data) : null; },
-    setSeg(seg) { if (!d) return; free(d.SEG); free(d.SEG2); d.SEG = seg ? texData(seg.w, seg.h, seg.data) : null; d.SEG2 = seg && seg.data2 ? texData(seg.w, seg.h, seg.data2) : null; d.hmDirty = true; },
+    setSeg(seg) { if (!d) return; d.bgDirty = true; d.g3r = -1; free(d.SEG); free(d.SEG2); d.SEG = seg ? texData(seg.w, seg.h, seg.data) : null; d.SEG2 = seg && seg.data2 ? texData(seg.w, seg.h, seg.data2) : null; d.hmDirty = true; },
     setDisp(disp) { if (!d) return; free(d.D); d.D = disp ? texData(disp.w, disp.h, disp.data, true) : null; },
     setCurve(lut) { if (this.crv) free(this.crv); this.crv = texData(256, 1, lut); },
     setBgImage(img) { if (this.bgi) free(this.bgi); this.bgi = img ? texFrom(img) : null; this.bgiAR = img ? img.width / img.height : 1; },
     drawMain(u, bgBlurRad) {
       if (!d) return;
       if (d.hmDirty) { d.hmDirty = false; run(P.hmap, d.HM0, d.HM0.w, d.HM0.h, { SEG: d.SEG, M2: d.M2 }, { hasSeg: d.SEG ? 1 : 0, hasLm: d.M1 ? 1 : 0 }); const fq = d.fwL * d.Q.w / d.L.w, hr = clamp(fq * 0.3, 3, 24); blur2(d.HM0, d.TQ, d.HM, hr); blur2(d.HM, d.TQ, d.HM, hr * 0.7); }
-      if (u.bgMode === 1 && d.g3r !== bgBlurRad) { blur2(d.Q, d.TQ, d.G3, bgBlurRad); if (bgBlurRad > 24) blur2(d.G3, d.TQ, d.G3, bgBlurRad); d.g3r = bgBlurRad; }
+      if (d.bgDirty) {
+        d.bgDirty = false; d.g3r = -1;
+        run(P.bgw, d.BW, d.BW.w, d.BW.h, { T: d.L.t, SEG: d.SEG }, { hasSeg: d.SEG ? 1 : 0 });
+        const cr = Math.max(d.BW.w, d.BW.h) * 0.045 * 0.71;                    // clean backdrop: about 4.5% of the photo, in two passes
+        blur2(d.BW, d.TB, d.G4, cr); blur2(d.G4, d.TB, d.G4, cr);
+      }
+      if (u.bgMode === 1 && d.g3r !== bgBlurRad) {
+        const r = bgBlurRad * Math.max(d.BW.w, d.BW.h) / 768;
+        if (r <= 24) blur2(d.BW, d.TB, d.G3, r); else { blur2(d.BW, d.TB, d.G3, r * 0.71); blur2(d.G3, d.TB, d.G3, r * 0.71); }
+        d.g3r = bgBlurRad;
+      }
       const fa = d.W / d.H, ia = this.bgiAR || 1;
       const fit = ia > fa ? [(1 - fa / ia) / 2, 0, fa / ia, 1] : [0, (1 - ia / fa) / 2, 1, ia / fa];
       run(P.main, d.C, d.W, d.H,
-        { S: d.S, L: d.L.t, B: d.B.t, BL: d.BL.t, G1: d.G1.t, G2: d.G2.t, G3: d.G3.t, M1: d.M1, M2: d.M2, M3: d.M3, SEG: d.SEG, SEG2: d.SEG2, LMK: d.LMK, BGI: this.bgi, CRV: this.crv, HM: d.HM.t },
+        { S: d.S, L: d.L.t, B: d.B.t, BL: d.BL.t, G1: d.G1.t, G2: d.G2.t, G3: u.bgMode === 3 ? this.bgi : d.G3.t, G4: d.G4.t, M1: d.M1, M2: d.M2, M3: d.M3, SEG: d.SEG, SEG2: d.SEG2, LMK: d.LMK, CRV: this.crv, HM: d.HM.t },
         Object.assign({ px: [1 / d.W, 1 / d.H], fineR: Math.max(1, Math.max(d.W, d.H) / 1600), hasSeg: d.SEG ? 1 : 0, hasLm: d.M1 ? 1 : 0, hasBgi: this.bgi ? 1 : 0, bgiFit: fit, aspN: [d.W / Math.max(d.W, d.H), d.H / Math.max(d.W, d.H)] }, u));
     },
     drawFinal(u, tgt) {
@@ -1476,7 +1494,7 @@ const SETUPS = [
   ['Dreamy', (F) => ({ glow: 35, orton: 40, halation: 15, ambient: 5, lights: [mkLight(F, 0, -1.2, '#fff1e0', 40, 4, 90, 70)] })],
   ['Golden glow', (F) => ({ ambient: -20, glow: 25, rimAmt: 40, rimColor: '#ffc46b', rimAngle: 45, lights: [mkLight(F, 1.6, -1.2, '#ffcf87', 60, 3.5, 75, 30)] })],
 ];
-const bgBlurRad = (s) => 1 + s.bgBlur * 0.4;
+const bgBlurRad = (s) => 1.5 + Math.pow(s.bgBlur / 100, 1.5) * 55;   // px of blur at a 768 px long edge; eases in
 function finalUniforms(s, g) { return { M: g.M, vig: s.vignette / 100, vigMid: s.vigMid / 100, outAR: g.outW / g.outH, grain: s.grain / 100 }; }
 
 function frame() {
